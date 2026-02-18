@@ -24,6 +24,16 @@ api.interceptors.response.use(
       localStorage.removeItem("buildwise_user_name");
       window.location.href = "/login";
     }
+    // Network error or timeout — lazy import to avoid circular deps
+    if (!error.response) {
+      import("@/components/Toast").then(({ showToast }) => {
+        if (error.code === "ECONNABORTED") {
+          showToast("Request timed out. Please try again.");
+        } else {
+          showToast("Network error. Check your connection.");
+        }
+      });
+    }
     return Promise.reject(error);
   },
 );
