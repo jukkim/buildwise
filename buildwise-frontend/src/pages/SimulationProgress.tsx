@@ -105,9 +105,17 @@ export default function SimulationProgress() {
         &larr; Projects
       </Link>
 
-      <h1 className="mt-2 text-2xl font-bold text-gray-900 mb-6">
+      <h1 className="mt-2 text-2xl font-bold text-gray-900">
         Simulation Progress
       </h1>
+      {(progress.building_name || progress.climate_city) && (
+        <p className="text-sm text-gray-500 mb-4">
+          {progress.building_name}
+          {progress.building_name && progress.climate_city && " \u00b7 "}
+          {progress.climate_city}
+        </p>
+      )}
+      {!progress.building_name && !progress.climate_city && <div className="mb-6" />}
 
       {/* Progress bar */}
       <div className="mb-4">

@@ -110,6 +110,27 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
     }));
   };
 
+  const isDirty = Object.keys(draft).some((key) => {
+    const original = bps[key] ?? {};
+    const current = draft[key as SectionKey];
+    return Object.keys(current).some(
+      (f) => JSON.stringify(current[f]) !== JSON.stringify(original[f]),
+    );
+  });
+
+  const handleDiscard = () => {
+    setDraft({
+      location: { ...(bps.location ?? {}) },
+      geometry: { ...(bps.geometry ?? {}) },
+      envelope: { ...(bps.envelope ?? {}) },
+      hvac: { ...(bps.hvac ?? {}) },
+      setpoints: { ...(bps.setpoints ?? {}) },
+      internal_loads: { ...(bps.internal_loads ?? {}) },
+      schedules: { ...(bps.schedules ?? {}) },
+    });
+    setShowErrors(false);
+  };
+
   const handleSave = () => {
     const errors = validateBPS(draft);
     setValidationErrors(errors);
@@ -281,7 +302,7 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
         )}
       </div>
 
-      {/* Save button */}
+      {/* Save / Discard buttons */}
       <div className="border-t border-gray-200 px-5 py-3 flex items-center justify-between">
         <div className="text-sm">
           {error && <p className="text-red-600">{error}</p>}
@@ -289,15 +310,25 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
             <p className="text-red-500">{validationErrors.length} validation error{validationErrors.length > 1 ? "s" : ""}</p>
           )}
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="ml-auto rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-          title="Ctrl+S"
-        >
-          {saving ? "Saving..." : "Save Changes"}
-          <kbd className="ml-2 hidden sm:inline rounded bg-blue-500 px-1 py-0.5 text-xs font-mono">Ctrl+S</kbd>
-        </button>
+        <div className="flex items-center gap-2">
+          {isDirty && (
+            <button
+              onClick={handleDiscard}
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+            >
+              Discard
+            </button>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            title="Ctrl+S"
+          >
+            {saving ? "Saving..." : "Save Changes"}
+            <kbd className="ml-2 hidden sm:inline rounded bg-blue-500 px-1 py-0.5 text-xs font-mono">Ctrl+S</kbd>
+          </button>
+        </div>
       </div>
     </div>
   );

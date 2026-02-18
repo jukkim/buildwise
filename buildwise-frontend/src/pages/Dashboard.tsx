@@ -6,6 +6,7 @@ import { CardSkeleton } from "@/components/Skeleton";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { showToast } from "@/components/Toast";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
+import timeAgo from "@/utils/timeAgo";
 
 export default function Dashboard() {
   useDocumentTitle("Projects");
@@ -263,7 +264,7 @@ export default function Dashboard() {
                       </svg>
                       {p.buildings_count} buildings
                     </span>
-                    <span>{new Date(p.created_at).toLocaleDateString()}</span>
+                    <span title={new Date(p.created_at).toLocaleString()}>{timeAgo(p.created_at)}</span>
                   </div>
                 </Link>
               )}

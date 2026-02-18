@@ -106,7 +106,10 @@ async def get_progress(
     """GET /simulations/{config_id}/progress - 진행 상황 조회."""
     result = await db.execute(
         select(SimulationConfig)
-        .options(selectinload(SimulationConfig.runs))
+        .options(
+            selectinload(SimulationConfig.runs),
+            selectinload(SimulationConfig.building),
+        )
         .join(SimulationConfig.building)
         .where(SimulationConfig.id == config_id)
         .where(SimulationConfig.building.has(
@@ -125,6 +128,8 @@ async def get_progress(
 
     return {
         "config_id": config.id,
+        "building_name": config.building.name if config.building else None,
+        "climate_city": config.climate_city,
         "total_strategies": len(config.runs),
         "completed": completed,
         "running": running,

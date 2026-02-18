@@ -11,6 +11,7 @@ import useDocumentTitle from "@/hooks/useDocumentTitle";
 import BPSForm from "@/components/BPSForm";
 import { type BuildingViewerProps } from "@/components/BuildingViewer3D";
 import { Skeleton } from "@/components/Skeleton";
+import timeAgo from "@/utils/timeAgo";
 
 const BuildingViewer3D = lazy(() => import("@/components/BuildingViewer3D"));
 
@@ -316,8 +317,8 @@ export default function BuildingEditor() {
                         <span className="ml-2 text-gray-400">
                           {item.completed}/{item.total} strategies
                         </span>
-                        <span className="ml-2 text-xs text-gray-400">
-                          {new Date(item.created_at).toLocaleDateString()}
+                        <span className="ml-2 text-xs text-gray-400" title={new Date(item.created_at).toLocaleString()}>
+                          {timeAgo(item.created_at)}
                         </span>
                       </div>
                       <Link

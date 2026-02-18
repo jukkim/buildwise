@@ -13,6 +13,7 @@ import { ListSkeleton } from "@/components/Skeleton";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { showToast } from "@/components/Toast";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
+import timeAgo from "@/utils/timeAgo";
 
 const HVAC_LABELS: Record<string, string> = {
   vav_chiller_boiler: "VAV + Chiller/Boiler",
@@ -329,56 +330,59 @@ export default function ProjectDetail() {
             return (
               <div
                 key={b.id}
-                className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-5"
+                className="rounded-lg border border-gray-200 bg-white p-5"
               >
-                <div className="flex-1">
-                  <Link
-                    to={`/projects/${projectId}/buildings/${b.id}`}
-                    className="text-base font-semibold text-gray-900 hover:text-blue-600"
-                  >
-                    {b.name}
-                  </Link>
-                  <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
-                    <span className="rounded bg-gray-100 px-2 py-0.5">
-                      {b.building_type.replace(/_/g, " ")}
-                    </span>
-                    {floors != null && <span>{String(floors)}F</span>}
-                    {area != null && <span>{Number(area).toLocaleString()} m2</span>}
-                    {hvac && (
-                      <span>{HVAC_LABELS[hvac] ?? hvac}</span>
-                    )}
-                    <span>v{b.bps_version}</span>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <Link
+                      to={`/projects/${projectId}/buildings/${b.id}`}
+                      className="text-base font-semibold text-gray-900 hover:text-blue-600"
+                    >
+                      {b.name}
+                    </Link>
+                    <div className="mt-1 flex flex-wrap gap-2 text-xs text-gray-500">
+                      <span className="rounded bg-gray-100 px-2 py-0.5">
+                        {b.building_type.replace(/_/g, " ")}
+                      </span>
+                      {floors != null && <span>{String(floors)}F</span>}
+                      {area != null && <span>{Number(area).toLocaleString()} m2</span>}
+                      {hvac && (
+                        <span>{HVAC_LABELS[hvac] ?? hvac}</span>
+                      )}
+                      <span>v{b.bps_version}</span>
+                      <span title={new Date(b.updated_at).toLocaleString()}>{timeAgo(b.updated_at)}</span>
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2 ml-4">
-                  <Link
-                    to={`/projects/${projectId}/buildings/${b.id}`}
-                    className="rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
-                  >
-                    Edit
-                  </Link>
-                  <button
-                    onClick={() => cloneBuilding.mutate(b.id)}
-                    disabled={cloneBuilding.isPending}
-                    className="rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                    title="Duplicate building"
-                  >
-                    Clone
-                  </button>
-                  <button
-                    onClick={() => startSim.mutate(b.id)}
-                    disabled={startSim.isPending}
-                    className="rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
-                  >
-                    Simulate
-                  </button>
-                  <button
-                    onClick={() => setDeletingBuildingId(b.id)}
-                    className="rounded border border-red-200 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50"
-                  >
-                    Delete
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <Link
+                      to={`/projects/${projectId}/buildings/${b.id}`}
+                      className="rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                    >
+                      Edit
+                    </Link>
+                    <button
+                      onClick={() => cloneBuilding.mutate(b.id)}
+                      disabled={cloneBuilding.isPending}
+                      className="rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      title="Duplicate building"
+                    >
+                      Clone
+                    </button>
+                    <button
+                      onClick={() => startSim.mutate(b.id)}
+                      disabled={startSim.isPending}
+                      className="rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                    >
+                      Simulate
+                    </button>
+                    <button
+                      onClick={() => setDeletingBuildingId(b.id)}
+                      className="rounded border border-red-200 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             );

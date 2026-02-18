@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { simulationsApi, type EnergyResult } from "@/api/client";
 import { Skeleton } from "@/components/Skeleton";
+import { showToast } from "@/components/Toast";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 
 const STRATEGY_LABELS: Record<string, string> = {
@@ -149,16 +150,26 @@ export default function Results() {
             {comparison.climate_city}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 print:hidden">
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(window.location.href);
+              showToast("Link copied", "success");
+            }}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            title="Copy shareable link"
+          >
+            Copy Link
+          </button>
           <button
             onClick={() => window.print()}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 print:hidden"
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             Print
           </button>
           <button
             onClick={downloadCsv}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 print:hidden"
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             Download CSV
           </button>

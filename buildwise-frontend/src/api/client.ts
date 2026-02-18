@@ -72,6 +72,8 @@ export interface BuildingTemplate {
 
 export interface SimulationProgress {
   config_id: string;
+  building_name: string | null;
+  climate_city: string | null;
   total_strategies: number;
   completed: number;
   running: number;
