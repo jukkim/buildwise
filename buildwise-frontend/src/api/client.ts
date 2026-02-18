@@ -105,6 +105,8 @@ export interface EnergyResult {
 }
 
 export interface StrategyComparison {
+  building_id: string;
+  project_id: string;
   building_name: string;
   building_type: string;
   climate_city: string;

@@ -81,12 +81,20 @@ export default function Results() {
 
   return (
     <div>
-      <Link
-        to={`/simulations/${configId}/progress`}
-        className="text-sm text-blue-600 hover:underline"
-      >
-        &larr; Back to Progress
-      </Link>
+      <div className="flex gap-4 text-sm">
+        <Link
+          to={`/simulations/${configId}/progress`}
+          className="text-blue-600 hover:underline"
+        >
+          &larr; Progress
+        </Link>
+        <Link
+          to={`/projects/${comparison.project_id}/buildings/${comparison.building_id}`}
+          className="text-blue-600 hover:underline"
+        >
+          &larr; Building Editor
+        </Link>
+      </div>
 
       <div className="mt-2 flex items-center justify-between">
         <div>
@@ -94,7 +102,13 @@ export default function Results() {
             Strategy Comparison
           </h1>
           <p className="text-sm text-gray-500">
-            {comparison.building_name} &middot; {comparison.building_type.replace(/_/g, " ")} &middot;{" "}
+            <Link
+              to={`/projects/${comparison.project_id}/buildings/${comparison.building_id}`}
+              className="hover:text-blue-600 hover:underline"
+            >
+              {comparison.building_name}
+            </Link>
+            {" "}&middot; {comparison.building_type.replace(/_/g, " ")} &middot;{" "}
             {comparison.climate_city}
           </p>
         </div>

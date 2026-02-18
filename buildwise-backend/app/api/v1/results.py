@@ -94,6 +94,8 @@ async def get_results(
             reason = f"{best.savings_pct:.1f}% energy savings vs baseline"
 
     return {
+        "building_id": config.building.id,
+        "project_id": config.building.project_id,
         "building_name": config.building.name,
         "building_type": config.building.building_type.value,
         "climate_city": config.climate_city,

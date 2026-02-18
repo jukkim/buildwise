@@ -180,6 +180,8 @@ class EnergyResultResponse(BaseModel):
 
 
 class StrategyComparisonResponse(BaseModel):
+    building_id: uuid.UUID
+    project_id: uuid.UUID
     building_name: str
     building_type: str
     climate_city: str

@@ -23,8 +23,14 @@ const HVAC_TYPES = [
 
 const WALL_TYPES = ["curtain_wall", "masonry", "metal_panel", "concrete", "wood_frame"];
 const WINDOW_TYPES = ["single_clear", "double_clear", "double_low_e", "triple_low_e"];
+const OCCUPANCY_TYPES = [
+  { value: "office_standard", label: "Office (Standard)" },
+  { value: "retail", label: "Retail" },
+  { value: "school", label: "School" },
+  { value: "hospital_24h", label: "Hospital (24h)" },
+];
 
-type SectionKey = "geometry" | "location" | "envelope" | "hvac" | "setpoints";
+type SectionKey = "geometry" | "location" | "envelope" | "hvac" | "setpoints" | "internal_loads" | "schedules";
 
 export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
   const [activeSection, setActiveSection] = useState<SectionKey>("geometry");
@@ -34,6 +40,8 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
     envelope: { ...(bps.envelope ?? {}) },
     hvac: { ...(bps.hvac ?? {}) },
     setpoints: { ...(bps.setpoints ?? {}) },
+    internal_loads: { ...(bps.internal_loads ?? {}) },
+    schedules: { ...(bps.schedules ?? {}) },
   });
 
   const update = (section: SectionKey, field: string, value: unknown) => {
@@ -61,6 +69,8 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
     { key: "location", label: "Location" },
     { key: "envelope", label: "Envelope" },
     { key: "hvac", label: "HVAC" },
+    { key: "internal_loads", label: "Loads" },
+    { key: "schedules", label: "Schedules" },
     { key: "setpoints", label: "Setpoints" },
   ];
 
@@ -77,7 +87,7 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
             key={s.key}
             onClick={() => setActiveSection(s.key)}
             className={clsx(
-              "whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors",
+              "whitespace-nowrap px-3 py-3 text-sm font-medium transition-colors",
               activeSection === s.key
                 ? "border-b-2 border-blue-600 text-blue-600"
                 : "text-gray-500 hover:text-gray-700",
@@ -157,6 +167,22 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
               </>
             )}
           </>
+        )}
+
+        {activeSection === "internal_loads" && (
+          <>
+            <NumField label="People Density (ppl/m2)" value={(draft.internal_loads.people_density as number) ?? 0.0565} min={0.01} max={1} step={0.001}
+              onChange={(v) => update("internal_loads", "people_density", v)} />
+            <NumField label="Lighting Power (W/m2)" value={(draft.internal_loads.lighting_power_density as number) ?? 10.76} min={1} max={50} step={0.1}
+              onChange={(v) => update("internal_loads", "lighting_power_density", v)} />
+            <NumField label="Equipment Power (W/m2)" value={(draft.internal_loads.equipment_power_density as number) ?? 10.76} min={1} max={50} step={0.1}
+              onChange={(v) => update("internal_loads", "equipment_power_density", v)} />
+          </>
+        )}
+
+        {activeSection === "schedules" && (
+          <SelectField label="Occupancy Type" value={(draft.schedules.occupancy_type as string) ?? "office_standard"} options={OCCUPANCY_TYPES}
+            onChange={(v) => update("schedules", "occupancy_type", v)} />
         )}
 
         {activeSection === "setpoints" && (
