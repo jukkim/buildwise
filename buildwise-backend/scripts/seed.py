@@ -87,6 +87,39 @@ DEMO_BUILDINGS = [
             "simulation": {"period": "1year", "timestep": 4},
         },
     },
+    {
+        "name": "Gangnam Retail Store",
+        "building_type": BuildingType.STANDALONE_RETAIL,
+        "bps": {
+            "location": {"city": "Seoul"},
+            "geometry": {
+                "building_type": "standalone_retail",
+                "num_floors_above": 1,
+                "num_floors_below": 0,
+                "total_floor_area_m2": 2294,
+                "floor_to_floor_height_m": 6.1,
+                "aspect_ratio": 1.28,
+                "footprint_shape": "rectangle",
+                "wwr": 0.07,
+                "orientation_deg": 0,
+            },
+            "envelope": {
+                "wall_type": "metal_panel",
+                "window_type": "double_clear",
+                "window_shgc": 0.39,
+                "infiltration_ach": 0.5,
+            },
+            "hvac": {
+                "system_type": "psz_ac",
+                "autosize": True,
+                "psz_units": {"count": 4, "cop_cooling": 3.67, "cop_heating": 3.2, "has_economizer": True},
+            },
+            "internal_loads": {"people_density": 0.15, "lighting_power_density": 15.07, "equipment_power_density": 3.23},
+            "schedules": {"occupancy_type": "retail"},
+            "setpoints": {"cooling_occupied": 24.0, "heating_occupied": 21.0},
+            "simulation": {"period": "1year", "timestep": 4},
+        },
+    },
 ]
 
 

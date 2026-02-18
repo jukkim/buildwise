@@ -1,4 +1,4 @@
-.PHONY: dev db up down test lint seed migrate worker logs
+.PHONY: dev db up down test lint seed migrate worker logs full build
 
 # ---- Local infrastructure ----
 
@@ -74,6 +74,17 @@ test: backend-test
 # ---- Lint ----
 
 lint: backend-lint frontend-lint
+
+# ---- Docker full stack ----
+
+full:
+	docker-compose --profile full up -d --build
+
+full-down:
+	docker-compose --profile full down
+
+build:
+	cd buildwise-frontend && npm run build
 
 # ---- Quick Start ----
 

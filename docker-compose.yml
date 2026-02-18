@@ -52,6 +52,19 @@ services:
     profiles:
       - full
 
+  # Frontend (nginx + SPA)
+  frontend:
+    build:
+      context: ./buildwise-frontend
+      dockerfile: Dockerfile
+    container_name: buildwise-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    profiles:
+      - full
+
   # EnergyPlus (시뮬레이션 엔진)
   energyplus:
     build:
