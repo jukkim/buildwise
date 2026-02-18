@@ -6,6 +6,7 @@ import {
   simulationsApi,
   type SimulationHistoryItem,
 } from "@/api/client";
+import { showToast } from "@/components/Toast";
 import BPSForm from "@/components/BPSForm";
 import { type BuildingViewerProps } from "@/components/BuildingViewer3D";
 import { Skeleton } from "@/components/Skeleton";
@@ -57,12 +58,14 @@ export default function BuildingEditor() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["building", buildingId] });
       setSaveError(null);
+      showToast("BPS saved", "success");
     },
     onError: (err: unknown) => {
       const msg =
         (err as { response?: { data?: { detail?: { errors?: string[] } } } })
           ?.response?.data?.detail?.errors?.join("; ") ?? "Save failed";
       setSaveError(msg);
+      showToast(msg);
     },
   });
 
@@ -73,15 +76,19 @@ export default function BuildingEditor() {
       queryClient.invalidateQueries({ queryKey: ["building", buildingId] });
       queryClient.invalidateQueries({ queryKey: ["buildings", projectId] });
       setEditingName(false);
+      showToast("Building renamed", "success");
     },
+    onError: () => showToast("Failed to rename building"),
   });
 
   const simMutation = useMutation({
     mutationFn: () => simulationsApi.start(buildingId!, simCity, simPeriod),
     onSuccess: (res) => {
       setShowSimDialog(false);
+      showToast("Simulation started", "success");
       navigate(`/simulations/${res.data.config_id}/progress`);
     },
+    onError: () => showToast("Failed to start simulation"),
   });
 
   if (isLoading || !building) return (

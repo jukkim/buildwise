@@ -10,6 +10,8 @@ import {
   type BuildingTemplate,
 } from "@/api/client";
 import { ListSkeleton } from "@/components/Skeleton";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import { showToast } from "@/components/Toast";
 
 const HVAC_LABELS: Record<string, string> = {
   vav_chiller_boiler: "VAV + Chiller/Boiler",
@@ -57,15 +59,19 @@ export default function ProjectDetail() {
       setShowTemplates(false);
       setSelectedTemplate(null);
       setNewBuildingName("");
+      showToast("Building created", "success");
       navigate(`/projects/${projectId}/buildings/${res.data.id}`);
     },
+    onError: () => showToast("Failed to create building"),
   });
 
   const startSim = useMutation({
     mutationFn: (buildingId: string) => simulationsApi.start(buildingId),
     onSuccess: (res) => {
+      showToast("Simulation started", "success");
       navigate(`/simulations/${res.data.config_id}/progress`);
     },
+    onError: () => showToast("Failed to start simulation"),
   });
 
   const updateProject = useMutation({
@@ -74,15 +80,19 @@ export default function ProjectDetail() {
       queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       setEditingName(false);
+      showToast("Project renamed", "success");
     },
+    onError: () => showToast("Failed to rename project"),
   });
 
   const deleteProject = useMutation({
     mutationFn: () => projectsApi.delete(projectId!),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
+      showToast("Project deleted", "success");
       navigate("/projects");
     },
+    onError: () => showToast("Failed to delete project"),
   });
 
   const cloneBuilding = useMutation({
@@ -91,8 +101,10 @@ export default function ProjectDetail() {
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["buildings", projectId] });
       queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      showToast("Building cloned", "success");
       navigate(`/projects/${projectId}/buildings/${res.data.id}`);
     },
+    onError: () => showToast("Failed to clone building"),
   });
 
   const deleteBuilding = useMutation({
@@ -102,7 +114,9 @@ export default function ProjectDetail() {
       queryClient.invalidateQueries({ queryKey: ["buildings", projectId] });
       queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       setDeletingBuildingId(null);
+      showToast("Building deleted", "success");
     },
+    onError: () => showToast("Failed to delete building"),
   });
 
   if (projectLoading || !project) return <ListSkeleton rows={3} />;
@@ -192,24 +206,41 @@ export default function ProjectDetail() {
       {/* Template selection */}
       {showTemplates && templates && !selectedTemplate && (
         <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {templates.map((tmpl: BuildingTemplate) => (
-            <button
-              key={tmpl.building_type}
-              onClick={() => {
-                setSelectedTemplate(tmpl);
-                setNewBuildingName(tmpl.name);
-              }}
-              className="rounded-lg border border-gray-200 bg-white p-4 text-left hover:border-blue-400 hover:shadow transition-all"
-            >
-              <h4 className="font-medium text-gray-900">{tmpl.name}</h4>
-              <p className="mt-1 text-xs text-gray-500">{tmpl.description}</p>
-              {tmpl.baseline_eui_kwh_m2 && (
-                <p className="mt-2 text-xs text-gray-400">
-                  Baseline EUI: {tmpl.baseline_eui_kwh_m2} kWh/m2
-                </p>
-              )}
-            </button>
-          ))}
+          {templates.map((tmpl: BuildingTemplate) => {
+            const bps = tmpl.default_bps as Record<string, Record<string, unknown>>;
+            const floors = bps?.geometry?.num_floors_above;
+            const area = bps?.geometry?.total_floor_area_m2;
+            const hvac = bps?.hvac?.system_type as string;
+            return (
+              <button
+                key={tmpl.building_type}
+                onClick={() => {
+                  setSelectedTemplate(tmpl);
+                  setNewBuildingName(tmpl.name);
+                }}
+                className="rounded-lg border border-gray-200 bg-white p-4 text-left hover:border-blue-400 hover:shadow transition-all"
+              >
+                <h4 className="font-medium text-gray-900">{tmpl.name}</h4>
+                <p className="mt-1 text-xs text-gray-500">{tmpl.description}</p>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                  {floors != null && (
+                    <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600">{String(floors)}F</span>
+                  )}
+                  {area != null && (
+                    <span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600">{Number(area).toLocaleString()} m2</span>
+                  )}
+                  {hvac && (
+                    <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-600">{HVAC_LABELS[hvac] ?? hvac}</span>
+                  )}
+                </div>
+                {tmpl.baseline_eui_kwh_m2 && (
+                  <p className="mt-2 text-xs text-gray-400">
+                    Baseline EUI: {tmpl.baseline_eui_kwh_m2} kWh/m2
+                  </p>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -254,29 +285,15 @@ export default function ProjectDetail() {
 
       {/* Delete building confirmation */}
       {deletingBuildingId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900">Delete Building</h3>
-            <p className="mt-2 text-sm text-gray-500">
-              Are you sure? This will permanently delete this building and all its simulation data.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => setDeletingBuildingId(null)}
-                className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => deleteBuilding.mutate(deletingBuildingId)}
-                disabled={deleteBuilding.isPending}
-                className="rounded bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700 disabled:opacity-50"
-              >
-                {deleteBuilding.isPending ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title="Delete Building"
+          message="Are you sure? This will permanently delete this building and all its simulation data."
+          confirmLabel="Delete"
+          destructive
+          pending={deleteBuilding.isPending}
+          onConfirm={() => deleteBuilding.mutate(deletingBuildingId)}
+          onCancel={() => setDeletingBuildingId(null)}
+        />
       )}
 
       {/* Building list */}

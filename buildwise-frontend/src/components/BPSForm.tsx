@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import clsx from "clsx";
 
 interface BPSFormProps {
@@ -127,6 +127,20 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
     }
     if (Object.keys(patch).length > 0) onSave(patch);
   };
+
+  // Ctrl+S shortcut
+  const saveRef = useRef(handleSave);
+  saveRef.current = handleSave;
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        saveRef.current();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   const sections: { key: SectionKey; label: string }[] = [
     { key: "geometry", label: "Geometry" },
@@ -279,8 +293,10 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
           onClick={handleSave}
           disabled={saving}
           className="ml-auto rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          title="Ctrl+S"
         >
           {saving ? "Saving..." : "Save Changes"}
+          <kbd className="ml-2 hidden sm:inline rounded bg-blue-500 px-1 py-0.5 text-xs font-mono">Ctrl+S</kbd>
         </button>
       </div>
     </div>

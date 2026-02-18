@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { projectsApi, type Project } from "@/api/client";
 import { CardSkeleton } from "@/components/Skeleton";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import { showToast } from "@/components/Toast";
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
@@ -26,7 +28,9 @@ export default function Dashboard() {
       setShowCreate(false);
       setNewName("");
       setNewDesc("");
+      showToast("Project created", "success");
     },
+    onError: () => showToast("Failed to create project"),
   });
 
   const updateMutation = useMutation({
@@ -35,7 +39,9 @@ export default function Dashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       setEditingId(null);
+      showToast("Project renamed", "success");
     },
+    onError: () => showToast("Failed to rename project"),
   });
 
   const deleteMutation = useMutation({
@@ -43,7 +49,9 @@ export default function Dashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       setDeletingId(null);
+      showToast("Project deleted", "success");
     },
+    onError: () => showToast("Failed to delete project"),
   });
 
   const projects = data?.data ?? [];
@@ -122,29 +130,15 @@ export default function Dashboard() {
 
       {/* Delete confirmation */}
       {deletingId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900">Delete Project</h3>
-            <p className="mt-2 text-sm text-gray-500">
-              Are you sure? This will remove the project and all its buildings.
-            </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => setDeletingId(null)}
-                className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => deleteMutation.mutate(deletingId)}
-                disabled={deleteMutation.isPending}
-                className="rounded bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700 disabled:opacity-50"
-              >
-                {deleteMutation.isPending ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title="Delete Project"
+          message="Are you sure? This will remove the project and all its buildings."
+          confirmLabel="Delete"
+          destructive
+          pending={deleteMutation.isPending}
+          onConfirm={() => deleteMutation.mutate(deletingId)}
+          onCancel={() => setDeletingId(null)}
+        />
       )}
 
       {/* Loading skeleton */}
