@@ -32,7 +32,7 @@ export default function SimulationProgress() {
   const queryClient = useQueryClient();
   const hasAutoNavigated = useRef(false);
 
-  const { data: progress, isLoading } = useQuery({
+  const { data: progress, isLoading, isError, refetch } = useQuery({
     queryKey: ["simulation-progress", configId],
     queryFn: () => simulationsApi.progress(configId!).then((r) => r.data),
     enabled: !!configId,
@@ -63,7 +63,16 @@ export default function SimulationProgress() {
     }
   }, [progress, configId, navigate]);
 
-  if (isLoading || !progress) return <div className="text-gray-500">Loading...</div>;
+  if (isError) return (
+    <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center">
+      <p className="text-red-600 font-medium">Failed to load simulation progress</p>
+      <button onClick={() => refetch()} className="mt-3 rounded bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">
+        Retry
+      </button>
+    </div>
+  );
+
+  if (isLoading || !progress) return <div className="text-gray-500">Loading simulation progress...</div>;
 
   const pct =
     progress.total_strategies > 0

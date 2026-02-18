@@ -177,9 +177,16 @@ export default function BuildingEditor() {
 
       {/* Simulation start dialog */}
       {showSimDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="sim-dialog-title"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowSimDialog(false); }}
+          onKeyDown={(e) => { if (e.key === "Escape") setShowSimDialog(false); }}
+        >
           <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900">Start Simulation</h3>
+            <h3 id="sim-dialog-title" className="text-lg font-semibold text-gray-900">Start Simulation</h3>
             <p className="mt-1 text-sm text-gray-500">
               Configure simulation parameters for {building.name}
             </p>

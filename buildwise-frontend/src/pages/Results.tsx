@@ -16,6 +16,7 @@ import {
   Radar,
 } from "recharts";
 import { simulationsApi, type EnergyResult } from "@/api/client";
+import { Skeleton } from "@/components/Skeleton";
 
 const STRATEGY_LABELS: Record<string, string> = {
   baseline: "Baseline",
@@ -33,13 +34,41 @@ const STRATEGY_LABELS: Record<string, string> = {
 export default function Results() {
   const { configId } = useParams<{ configId: string }>();
 
-  const { data: comparison, isLoading } = useQuery({
+  const { data: comparison, isLoading, isError, refetch } = useQuery({
     queryKey: ["results", configId],
     queryFn: () => simulationsApi.results(configId!).then((r) => r.data),
     enabled: !!configId,
   });
 
-  if (isLoading || !comparison) return <div className="text-gray-500">Loading...</div>;
+  if (isError) return (
+    <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center">
+      <p className="text-red-600 font-medium">Failed to load results</p>
+      <p className="mt-1 text-sm text-red-400">The simulation may still be running or an error occurred.</p>
+      <div className="mt-4 flex justify-center gap-3">
+        <button onClick={() => refetch()} className="rounded bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700">
+          Retry
+        </button>
+        <Link to={`/simulations/${configId}/progress`} className="rounded border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
+          Check Progress
+        </Link>
+      </div>
+    </div>
+  );
+
+  if (isLoading || !comparison) return (
+    <div className="space-y-6">
+      <Skeleton className="h-4 w-32" />
+      <Skeleton className="h-8 w-64" />
+      <div className="grid gap-4 sm:grid-cols-4">
+        <Skeleton className="h-24 rounded-lg" />
+        <Skeleton className="h-24 rounded-lg" />
+        <Skeleton className="h-24 rounded-lg" />
+        <Skeleton className="h-24 rounded-lg" />
+      </div>
+      <Skeleton className="h-80 rounded-lg" />
+      <Skeleton className="h-80 rounded-lg" />
+    </div>
+  );
 
   const allStrategies: EnergyResult[] = [
     ...(comparison.baseline ? [comparison.baseline] : []),
