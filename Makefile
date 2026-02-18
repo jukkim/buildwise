@@ -1,6 +1,7 @@
-.PHONY: dev db up down test lint
+.PHONY: dev db up down test lint seed migrate worker logs
 
-# Local infrastructure
+# ---- Local infrastructure ----
+
 up:
 	docker-compose up -d
 
@@ -14,7 +15,11 @@ db-reset:
 	docker-compose down -v
 	docker-compose up -d db redis
 
-# Backend
+logs:
+	docker-compose logs -f --tail=100
+
+# ---- Backend ----
+
 backend-dev:
 	cd buildwise-backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
@@ -24,7 +29,8 @@ backend-test:
 backend-lint:
 	cd buildwise-backend && ruff check app/ && mypy app/
 
-# Frontend
+# ---- Frontend ----
+
 frontend-dev:
 	cd buildwise-frontend && npm run dev
 
@@ -34,15 +40,42 @@ frontend-test:
 frontend-lint:
 	cd buildwise-frontend && npm run lint
 
-# Celery worker
-worker:
-	cd buildwise-backend && celery -A app.worker worker --loglevel=info
+frontend-install:
+	cd buildwise-frontend && npm install
 
-# Full development
+# ---- Celery worker ----
+
+worker:
+	cd buildwise-backend && celery -A app.worker worker --loglevel=info -Q simulation
+
+# ---- Database ----
+
+migrate:
+	cd buildwise-backend && alembic upgrade head
+
+migrate-create:
+	cd buildwise-backend && alembic revision --autogenerate -m "$(msg)"
+
+seed:
+	cd buildwise-backend && python -m scripts.seed
+
+# ---- Full development ----
+
 dev: up backend-dev
 
-# Tests
-test: backend-test frontend-test
+install:
+	cd buildwise-backend && pip install -e ".[dev]"
+	cd buildwise-frontend && npm install
 
-# Lint
+# ---- Tests ----
+
+test: backend-test
+
+# ---- Lint ----
+
 lint: backend-lint frontend-lint
+
+# ---- Quick Start ----
+
+setup: install db migrate seed
+	@echo "Setup complete. Run 'make dev' to start the backend."

@@ -122,6 +122,9 @@ export const projectsApi = {
   get: (id: string) => api.get<Project>(`/projects/${id}`),
   create: (name: string, description?: string) =>
     api.post<Project>("/projects", { name, description }),
+  update: (id: string, data: { name?: string; description?: string }) =>
+    api.patch<Project>(`/projects/${id}`, data),
+  delete: (id: string) => api.delete(`/projects/${id}`),
 };
 
 export const buildingsApi = {
@@ -144,6 +147,8 @@ export const buildingsApi = {
     api.get<SimulationHistoryItem[]>(
       `/projects/${projectId}/buildings/${buildingId}/simulations`,
     ),
+  delete: (projectId: string, buildingId: string) =>
+    api.delete(`/projects/${projectId}/buildings/${buildingId}`),
 };
 
 export const templatesApi = {

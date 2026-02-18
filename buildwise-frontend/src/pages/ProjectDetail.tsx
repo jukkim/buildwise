@@ -23,6 +23,9 @@ export default function ProjectDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showTemplates, setShowTemplates] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState("");
+  const [deletingBuildingId, setDeletingBuildingId] = useState<string | null>(null);
 
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ["project", projectId],
@@ -47,6 +50,7 @@ export default function ProjectDetail() {
       buildingsApi.create(projectId!, tmpl.name, tmpl.default_bps),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["buildings", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       setShowTemplates(false);
     },
   });
@@ -58,6 +62,33 @@ export default function ProjectDetail() {
     },
   });
 
+  const updateProject = useMutation({
+    mutationFn: (name: string) => projectsApi.update(projectId!, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      setEditingName(false);
+    },
+  });
+
+  const deleteProject = useMutation({
+    mutationFn: () => projectsApi.delete(projectId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      navigate("/projects");
+    },
+  });
+
+  const deleteBuilding = useMutation({
+    mutationFn: (buildingId: string) =>
+      buildingsApi.delete(projectId!, buildingId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["buildings", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      setDeletingBuildingId(null);
+    },
+  });
+
   if (projectLoading || !project) return <div className="text-gray-500">Loading...</div>;
 
   return (
@@ -66,7 +97,64 @@ export default function ProjectDetail() {
         <Link to="/projects" className="text-sm text-blue-600 hover:underline">
           &larr; Projects
         </Link>
-        <h1 className="mt-2 text-2xl font-bold text-gray-900">{project.name}</h1>
+
+        <div className="mt-2 flex items-center gap-3">
+          {editingName ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={nameValue}
+                onChange={(e) => setNameValue(e.target.value)}
+                className="rounded border border-blue-300 px-2 py-1 text-2xl font-bold"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && nameValue.trim()) updateProject.mutate(nameValue);
+                  if (e.key === "Escape") setEditingName(false);
+                }}
+              />
+              <button
+                onClick={() => updateProject.mutate(nameValue)}
+                disabled={!nameValue.trim() || updateProject.isPending}
+                className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setEditingName(false)}
+                className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <>
+              <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
+              <button
+                onClick={() => { setEditingName(true); setNameValue(project.name); }}
+                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                title="Rename project"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm("Delete this project and all its buildings?")) {
+                    deleteProject.mutate();
+                  }
+                }}
+                className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                title="Delete project"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </>
+          )}
+        </div>
+
         {project.description && (
           <p className="mt-1 text-gray-500">{project.description}</p>
         )}
@@ -104,6 +192,33 @@ export default function ProjectDetail() {
               )}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Delete building confirmation */}
+      {deletingBuildingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900">Delete Building</h3>
+            <p className="mt-2 text-sm text-gray-500">
+              Are you sure? This will permanently delete this building and all its simulation data.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setDeletingBuildingId(null)}
+                className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteBuilding.mutate(deletingBuildingId)}
+                disabled={deleteBuilding.isPending}
+                className="rounded bg-red-600 px-3 py-1.5 text-sm text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleteBuilding.isPending ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -162,6 +277,12 @@ export default function ProjectDetail() {
                     className="rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
                   >
                     Simulate
+                  </button>
+                  <button
+                    onClick={() => setDeletingBuildingId(b.id)}
+                    className="rounded border border-red-200 px-3 py-1.5 text-xs text-red-500 hover:bg-red-50"
+                  >
+                    Delete
                   </button>
                 </div>
               </div>

@@ -166,6 +166,23 @@ async def update_bps(
     return building
 
 
+@router.delete(
+    "/{project_id}/buildings/{building_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_building(
+    project_id: uuid.UUID,
+    building_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """DELETE /projects/{project_id}/buildings/{building_id} - 건물 삭제."""
+    await _get_project_or_404(project_id, user, db)
+    building = await _get_building_or_404(building_id, project_id, db)
+    await db.delete(building)
+    await db.flush()
+
+
 @router.get(
     "/{project_id}/buildings/{building_id}/simulations",
     response_model=list[SimulationHistoryItem],
