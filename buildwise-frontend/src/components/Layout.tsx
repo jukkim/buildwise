@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Link, Outlet, useNavigate } from "react-router-dom";
+import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
 import useScrollToTop from "@/hooks/useScrollToTop";
 
 export default function Layout() {
   useScrollToTop();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const userName = localStorage.getItem("buildwise_user_name") ?? "User";
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -43,7 +44,7 @@ export default function Layout() {
                 <Link
                   key={link.to}
                   to={link.to}
-                  className="text-sm text-gray-600 hover:text-gray-900"
+                  className={`text-sm ${pathname.startsWith(link.to) ? "font-semibold text-blue-600" : "text-gray-600 hover:text-gray-900"}`}
                 >
                   {link.label}
                 </Link>
@@ -85,7 +86,7 @@ export default function Layout() {
                 key={link.to}
                 to={link.to}
                 onClick={() => setMobileOpen(false)}
-                className="block rounded px-3 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                className={`block rounded px-3 py-2 text-sm ${pathname.startsWith(link.to) ? "bg-blue-50 font-semibold text-blue-600" : "text-gray-700 hover:bg-gray-100"}`}
               >
                 {link.label}
               </Link>

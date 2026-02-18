@@ -169,7 +169,7 @@ export default function BuildingEditor() {
             {building.building_type.replace(/_/g, " ")} &middot; v{building.bps_version}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -195,9 +195,9 @@ export default function BuildingEditor() {
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:px-4 sm:py-2.5"
           >
-            Import BPS
+            <span className="hidden sm:inline">Import </span>BPS
           </button>
           <button
             onClick={() => {
@@ -210,18 +210,18 @@ export default function BuildingEditor() {
               URL.revokeObjectURL(url);
               showToast("BPS exported", "success");
             }}
-            className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:px-4 sm:py-2.5"
           >
-            Export BPS
+            Export<span className="hidden sm:inline"> BPS</span>
           </button>
           <button
             onClick={() => {
               setSimCity(locationCity);
               setShowSimDialog(true);
             }}
-            className="rounded-lg bg-green-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-700"
+            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 sm:px-5 sm:py-2.5"
           >
-            Run Simulation
+            <span className="hidden sm:inline">Run </span>Simulate
           </button>
         </div>
       </div>

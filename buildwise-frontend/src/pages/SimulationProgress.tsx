@@ -5,6 +5,7 @@ import { simulationsApi, type SimulationRun } from "@/api/client";
 import { Skeleton } from "@/components/Skeleton";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import clsx from "clsx";
+import { STRATEGY_LABELS } from "@/constants/strategies";
 
 const STATUS_COLORS: Record<string, string> = {
   completed: "bg-green-100 text-green-800",
@@ -13,19 +14,6 @@ const STATUS_COLORS: Record<string, string> = {
   queued: "bg-yellow-100 text-yellow-800",
   failed: "bg-red-100 text-red-800",
   cancelled: "bg-gray-100 text-gray-500",
-};
-
-const STRATEGY_LABELS: Record<string, string> = {
-  baseline: "Baseline",
-  m0: "M0 - Night Stop",
-  m1: "M1 - Smart Start",
-  m2: "M2 - Economizer",
-  m3: "M3 - Setpoint Adjust",
-  m4: "M4 - Chiller Staging",
-  m5: "M5 - Daylighting + DCV",
-  m6: "M6 - Integrated Normal",
-  m7: "M7 - Full Normal",
-  m8: "M8 - Full Savings",
 };
 
 export default function SimulationProgress() {

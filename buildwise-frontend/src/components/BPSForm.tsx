@@ -163,6 +163,16 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  // Warn on unsaved changes before page unload
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
+
   const sections: { key: SectionKey; label: string }[] = [
     { key: "geometry", label: "Geometry" },
     { key: "location", label: "Location" },
