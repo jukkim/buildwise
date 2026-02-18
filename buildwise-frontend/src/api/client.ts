@@ -101,6 +101,17 @@ export interface StrategyComparison {
   recommendation_reason: string | null;
 }
 
+export interface SimulationHistoryItem {
+  config_id: string;
+  climate_city: string;
+  period_type: string;
+  strategies: string[];
+  total: number;
+  completed: number;
+  failed: number;
+  created_at: string;
+}
+
 // ---- API functions ----
 
 export const projectsApi = {
@@ -128,6 +139,10 @@ export const buildingsApi = {
     api.patch<Building>(
       `/projects/${projectId}/buildings/${buildingId}/bps`,
       patch,
+    ),
+  simulations: (projectId: string, buildingId: string) =>
+    api.get<SimulationHistoryItem[]>(
+      `/projects/${projectId}/buildings/${buildingId}/simulations`,
     ),
 };
 

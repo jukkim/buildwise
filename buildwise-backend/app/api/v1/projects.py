@@ -18,6 +18,7 @@ from app.schemas.api import (
     ProjectCreate,
     ProjectListResponse,
     ProjectResponse,
+    ProjectUpdate,
 )
 
 router = APIRouter()
@@ -100,3 +101,54 @@ async def get_project(
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     return project
+
+
+@router.patch("/{project_id}", response_model=ProjectResponse)
+async def update_project(
+    project_id: uuid.UUID,
+    body: ProjectUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Project:
+    """PATCH /projects/{project_id} - 프로젝트 수정."""
+    result = await db.execute(
+        select(Project).where(
+            Project.id == project_id,
+            Project.user_id == user.id,
+            Project.status != ProjectStatus.DELETED,
+        )
+    )
+    project = result.scalar_one_or_none()
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    if body.name is not None:
+        project.name = body.name
+    if body.description is not None:
+        project.description = body.description
+
+    await db.flush()
+    await db.refresh(project)
+    return project
+
+
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_project(
+    project_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """DELETE /projects/{project_id} - 프로젝트 삭제 (소프트 삭제)."""
+    result = await db.execute(
+        select(Project).where(
+            Project.id == project_id,
+            Project.user_id == user.id,
+            Project.status != ProjectStatus.DELETED,
+        )
+    )
+    project = result.scalar_one_or_none()
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+
+    project.status = ProjectStatus.DELETED
+    await db.flush()

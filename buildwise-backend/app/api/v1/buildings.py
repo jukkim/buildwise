@@ -10,9 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.db import get_db
+from sqlalchemy.orm import selectinload
+
 from app.models.project import Building, BuildingType, Project, ProjectStatus
+from app.models.simulation import SimulationConfig, SimulationStatus
 from app.models.user import User
-from app.schemas.api import BuildingCreate, BuildingResponse
+from app.schemas.api import BuildingCreate, BuildingResponse, SimulationHistoryItem
 from app.schemas.bps import BPS, BPSPatch
 from app.services.bps.validator import validate_bps
 
@@ -161,3 +164,43 @@ async def update_bps(
     await db.flush()
     await db.refresh(building)
     return building
+
+
+@router.get(
+    "/{project_id}/buildings/{building_id}/simulations",
+    response_model=list[SimulationHistoryItem],
+)
+async def list_building_simulations(
+    project_id: uuid.UUID,
+    building_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """GET /projects/{project_id}/buildings/{building_id}/simulations - 시뮬레이션 히스토리."""
+    await _get_project_or_404(project_id, user, db)
+    await _get_building_or_404(building_id, project_id, db)
+
+    result = await db.execute(
+        select(SimulationConfig)
+        .options(selectinload(SimulationConfig.runs))
+        .where(SimulationConfig.building_id == building_id)
+        .order_by(SimulationConfig.created_at.desc())
+    )
+    configs = result.scalars().all()
+
+    items = []
+    for cfg in configs:
+        completed = sum(1 for r in cfg.runs if r.status == SimulationStatus.COMPLETED)
+        failed = sum(1 for r in cfg.runs if r.status == SimulationStatus.FAILED)
+        items.append({
+            "config_id": cfg.id,
+            "climate_city": cfg.climate_city,
+            "period_type": cfg.period_type,
+            "strategies": cfg.strategies,
+            "total": len(cfg.runs),
+            "completed": completed,
+            "failed": failed,
+            "created_at": cfg.created_at,
+        })
+
+    return items

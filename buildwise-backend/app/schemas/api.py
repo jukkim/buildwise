@@ -53,6 +53,11 @@ class ProjectCreate(BaseModel):
     description: str | None = None
 
 
+class ProjectUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+
+
 class ProjectResponse(BaseModel):
     id: uuid.UUID
     name: str
@@ -139,6 +144,17 @@ class SimulationProgressResponse(BaseModel):
     failed: int
     runs: list[SimulationRunResponse]
     estimated_remaining_seconds: int | None = None
+
+
+class SimulationHistoryItem(BaseModel):
+    config_id: uuid.UUID
+    climate_city: str
+    period_type: str
+    strategies: list[str]
+    total: int
+    completed: int
+    failed: int
+    created_at: datetime
 
 
 # ---------------------------------------------------------------------------
