@@ -80,9 +80,9 @@ async def start_simulation(
         runs.append(run)
     await db.flush()
 
-    # TODO: dispatch Celery tasks here
-    # for run in runs:
-    #     run_simulation_task.delay(str(run.id))
+    # Dispatch Celery task to run all strategies
+    from app.tasks.simulation import dispatch_simulation
+    dispatch_simulation.delay(str(config.id))
 
     return {
         "config_id": config.id,
