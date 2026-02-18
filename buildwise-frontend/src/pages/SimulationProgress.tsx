@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { simulationsApi, type SimulationRun } from "@/api/client";
+import { Skeleton } from "@/components/Skeleton";
+import useDocumentTitle from "@/hooks/useDocumentTitle";
 import clsx from "clsx";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -31,6 +33,8 @@ export default function SimulationProgress() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const hasAutoNavigated = useRef(false);
+
+  useDocumentTitle("Simulation Progress");
 
   const { data: progress, isLoading, isError, refetch } = useQuery({
     queryKey: ["simulation-progress", configId],
@@ -72,7 +76,18 @@ export default function SimulationProgress() {
     </div>
   );
 
-  if (isLoading || !progress) return <div className="text-gray-500">Loading simulation progress...</div>;
+  if (isLoading || !progress) return (
+    <div className="space-y-4">
+      <Skeleton className="h-4 w-24" />
+      <Skeleton className="h-8 w-64" />
+      <Skeleton className="h-3 w-full rounded-full" />
+      <div className="space-y-2">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-14 rounded-lg" />
+        ))}
+      </div>
+    </div>
+  );
 
   const pct =
     progress.total_strategies > 0

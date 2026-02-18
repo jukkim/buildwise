@@ -301,7 +301,7 @@ export default function Results() {
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Strategy</th>
+              <th className="sticky left-0 bg-gray-50 px-4 py-3 text-left font-medium text-gray-600">Strategy</th>
               <th className="px-4 py-3 text-right font-medium text-gray-600">EUI (kWh/m2)</th>
               <th className="px-4 py-3 text-right font-medium text-gray-600">Total (kWh)</th>
               <th className="px-4 py-3 text-right font-medium text-gray-600">HVAC (kWh)</th>
@@ -318,7 +318,7 @@ export default function Results() {
                   key={s.strategy}
                   className={isRecommended ? "bg-green-50" : ""}
                 >
-                  <td className="px-4 py-3 font-medium text-gray-900">
+                  <td className={`sticky left-0 px-4 py-3 font-medium text-gray-900 ${isRecommended ? "bg-green-50" : "bg-white"}`}>
                     {STRATEGY_LABELS[s.strategy] ?? s.strategy}
                     {isRecommended && (
                       <span className="ml-2 rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-700">

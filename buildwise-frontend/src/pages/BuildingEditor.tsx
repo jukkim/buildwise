@@ -120,7 +120,7 @@ export default function BuildingEditor() {
         &larr; Back to Project
       </Link>
 
-      <div className="mt-2 flex items-center justify-between">
+      <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
         <div>
           {editingName ? (
             <div className="flex items-center gap-2">
@@ -167,15 +167,32 @@ export default function BuildingEditor() {
             {building.building_type.replace(/_/g, " ")} &middot; v{building.bps_version}
           </p>
         </div>
-        <button
-          onClick={() => {
-            setSimCity(locationCity);
-            setShowSimDialog(true);
-          }}
-          className="rounded-lg bg-green-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-700"
-        >
-          Run Simulation
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              const blob = new Blob([JSON.stringify(building.bps, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `${building.name.replace(/\s+/g, "_")}_bps.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+              showToast("BPS exported", "success");
+            }}
+            className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Export BPS
+          </button>
+          <button
+            onClick={() => {
+              setSimCity(locationCity);
+              setShowSimDialog(true);
+            }}
+            className="rounded-lg bg-green-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-700"
+          >
+            Run Simulation
+          </button>
+        </div>
       </div>
 
       {/* Simulation start dialog */}
@@ -270,8 +287,11 @@ export default function BuildingEditor() {
               />
               <SummaryRow label="HVAC" value={(bps.hvac?.system_type as string)?.replace(/_/g, " ") ?? "-"} />
               <SummaryRow label="WWR" value={bps.geometry?.wwr != null ? String(bps.geometry.wwr) : "-"} />
+              <SummaryRow label="Wall" value={(bps.envelope?.wall_type as string)?.replace(/_/g, " ") ?? "-"} />
+              <SummaryRow label="Window" value={(bps.envelope?.window_type as string)?.replace(/_/g, " ") ?? "-"} />
               <SummaryRow label="Cooling" value={`${(bps.setpoints?.cooling_occupied as number) ?? 24}°C`} />
               <SummaryRow label="Heating" value={`${(bps.setpoints?.heating_occupied as number) ?? 20}°C`} />
+              <SummaryRow label="Lighting" value={bps.internal_loads?.lighting_power_density != null ? `${bps.internal_loads.lighting_power_density} W/m2` : "-"} />
             </dl>
           </div>
 

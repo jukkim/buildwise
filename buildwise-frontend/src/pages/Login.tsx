@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "@/api/client";
+import useDocumentTitle from "@/hooks/useDocumentTitle";
 
 export default function Login() {
+  useDocumentTitle("Sign In");
   const navigate = useNavigate();
   const [email, setEmail] = useState("demo@buildwise.ai");
   const [loading, setLoading] = useState(false);

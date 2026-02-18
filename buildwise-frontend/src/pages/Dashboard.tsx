@@ -72,7 +72,7 @@ export default function Dashboard() {
         <p className="mt-1 text-blue-100">Manage your building energy simulation projects</p>
         <div className="mt-4 flex gap-6">
           <div>
-            <p className="text-2xl font-bold">{projects.length}</p>
+            <p className="text-2xl font-bold">{allProjects.length}</p>
             <p className="text-xs text-blue-200">Projects</p>
           </div>
           <div>

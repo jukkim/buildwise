@@ -30,6 +30,7 @@ export default function ProjectDetail() {
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState("");
   const [deletingBuildingId, setDeletingBuildingId] = useState<string | null>(null);
+  const [showDeleteProject, setShowDeleteProject] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<BuildingTemplate | null>(null);
   const [newBuildingName, setNewBuildingName] = useState("");
 
@@ -172,11 +173,7 @@ export default function ProjectDetail() {
                 </svg>
               </button>
               <button
-                onClick={() => {
-                  if (confirm("Delete this project and all its buildings?")) {
-                    deleteProject.mutate();
-                  }
-                }}
+                onClick={() => setShowDeleteProject(true)}
                 className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500"
                 title="Delete project"
               >
@@ -284,6 +281,19 @@ export default function ProjectDetail() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Delete project confirmation */}
+      {showDeleteProject && (
+        <ConfirmDialog
+          title="Delete Project"
+          message="Are you sure? This will permanently delete this project and all its buildings."
+          confirmLabel="Delete"
+          destructive
+          pending={deleteProject.isPending}
+          onConfirm={() => deleteProject.mutate()}
+          onCancel={() => setShowDeleteProject(false)}
+        />
       )}
 
       {/* Delete building confirmation */}

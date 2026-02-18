@@ -18,7 +18,7 @@ export default function Layout() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="flex min-h-screen flex-col bg-gray-50">
       {/* Navbar */}
       <nav className="bg-white border-b border-gray-200">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -94,9 +94,17 @@ export default function Layout() {
       </nav>
 
       {/* Content */}
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-7xl flex-1 px-4 py-6 sm:py-8 sm:px-6 lg:px-8 w-full">
         <Outlet />
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-200 bg-white py-4 mt-auto print:hidden">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex items-center justify-between text-xs text-gray-400">
+          <span>BuildWise v0.1.0</span>
+          <span>Building Energy Simulation Platform</span>
+        </div>
+      </footer>
     </div>
   );
 }
