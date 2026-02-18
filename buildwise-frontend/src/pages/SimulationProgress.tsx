@@ -34,8 +34,11 @@ export default function SimulationProgress() {
     },
   });
 
+  const allDoneTitle = progress && progress.completed + progress.failed >= progress.total_strategies;
   const progressTitle = progress
-    ? `${progress.completed}/${progress.total_strategies} Simulating...`
+    ? allDoneTitle
+      ? `Complete! ${progress.completed}/${progress.total_strategies}`
+      : `${progress.completed}/${progress.total_strategies} Simulating...`
     : "Simulation Progress";
   useDocumentTitle(progressTitle);
 

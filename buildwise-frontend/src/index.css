@@ -16,7 +16,10 @@
 }
 
 @media print {
-  nav, .print\:hidden { display: none !important; }
+  nav, footer, .print\:hidden { display: none !important; }
   body { background: white; }
   main { padding: 0; max-width: none; }
+  table { font-size: 10px; }
+  .recharts-wrapper { page-break-inside: avoid; }
+  * { box-shadow: none !important; }
 }

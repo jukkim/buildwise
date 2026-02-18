@@ -75,6 +75,7 @@ type SectionKey = "geometry" | "location" | "envelope" | "hvac" | "setpoints" | 
 
 export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
   const [activeSection, setActiveSection] = useState<SectionKey>("geometry");
+  const [jsonView, setJsonView] = useState(false);
   const [draft, setDraft] = useState<Record<string, Record<string, unknown>>>({
     location: { ...(bps.location ?? {}) },
     geometry: { ...(bps.geometry ?? {}) },
@@ -194,10 +195,10 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
         {sections.map((s) => (
           <button
             key={s.key}
-            onClick={() => setActiveSection(s.key)}
+            onClick={() => { setActiveSection(s.key); setJsonView(false); }}
             className={clsx(
               "whitespace-nowrap px-3 py-3 text-sm font-medium transition-colors",
-              activeSection === s.key
+              !jsonView && activeSection === s.key
                 ? "border-b-2 border-blue-600 text-blue-600"
                 : "text-gray-500 hover:text-gray-700",
               sectionHasErrors(s.key) && "text-red-500",
@@ -209,9 +210,24 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
             )}
           </button>
         ))}
+        <button
+          onClick={() => setJsonView(!jsonView)}
+          className={clsx(
+            "ml-auto whitespace-nowrap px-3 py-3 text-xs font-mono transition-colors",
+            jsonView ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-400 hover:text-gray-600",
+          )}
+        >
+          JSON
+        </button>
       </div>
 
       <div className="p-5 space-y-4">
+        {jsonView ? (
+          <pre className="max-h-96 overflow-auto rounded bg-gray-50 p-3 text-xs text-gray-700 font-mono leading-relaxed">
+            {JSON.stringify(draft, null, 2)}
+          </pre>
+        ) : (
+        <>
         {activeSection === "geometry" && (
           <>
             <NumField label="Floors Above" value={draft.geometry.num_floors_above as number} min={1} max={100}
@@ -309,6 +325,8 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
             <NumField label="Heating (Unoccupied)" value={draft.setpoints.heating_unoccupied as number} min={10} max={20} step={0.5}
               onChange={(v) => update("setpoints", "heating_unoccupied", v)} unit="°C" />
           </>
+        )}
+        </>
         )}
       </div>
 
