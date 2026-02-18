@@ -65,8 +65,10 @@ export default function Login() {
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               placeholder="demo@buildwise.ai"
+              autoFocus
+              disabled={loading}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleLogin();
+                if (e.key === "Enter" && email.trim()) handleLogin();
               }}
             />
           </div>
@@ -80,7 +82,15 @@ export default function Login() {
             disabled={loading || !email.trim()}
             className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {loading ? "Signing in..." : "Sign In (Dev Mode)"}
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Signing in...
+              </span>
+            ) : "Sign In (Dev Mode)"}
           </button>
 
           <p className="text-center text-xs text-gray-400">

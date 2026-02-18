@@ -312,6 +312,36 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
         )}
       </div>
 
+      {/* Section navigation */}
+      {(() => {
+        const idx = sections.findIndex((s) => s.key === activeSection);
+        return (
+          <div className="flex items-center justify-between border-t border-gray-200 px-5 py-2">
+            <button
+              onClick={() => idx > 0 && setActiveSection(sections[idx - 1].key)}
+              disabled={idx === 0}
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              {idx > 0 ? sections[idx - 1].label : ""}
+            </button>
+            <span className="text-xs text-gray-400">{idx + 1} / {sections.length}</span>
+            <button
+              onClick={() => idx < sections.length - 1 && setActiveSection(sections[idx + 1].key)}
+              disabled={idx === sections.length - 1}
+              className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              {idx < sections.length - 1 ? sections[idx + 1].label : ""}
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        );
+      })()}
+
       {/* Save / Discard buttons */}
       <div className="border-t border-gray-200 px-5 py-3 flex items-center justify-between">
         <div className="text-sm">

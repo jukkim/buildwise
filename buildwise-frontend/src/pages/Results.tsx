@@ -37,13 +37,13 @@ export default function Results() {
   const [sortKey, setSortKey] = useState<SortKey>("strategy");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
-  useDocumentTitle("Results");
-
   const { data: comparison, isLoading, isError, refetch } = useQuery({
     queryKey: ["results", configId],
     queryFn: () => simulationsApi.results(configId!).then((r) => r.data),
     enabled: !!configId,
   });
+
+  useDocumentTitle(comparison ? `Results: ${comparison.building_name}` : "Results");
 
   if (isError) return (
     <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center">

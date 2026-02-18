@@ -240,6 +240,24 @@ export default function ProjectDetail() {
         )}
       </div>
 
+      {/* Project stats */}
+      {buildings && buildings.length > 0 && (
+        <div className="mb-4 flex gap-4 text-sm">
+          <div className="flex items-center gap-1.5 text-gray-500">
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+            <span>{buildings.length} building{buildings.length !== 1 ? "s" : ""}</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-gray-500">
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <span>Created {timeAgo(project.created_at)}</span>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-gray-800">
