@@ -189,6 +189,34 @@ async def update_bps(
     return building
 
 
+@router.post(
+    "/{project_id}/buildings/{building_id}/clone",
+    response_model=BuildingResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def clone_building(
+    project_id: uuid.UUID,
+    building_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Building:
+    """POST /projects/{project_id}/buildings/{building_id}/clone - 건물 복제."""
+    await _get_project_or_404(project_id, user, db)
+    source = await _get_building_or_404(building_id, project_id, db)
+
+    clone = Building(
+        project_id=project_id,
+        name=f"{source.name} (Copy)",
+        building_type=source.building_type,
+        bps_json=dict(source.bps_json),
+        bps_version=1,
+    )
+    db.add(clone)
+    await db.flush()
+    await db.refresh(clone)
+    return clone
+
+
 @router.delete(
     "/{project_id}/buildings/{building_id}",
     status_code=status.HTTP_204_NO_CONTENT,

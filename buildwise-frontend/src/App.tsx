@@ -7,6 +7,7 @@ import BuildingEditor from "./pages/BuildingEditor";
 import SimulationProgress from "./pages/SimulationProgress";
 import Results from "./pages/Results";
 import Login from "./pages/Login";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -39,6 +40,7 @@ export default function App() {
             element={<SimulationProgress />}
           />
           <Route path="/simulations/:configId/results" element={<Results />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>

@@ -164,11 +164,49 @@ export const buildingsApi = {
     ),
   delete: (projectId: string, buildingId: string) =>
     api.delete(`/projects/${projectId}/buildings/${buildingId}`),
+  clone: (projectId: string, buildingId: string) =>
+    api.post<Building>(`/projects/${projectId}/buildings/${buildingId}/clone`),
 };
 
 export const templatesApi = {
   list: () => api.get<BuildingTemplate[]>("/buildings/templates"),
   get: (type: string) => api.get<BuildingTemplate>(`/buildings/templates/${type}`),
+};
+
+export interface PlanInfo {
+  plan: string;
+  price_monthly_usd: number;
+  max_buildings: number;
+  max_simulations_monthly: number;
+  allowed_strategies: string[];
+  has_pdf_export: boolean;
+}
+
+export interface UsageInfo {
+  plan: string;
+  simulations_used: number;
+  simulations_limit: number;
+  buildings_count: number;
+  buildings_limit: number;
+  credits_remaining: number;
+}
+
+export interface UserInfo {
+  id: string;
+  email: string;
+  name: string | null;
+  plan: string;
+  simulation_count_monthly: number;
+  created_at: string;
+}
+
+export const billingApi = {
+  plans: () => api.get<PlanInfo[]>("/billing/plans"),
+  usage: () => api.get<UsageInfo>("/billing/usage"),
+};
+
+export const authApi = {
+  me: () => api.get<UserInfo>("/auth/me"),
 };
 
 export const simulationsApi = {

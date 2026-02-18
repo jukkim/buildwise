@@ -106,17 +106,47 @@ export default function Results() {
         </button>
       </div>
 
-      {/* Recommendation banner */}
-      {comparison.recommended_strategy && (
-        <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-4">
-          <p className="text-sm font-medium text-green-800">
-            Recommended: {STRATEGY_LABELS[comparison.recommended_strategy] ?? comparison.recommended_strategy}
-          </p>
-          <p className="text-xs text-green-600">
-            {comparison.recommendation_reason}
-          </p>
-        </div>
-      )}
+      {/* Savings Summary Cards */}
+      {comparison.baseline && comparison.recommended_strategy && (() => {
+        const best = allStrategies.find((s) => s.strategy === comparison.recommended_strategy);
+        if (!best) return null;
+        const baselineEui = comparison.baseline.eui_kwh_m2;
+        const bestEui = best.eui_kwh_m2;
+        const savingsPct = best.savings_pct ?? 0;
+        const costSavings = best.annual_savings_krw ?? 0;
+        const baseCost = comparison.baseline.annual_cost_krw ?? 0;
+
+        return (
+          <div className="mt-4 grid gap-4 sm:grid-cols-4">
+            <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-center">
+              <p className="text-xs text-green-600">Recommended</p>
+              <p className="mt-1 text-lg font-bold text-green-800">
+                {STRATEGY_LABELS[comparison.recommended_strategy] ?? comparison.recommended_strategy}
+              </p>
+              <p className="text-xs text-green-500">{comparison.recommendation_reason}</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
+              <p className="text-xs text-gray-500">Energy Savings</p>
+              <p className="mt-1 text-2xl font-bold text-blue-600">-{savingsPct.toFixed(1)}%</p>
+              <p className="text-xs text-gray-400">{baselineEui.toFixed(0)} → {bestEui.toFixed(0)} kWh/m2</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
+              <p className="text-xs text-gray-500">Annual Cost Savings</p>
+              <p className="mt-1 text-2xl font-bold text-green-600">
+                {costSavings > 0 ? `${(costSavings / 10000).toFixed(0)}만원` : "-"}
+              </p>
+              <p className="text-xs text-gray-400">
+                {baseCost > 0 ? `Base: ${(baseCost / 10000).toFixed(0)}만원/yr` : ""}
+              </p>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
+              <p className="text-xs text-gray-500">Strategies Compared</p>
+              <p className="mt-1 text-2xl font-bold text-gray-800">{allStrategies.length}</p>
+              <p className="text-xs text-gray-400">baseline + M0~M8</p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* EUI Chart */}
       <div className="mt-6 rounded-lg border border-gray-200 bg-white p-5">

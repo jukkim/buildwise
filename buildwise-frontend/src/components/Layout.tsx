@@ -26,6 +26,12 @@ export default function Layout() {
               >
                 Projects
               </Link>
+              <Link
+                to="/settings"
+                className="text-sm text-gray-600 hover:text-gray-900"
+              >
+                Settings
+              </Link>
               <div className="flex items-center gap-2 text-sm text-gray-500">
                 <span>{userName}</span>
                 <button

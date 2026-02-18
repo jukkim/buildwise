@@ -85,6 +85,16 @@ export default function ProjectDetail() {
     },
   });
 
+  const cloneBuilding = useMutation({
+    mutationFn: (buildingId: string) =>
+      buildingsApi.clone(projectId!, buildingId),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["buildings", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      navigate(`/projects/${projectId}/buildings/${res.data.id}`);
+    },
+  });
+
   const deleteBuilding = useMutation({
     mutationFn: (buildingId: string) =>
       buildingsApi.delete(projectId!, buildingId),
@@ -318,6 +328,14 @@ export default function ProjectDetail() {
                   >
                     Edit
                   </Link>
+                  <button
+                    onClick={() => cloneBuilding.mutate(b.id)}
+                    disabled={cloneBuilding.isPending}
+                    className="rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                    title="Duplicate building"
+                  >
+                    Clone
+                  </button>
                   <button
                     onClick={() => startSim.mutate(b.id)}
                     disabled={startSim.isPending}
