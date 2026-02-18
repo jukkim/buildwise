@@ -308,8 +308,8 @@ export default function Dashboard() {
               ) : (
                 <Link to={`/projects/${p.id}`} className={viewMode === "list" ? "flex-1 flex items-center gap-4 min-w-0" : ""}>
                   <h3 className={`font-semibold text-gray-900 ${viewMode === "list" ? "truncate" : ""}`}>{p.name}</h3>
-                  {viewMode === "grid" && p.description && (
-                    <p className="mt-1 text-sm text-gray-500 line-clamp-2">
+                  {p.description && (
+                    <p className={`text-sm text-gray-500 ${viewMode === "grid" ? "mt-1 line-clamp-2" : "hidden sm:block truncate max-w-xs"}`}>
                       {p.description}
                     </p>
                   )}

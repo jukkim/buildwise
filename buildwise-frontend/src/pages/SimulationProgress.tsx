@@ -23,8 +23,6 @@ export default function SimulationProgress() {
   const hasAutoNavigated = useRef(false);
   const [elapsed, setElapsed] = useState(0);
 
-  useDocumentTitle("Simulation Progress");
-
   const { data: progress, isLoading, isError, refetch } = useQuery({
     queryKey: ["simulation-progress", configId],
     queryFn: () => simulationsApi.progress(configId!).then((r) => r.data),
@@ -35,6 +33,11 @@ export default function SimulationProgress() {
       return d.completed + d.failed >= d.total_strategies ? false : 5000;
     },
   });
+
+  const progressTitle = progress
+    ? `${progress.completed}/${progress.total_strategies} Simulating...`
+    : "Simulation Progress";
+  useDocumentTitle(progressTitle);
 
   const cancelMutation = useMutation({
     mutationFn: () => simulationsApi.cancel(configId!),

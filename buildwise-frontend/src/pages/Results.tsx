@@ -150,6 +150,22 @@ export default function Results() {
     URL.revokeObjectURL(url);
   };
 
+  const copyTable = () => {
+    const headers = ["Strategy", "EUI (kWh/m2)", "Total (kWh)", "HVAC (kWh)", "Savings (%)", "Cost (KRW)", "Savings (KRW)"];
+    const rows = allStrategies.map((s) => [
+      STRATEGY_LABELS[s.strategy] ?? s.strategy,
+      s.eui_kwh_m2.toFixed(1),
+      s.total_energy_kwh.toFixed(0),
+      s.hvac_energy_kwh?.toFixed(0) ?? "",
+      s.savings_pct?.toFixed(1) ?? "",
+      s.annual_cost_krw?.toString() ?? "",
+      s.annual_savings_krw?.toString() ?? "",
+    ]);
+    const tsv = [headers, ...rows].map((r) => r.join("\t")).join("\n");
+    navigator.clipboard.writeText(tsv);
+    showToast("Table copied to clipboard", "success");
+  };
+
   return (
     <div>
       <div className="flex gap-4 text-sm">
@@ -196,6 +212,13 @@ export default function Results() {
             title="Copy shareable link"
           >
             <span className="hidden sm:inline">Copy </span>Link
+          </button>
+          <button
+            onClick={copyTable}
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:px-4 sm:py-2"
+            title="Copy table data for spreadsheet"
+          >
+            <span className="hidden sm:inline">Copy </span>Table
           </button>
           <button
             onClick={() => window.print()}

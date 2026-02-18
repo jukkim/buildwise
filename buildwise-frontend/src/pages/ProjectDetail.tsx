@@ -36,6 +36,8 @@ export default function ProjectDetail() {
   const [selectedTemplate, setSelectedTemplate] = useState<BuildingTemplate | null>(null);
   const [newBuildingName, setNewBuildingName] = useState("");
   const [buildingSearch, setBuildingSearch] = useState("");
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [descValue, setDescValue] = useState("");
 
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ["project", projectId],
@@ -80,14 +82,16 @@ export default function ProjectDetail() {
   });
 
   const updateProject = useMutation({
-    mutationFn: (name: string) => projectsApi.update(projectId!, { name }),
+    mutationFn: (data: { name?: string; description?: string }) =>
+      projectsApi.update(projectId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       setEditingName(false);
-      showToast("Project renamed", "success");
+      setEditingDesc(false);
+      showToast("Project updated", "success");
     },
-    onError: () => showToast("Failed to rename project"),
+    onError: () => showToast("Failed to update project"),
   });
 
   const deleteProject = useMutation({
@@ -152,12 +156,12 @@ export default function ProjectDetail() {
                 className="rounded border border-blue-300 px-2 py-1 text-2xl font-bold"
                 autoFocus
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && nameValue.trim()) updateProject.mutate(nameValue);
+                  if (e.key === "Enter" && nameValue.trim()) updateProject.mutate({ name: nameValue });
                   if (e.key === "Escape") setEditingName(false);
                 }}
               />
               <button
-                onClick={() => updateProject.mutate(nameValue)}
+                onClick={() => updateProject.mutate({ name: nameValue })}
                 disabled={!nameValue.trim() || updateProject.isPending}
                 className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
               >
@@ -195,8 +199,44 @@ export default function ProjectDetail() {
           )}
         </div>
 
-        {project.description && (
-          <p className="mt-1 text-gray-500">{project.description}</p>
+        {editingDesc ? (
+          <div className="mt-2">
+            <input
+              type="text"
+              value={descValue}
+              onChange={(e) => setDescValue(e.target.value)}
+              className="w-full rounded border border-blue-300 px-2 py-1 text-sm text-gray-600"
+              placeholder="Project description"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") updateProject.mutate({ description: descValue });
+                if (e.key === "Escape") setEditingDesc(false);
+              }}
+            />
+            <div className="mt-1 flex gap-1">
+              <button
+                onClick={() => updateProject.mutate({ description: descValue })}
+                disabled={updateProject.isPending}
+                className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setEditingDesc(false)}
+                className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p
+            className="mt-1 text-gray-500 cursor-pointer hover:text-gray-700"
+            onClick={() => { setEditingDesc(true); setDescValue(project.description ?? ""); }}
+            title="Click to edit description"
+          >
+            {project.description || <span className="text-gray-300 italic">Add description...</span>}
+          </p>
         )}
       </div>
 
