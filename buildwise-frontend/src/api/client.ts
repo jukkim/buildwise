@@ -3,6 +3,7 @@ import axios from "axios";
 const api = axios.create({
   baseURL: "/api/v1",
   headers: { "Content-Type": "application/json" },
+  timeout: 30_000,
 });
 
 // MVP: inject user ID header for dev auth

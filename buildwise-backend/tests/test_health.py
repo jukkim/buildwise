@@ -15,3 +15,4 @@ async def test_health():
     data = resp.json()
     assert data["status"] == "ok"
     assert data["service"] == "buildwise-api"
+    assert data["version"] == "0.1.0"

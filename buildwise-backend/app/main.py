@@ -47,7 +47,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/health")
 async def health_check() -> dict[str, str]:
-    return {"status": "ok", "service": "buildwise-api"}
+    return {"status": "ok", "service": "buildwise-api", "version": app.version}
 
 
 # API v1 routes

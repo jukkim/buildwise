@@ -38,18 +38,21 @@ export default function ToastContainer() {
         <div
           key={t.id}
           className={clsx(
-            "rounded-lg px-4 py-3 text-sm shadow-lg max-w-sm animate-slide-up",
+            "flex items-center rounded-lg px-4 py-3 text-sm shadow-lg max-w-sm animate-slide-up",
             t.type === "error" && "bg-red-600 text-white",
             t.type === "success" && "bg-green-600 text-white",
             t.type === "info" && "bg-blue-600 text-white",
           )}
         >
-          {t.text}
+          <span>{t.text}</span>
           <button
             onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
-            className="ml-3 opacity-70 hover:opacity-100"
+            className="ml-3 opacity-70 hover:opacity-100 shrink-0"
+            aria-label="Dismiss"
           >
-            x
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
       ))}

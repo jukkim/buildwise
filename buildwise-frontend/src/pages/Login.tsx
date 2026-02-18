@@ -43,6 +43,13 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
       <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-sm">
         <div className="mb-6 text-center">
+          <svg className="mx-auto h-12 w-12 mb-3" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="6" fill="#2563EB"/>
+            <path d="M8 24V10l8-4 8 4v14H8z" fill="none" stroke="white" strokeWidth="2" strokeLinejoin="round"/>
+            <rect x="12" y="14" width="3" height="4" rx="0.5" fill="white" opacity="0.8"/>
+            <rect x="17" y="14" width="3" height="4" rx="0.5" fill="white" opacity="0.8"/>
+            <rect x="14" y="20" width="4" height="4" rx="0.5" fill="white"/>
+          </svg>
           <h1 className="text-2xl font-bold text-blue-600">BuildWise</h1>
           <p className="mt-1 text-sm text-gray-500">Building Energy Simulation Platform</p>
         </div>
