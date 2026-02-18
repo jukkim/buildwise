@@ -17,6 +17,7 @@ import {
 } from "recharts";
 import { simulationsApi, type EnergyResult } from "@/api/client";
 import { Skeleton } from "@/components/Skeleton";
+import useDocumentTitle from "@/hooks/useDocumentTitle";
 
 const STRATEGY_LABELS: Record<string, string> = {
   baseline: "Baseline",
@@ -33,6 +34,8 @@ const STRATEGY_LABELS: Record<string, string> = {
 
 export default function Results() {
   const { configId } = useParams<{ configId: string }>();
+
+  useDocumentTitle("Results");
 
   const { data: comparison, isLoading, isError, refetch } = useQuery({
     queryKey: ["results", configId],
@@ -146,12 +149,20 @@ export default function Results() {
             {comparison.climate_city}
           </p>
         </div>
-        <button
-          onClick={downloadCsv}
-          className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-        >
-          Download CSV
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => window.print()}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 print:hidden"
+          >
+            Print
+          </button>
+          <button
+            onClick={downloadCsv}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 print:hidden"
+          >
+            Download CSV
+          </button>
+        </div>
       </div>
 
       {/* Savings Summary Cards */}

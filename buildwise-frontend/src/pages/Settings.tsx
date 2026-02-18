@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { authApi, billingApi, type PlanInfo } from "@/api/client";
 import { Skeleton } from "@/components/Skeleton";
+import useDocumentTitle from "@/hooks/useDocumentTitle";
 
 const STRATEGY_LABELS: Record<string, string> = {
   baseline: "Baseline",
@@ -16,6 +17,8 @@ const STRATEGY_LABELS: Record<string, string> = {
 };
 
 export default function Settings() {
+  useDocumentTitle("Settings");
+
   const { data: user, isLoading: userLoading } = useQuery({
     queryKey: ["user-me"],
     queryFn: () => authApi.me().then((r) => r.data),

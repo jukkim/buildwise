@@ -7,6 +7,7 @@ import {
   type SimulationHistoryItem,
 } from "@/api/client";
 import { showToast } from "@/components/Toast";
+import useDocumentTitle from "@/hooks/useDocumentTitle";
 import BPSForm from "@/components/BPSForm";
 import { type BuildingViewerProps } from "@/components/BuildingViewer3D";
 import { Skeleton } from "@/components/Skeleton";
@@ -44,6 +45,8 @@ export default function BuildingEditor() {
       buildingsApi.get(projectId!, buildingId!).then((r) => r.data),
     enabled: !!projectId && !!buildingId,
   });
+
+  useDocumentTitle(building?.name ?? "Building");
 
   const { data: history } = useQuery({
     queryKey: ["building-simulations", buildingId],

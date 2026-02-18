@@ -12,6 +12,7 @@ import {
 import { ListSkeleton } from "@/components/Skeleton";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { showToast } from "@/components/Toast";
+import useDocumentTitle from "@/hooks/useDocumentTitle";
 
 const HVAC_LABELS: Record<string, string> = {
   vav_chiller_boiler: "VAV + Chiller/Boiler",
@@ -118,6 +119,8 @@ export default function ProjectDetail() {
     },
     onError: () => showToast("Failed to delete building"),
   });
+
+  useDocumentTitle(project?.name ?? "Project");
 
   if (projectLoading || !project) return <ListSkeleton rows={3} />;
 

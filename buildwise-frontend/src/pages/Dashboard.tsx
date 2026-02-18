@@ -5,8 +5,10 @@ import { projectsApi, type Project } from "@/api/client";
 import { CardSkeleton } from "@/components/Skeleton";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { showToast } from "@/components/Toast";
+import useDocumentTitle from "@/hooks/useDocumentTitle";
 
 export default function Dashboard() {
+  useDocumentTitle("Projects");
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
@@ -14,6 +16,7 @@ export default function Dashboard() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const { data, isLoading } = useQuery({
     queryKey: ["projects"],
@@ -54,8 +57,11 @@ export default function Dashboard() {
     onError: () => showToast("Failed to delete project"),
   });
 
-  const projects = data?.data ?? [];
-  const totalBuildings = projects.reduce((sum: number, p: Project) => sum + p.buildings_count, 0);
+  const allProjects = data?.data ?? [];
+  const totalBuildings = allProjects.reduce((sum: number, p: Project) => sum + p.buildings_count, 0);
+  const projects = search
+    ? allProjects.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
+    : allProjects;
   const userName = localStorage.getItem("buildwise_user_name") ?? "User";
 
   return (
@@ -77,7 +83,7 @@ export default function Dashboard() {
       </div>
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-gray-800">Projects</h2>
         <button
           onClick={() => setShowCreate(true)}
@@ -86,6 +92,19 @@ export default function Dashboard() {
           New Project
         </button>
       </div>
+
+      {/* Search */}
+      {allProjects.length > 0 && (
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Search projects..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+      )}
 
       {/* Create form */}
       {showCreate && (
