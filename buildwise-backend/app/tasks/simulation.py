@@ -9,7 +9,11 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select
 
+from sqlalchemy.orm import selectinload
+
+from app.config import settings
 from app.db import async_session_factory
+from app.models.project import Building
 from app.models.simulation import (
     EnergyResult,
     SimulationConfig,
@@ -62,34 +66,49 @@ async def _execute_strategy(run_id: str, task) -> dict:
         try:
             # 2. Load config + building
             config_result = await db.execute(
-                select(SimulationConfig).where(SimulationConfig.id == run.config_id)
+                select(SimulationConfig)
+                .options(selectinload(SimulationConfig.building))
+                .where(SimulationConfig.id == run.config_id)
             )
             config = config_result.scalar_one()
+            building = config.building
 
-            # 3. Generate IDF
-            from app.services.idf.generator import generate_idf
+            # 3. Demo mode or real E+ execution
+            use_mock = settings.debug or not bool(settings.energyplus_image)
 
-            idf_content = generate_idf(
-                building_id=str(config.building_id),
-                config_id=str(config.id),
-                strategy=run.strategy.value,
-                climate_city=config.climate_city,
-                epw_file=config.epw_file,
-            )
+            if use_mock:
+                # Mock mode: return pre-computed realistic results
+                import asyncio as _aio
+                from app.services.simulation.mock_runner import generate_mock_result
 
-            # 4. Execute EnergyPlus (placeholder - will call Docker/subprocess)
-            from app.services.simulation.runner import run_energyplus
+                await _aio.sleep(2)  # Simulate processing time
+                area = building.bps_json.get("geometry", {}).get("total_floor_area_m2", 1000)
+                parsed = generate_mock_result(
+                    building_type=building.building_type.value,
+                    climate_city=config.climate_city,
+                    strategy=run.strategy.value,
+                    total_floor_area_m2=area,
+                )
+            else:
+                # Real E+ execution
+                from app.services.idf.generator import generate_idf
+                from app.services.results.parser import parse_energyplus_output
+                from app.services.simulation.runner import run_energyplus
 
-            ep_result = await run_energyplus(
-                idf_content=idf_content,
-                epw_file=config.epw_file,
-                run_id=run_id,
-            )
-
-            # 5. Parse results
-            from app.services.results.parser import parse_energyplus_output
-
-            parsed = parse_energyplus_output(ep_result["output_dir"])
+                idf_content = generate_idf(
+                    building_id=str(config.building_id),
+                    config_id=str(config.id),
+                    strategy=run.strategy.value,
+                    climate_city=config.climate_city,
+                    epw_file=config.epw_file,
+                    bps=building.bps_json,
+                )
+                ep_result = await run_energyplus(
+                    idf_content=idf_content,
+                    epw_file=config.epw_file,
+                    run_id=run_id,
+                )
+                parsed = parse_energyplus_output(ep_result["output_dir"])
 
             # 6. Store results
             energy = EnergyResult(

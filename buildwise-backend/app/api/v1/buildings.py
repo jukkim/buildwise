@@ -50,6 +50,22 @@ async def _get_building_or_404(
     return building
 
 
+@router.get("/{project_id}/buildings", response_model=list[BuildingResponse])
+async def list_buildings(
+    project_id: uuid.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[Building]:
+    """GET /projects/{project_id}/buildings - 건물 목록."""
+    await _get_project_or_404(project_id, user, db)
+    result = await db.execute(
+        select(Building)
+        .where(Building.project_id == project_id)
+        .order_by(Building.created_at.desc())
+    )
+    return list(result.scalars().all())
+
+
 @router.post(
     "/{project_id}/buildings",
     response_model=BuildingResponse,

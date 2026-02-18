@@ -114,6 +114,8 @@ export const projectsApi = {
 };
 
 export const buildingsApi = {
+  list: (projectId: string) =>
+    api.get<Building[]>(`/projects/${projectId}/buildings`),
   create: (projectId: string, name: string, bps: Record<string, unknown>) =>
     api.post<Building>(`/projects/${projectId}/buildings`, { name, bps }),
   get: (projectId: string, buildingId: string) =>
