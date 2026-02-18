@@ -2,11 +2,13 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { projectsApi, type Project } from "@/api/client";
+import { CardSkeleton } from "@/components/Skeleton";
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newDesc, setNewDesc] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -17,11 +19,13 @@ export default function Dashboard() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (name: string) => projectsApi.create(name),
+    mutationFn: (params: { name: string; description?: string }) =>
+      projectsApi.create(params.name, params.description),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       setShowCreate(false);
       setNewName("");
+      setNewDesc("");
     },
   });
 
@@ -42,14 +46,31 @@ export default function Dashboard() {
     },
   });
 
-  if (isLoading) return <div className="text-gray-500">Loading...</div>;
-
   const projects = data?.data ?? [];
+  const totalBuildings = projects.reduce((sum: number, p: Project) => sum + p.buildings_count, 0);
+  const userName = localStorage.getItem("buildwise_user_name") ?? "User";
 
   return (
     <div>
+      {/* Welcome banner */}
+      <div className="mb-6 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
+        <h1 className="text-2xl font-bold">Welcome back, {userName}</h1>
+        <p className="mt-1 text-blue-100">Manage your building energy simulation projects</p>
+        <div className="mt-4 flex gap-6">
+          <div>
+            <p className="text-2xl font-bold">{projects.length}</p>
+            <p className="text-xs text-blue-200">Projects</p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold">{totalBuildings}</p>
+            <p className="text-xs text-blue-200">Buildings</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
+        <h2 className="text-lg font-semibold text-gray-800">Projects</h2>
         <button
           onClick={() => setShowCreate(true)}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
@@ -58,6 +79,7 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {/* Create form */}
       {showCreate && (
         <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
           <input
@@ -68,19 +90,28 @@ export default function Dashboard() {
             className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
             autoFocus
             onKeyDown={(e) => {
-              if (e.key === "Enter" && newName.trim()) createMutation.mutate(newName);
+              if (e.key === "Enter" && newName.trim()) {
+                createMutation.mutate({ name: newName, description: newDesc || undefined });
+              }
             }}
+          />
+          <input
+            type="text"
+            placeholder="Description (optional)"
+            value={newDesc}
+            onChange={(e) => setNewDesc(e.target.value)}
+            className="mt-2 w-full rounded border border-gray-300 px-3 py-2 text-sm"
           />
           <div className="mt-3 flex gap-2">
             <button
-              onClick={() => createMutation.mutate(newName)}
+              onClick={() => createMutation.mutate({ name: newName, description: newDesc || undefined })}
               disabled={!newName.trim() || createMutation.isPending}
               className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              Create
+              {createMutation.isPending ? "Creating..." : "Create"}
             </button>
             <button
-              onClick={() => setShowCreate(false)}
+              onClick={() => { setShowCreate(false); setNewName(""); setNewDesc(""); }}
               className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
             >
               Cancel
@@ -116,9 +147,26 @@ export default function Dashboard() {
         </div>
       )}
 
-      {projects.length === 0 ? (
+      {/* Loading skeleton */}
+      {isLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+        </div>
+      ) : projects.length === 0 ? (
         <div className="rounded-lg border-2 border-dashed border-gray-300 p-12 text-center">
-          <p className="text-gray-500">No projects yet. Create one to get started.</p>
+          <svg className="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+          <h3 className="mt-3 text-sm font-medium text-gray-900">No projects</h3>
+          <p className="mt-1 text-sm text-gray-500">Get started by creating your first project.</p>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            New Project
+          </button>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -196,7 +244,12 @@ export default function Dashboard() {
                     </p>
                   )}
                   <div className="mt-3 flex items-center gap-3 text-xs text-gray-400">
-                    <span>{p.buildings_count} buildings</span>
+                    <span className="flex items-center gap-1">
+                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                      {p.buildings_count} buildings
+                    </span>
                     <span>{new Date(p.created_at).toLocaleDateString()}</span>
                   </div>
                 </Link>

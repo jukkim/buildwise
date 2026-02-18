@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -7,6 +7,10 @@ import {
   type SimulationHistoryItem,
 } from "@/api/client";
 import BPSForm from "@/components/BPSForm";
+import { type BuildingViewerProps } from "@/components/BuildingViewer3D";
+import { Skeleton } from "@/components/Skeleton";
+
+const BuildingViewer3D = lazy(() => import("@/components/BuildingViewer3D"));
 
 const CITIES = [
   "Seoul", "Busan", "Daegu", "Daejeon", "Gwangju",
@@ -80,7 +84,19 @@ export default function BuildingEditor() {
     },
   });
 
-  if (isLoading || !building) return <div className="text-gray-500">Loading...</div>;
+  if (isLoading || !building) return (
+    <div className="space-y-4">
+      <Skeleton className="h-4 w-24" />
+      <Skeleton className="h-8 w-64" />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Skeleton className="h-96 rounded-lg" />
+        <div className="space-y-4">
+          <Skeleton className="h-48 rounded-lg" />
+          <Skeleton className="h-48 rounded-lg" />
+        </div>
+      </div>
+    </div>
+  );
 
   const bps = building.bps as Record<string, Record<string, unknown>>;
   const locationCity = (bps.location?.city as string) ?? "Seoul";
@@ -284,9 +300,20 @@ export default function BuildingEditor() {
             )}
           </div>
 
-          {/* 3D placeholder */}
-          <div className="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-12">
-            <p className="text-gray-400">3D Building Viewer (Phase 2)</p>
+          {/* 3D Building Viewer */}
+          <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+            <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
+              <h3 className="font-semibold text-gray-800">3D Preview</h3>
+              <span className="text-xs text-gray-400">Drag to rotate</span>
+            </div>
+            <div className="h-[320px]">
+              <Suspense fallback={<div className="flex h-full items-center justify-center text-gray-400">Loading 3D...</div>}>
+                <BuildingViewer3D
+                  geometry={bps.geometry as BuildingViewerProps["geometry"]}
+                  buildingType={building.building_type}
+                />
+              </Suspense>
+            </div>
           </div>
         </div>
       </div>

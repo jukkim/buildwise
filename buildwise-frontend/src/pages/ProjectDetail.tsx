@@ -9,6 +9,7 @@ import {
   type Building,
   type BuildingTemplate,
 } from "@/api/client";
+import { ListSkeleton } from "@/components/Skeleton";
 
 const HVAC_LABELS: Record<string, string> = {
   vav_chiller_boiler: "VAV + Chiller/Boiler",
@@ -94,7 +95,7 @@ export default function ProjectDetail() {
     },
   });
 
-  if (projectLoading || !project) return <div className="text-gray-500">Loading...</div>;
+  if (projectLoading || !project) return <ListSkeleton rows={3} />;
 
   return (
     <div>
@@ -270,7 +271,7 @@ export default function ProjectDetail() {
 
       {/* Building list */}
       {buildingsLoading ? (
-        <div className="text-gray-500">Loading buildings...</div>
+        <ListSkeleton rows={2} />
       ) : !buildings || buildings.length === 0 ? (
         <div className="rounded-lg border-2 border-dashed border-gray-300 p-12 text-center">
           <p className="text-gray-500">
@@ -301,8 +302,8 @@ export default function ProjectDetail() {
                     <span className="rounded bg-gray-100 px-2 py-0.5">
                       {b.building_type.replace(/_/g, " ")}
                     </span>
-                    {floors && <span>{floors}F</span>}
-                    {area && <span>{Number(area).toLocaleString()} m2</span>}
+                    {floors != null && <span>{String(floors)}F</span>}
+                    {area != null && <span>{Number(area).toLocaleString()} m2</span>}
                     {hvac && (
                       <span>{HVAC_LABELS[hvac] ?? hvac}</span>
                     )}
