@@ -1,4 +1,5 @@
-import { useParams, Link } from "react-router-dom";
+import { useEffect, useRef } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { simulationsApi, type SimulationRun } from "@/api/client";
 import clsx from "clsx";
@@ -27,7 +28,9 @@ const STRATEGY_LABELS: Record<string, string> = {
 
 export default function SimulationProgress() {
   const { configId } = useParams<{ configId: string }>();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const hasAutoNavigated = useRef(false);
 
   const { data: progress, isLoading } = useQuery({
     queryKey: ["simulation-progress", configId],
@@ -46,6 +49,19 @@ export default function SimulationProgress() {
       queryClient.invalidateQueries({ queryKey: ["simulation-progress", configId] });
     },
   });
+
+  // Auto-navigate to results when all done (with 1.5s delay for UX)
+  useEffect(() => {
+    if (!progress || hasAutoNavigated.current) return;
+    const done = progress.completed + progress.failed >= progress.total_strategies;
+    if (done && progress.failed === 0) {
+      hasAutoNavigated.current = true;
+      const timer = setTimeout(() => {
+        navigate(`/simulations/${configId}/results`, { replace: true });
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [progress, configId, navigate]);
 
   if (isLoading || !progress) return <div className="text-gray-500">Loading...</div>;
 
@@ -99,7 +115,10 @@ export default function SimulationProgress() {
       </div>
 
       {/* Action buttons */}
-      <div className="mb-6 flex gap-3">
+      <div className="mb-6 flex items-center gap-3">
+        {allDone && progress.failed === 0 && (
+          <span className="text-sm text-green-600 animate-pulse">Redirecting to results...</span>
+        )}
         {allDone && (
           <Link
             to={`/simulations/${configId}/results`}

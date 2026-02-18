@@ -66,6 +66,21 @@ make frontend-dev  # start frontend (port 5173)
 | `DEBUG` | `true` | Enable mock simulation mode |
 | `ENERGYPLUS_IMAGE` | (empty) | Docker image for E+ (empty = mock mode) |
 
+### Docker Full Stack
+
+```bash
+# Build and start all services (backend + frontend + db + redis)
+make full
+
+# Stop all services
+make full-down
+
+# View logs
+make logs
+```
+
+Frontend runs at http://localhost:3000, backend at http://localhost:8000.
+
 ### API Documentation
 
 - Swagger UI: http://localhost:8000/docs
@@ -82,12 +97,15 @@ make frontend-dev  # start frontend (port 5173)
 | GET/POST | `/api/v1/projects/{id}/buildings` | List / Create buildings |
 | GET/PATCH/DELETE | `/api/v1/projects/{id}/buildings/{id}` | Building CRUD |
 | PATCH | `/api/v1/projects/{id}/buildings/{id}/bps` | Update BPS parameters |
+| POST | `/api/v1/projects/{id}/buildings/{id}/clone` | Clone building |
 | GET | `/api/v1/projects/{id}/buildings/{id}/simulations` | Simulation history |
 | GET | `/api/v1/buildings/templates` | Building templates (6 types) |
 | POST | `/api/v1/simulations` | Start simulation |
 | GET | `/api/v1/simulations/{id}/progress` | Simulation progress |
 | POST | `/api/v1/simulations/{id}/cancel` | Cancel simulation |
 | GET | `/api/v1/simulations/{id}/results` | Strategy comparison results |
+| GET | `/api/v1/billing/plans` | Available plans |
+| GET | `/api/v1/billing/usage` | Current usage stats |
 
 ## Architecture
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import clsx from "clsx";
 
 interface BPSFormProps {
@@ -6,6 +6,47 @@ interface BPSFormProps {
   onSave: (patch: Record<string, unknown>) => void;
   saving?: boolean;
   error?: string | null;
+}
+
+// --- Validation rules ---
+interface ValidationError {
+  section: string;
+  field: string;
+  message: string;
+}
+
+function validateBPS(draft: Record<string, Record<string, unknown>>): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const g = draft.geometry ?? {};
+  const e = draft.envelope ?? {};
+  const s = draft.setpoints ?? {};
+  const il = draft.internal_loads ?? {};
+
+  // Geometry
+  if ((g.num_floors_above as number) < 1) errors.push({ section: "geometry", field: "num_floors_above", message: "At least 1 floor required" });
+  if ((g.total_floor_area_m2 as number) < 100) errors.push({ section: "geometry", field: "total_floor_area_m2", message: "Area must be >= 100 m2" });
+  if ((g.wwr as number) > 0.95) errors.push({ section: "geometry", field: "wwr", message: "WWR cannot exceed 0.95" });
+  if ((g.wwr as number) < 0) errors.push({ section: "geometry", field: "wwr", message: "WWR cannot be negative" });
+
+  // Envelope
+  if ((e.window_shgc as number) > 0.9 || (e.window_shgc as number) < 0.1)
+    errors.push({ section: "envelope", field: "window_shgc", message: "SHGC must be between 0.1 and 0.9" });
+
+  // Setpoints - cooling must be higher than heating
+  const coolOcc = s.cooling_occupied as number;
+  const heatOcc = s.heating_occupied as number;
+  if (coolOcc != null && heatOcc != null && coolOcc <= heatOcc)
+    errors.push({ section: "setpoints", field: "cooling_occupied", message: "Cooling setpoint must be higher than heating" });
+
+  const coolUnocc = s.cooling_unoccupied as number;
+  const heatUnocc = s.heating_unoccupied as number;
+  if (coolUnocc != null && heatUnocc != null && coolUnocc <= heatUnocc)
+    errors.push({ section: "setpoints", field: "cooling_unoccupied", message: "Cooling setpoint must be higher than heating" });
+
+  // Internal loads
+  if ((il.people_density as number) > 1) errors.push({ section: "internal_loads", field: "people_density", message: "People density seems too high (>1 ppl/m2)" });
+
+  return errors;
 }
 
 const CITIES = [
@@ -43,6 +84,24 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
     internal_loads: { ...(bps.internal_loads ?? {}) },
     schedules: { ...(bps.schedules ?? {}) },
   });
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  const [showErrors, setShowErrors] = useState(false);
+
+  // Validate on draft change
+  useEffect(() => {
+    setValidationErrors(validateBPS(draft));
+  }, [draft]);
+
+  const getFieldError = useCallback(
+    (section: string, field: string) =>
+      showErrors ? validationErrors.find((e) => e.section === section && e.field === field)?.message : undefined,
+    [validationErrors, showErrors],
+  );
+
+  const sectionHasErrors = useCallback(
+    (section: string) => showErrors && validationErrors.some((e) => e.section === section),
+    [validationErrors, showErrors],
+  );
 
   const update = (section: SectionKey, field: string, value: unknown) => {
     setDraft((prev) => ({
@@ -52,6 +111,11 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
   };
 
   const handleSave = () => {
+    const errors = validateBPS(draft);
+    setValidationErrors(errors);
+    setShowErrors(true);
+    if (errors.length > 0) return;
+
     const patch: Record<string, unknown> = {};
     for (const key of Object.keys(draft) as SectionKey[]) {
       const original = bps[key] ?? {};
@@ -91,9 +155,13 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
               activeSection === s.key
                 ? "border-b-2 border-blue-600 text-blue-600"
                 : "text-gray-500 hover:text-gray-700",
+              sectionHasErrors(s.key) && "text-red-500",
             )}
           >
             {s.label}
+            {sectionHasErrors(s.key) && (
+              <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-red-500" />
+            )}
           </button>
         ))}
       </div>
@@ -102,15 +170,15 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
         {activeSection === "geometry" && (
           <>
             <NumField label="Floors Above" value={draft.geometry.num_floors_above as number} min={1} max={100}
-              onChange={(v) => update("geometry", "num_floors_above", v)} />
+              onChange={(v) => update("geometry", "num_floors_above", v)} error={getFieldError("geometry", "num_floors_above")} />
             <NumField label="Total Floor Area (m2)" value={draft.geometry.total_floor_area_m2 as number} min={100} max={500000}
-              onChange={(v) => update("geometry", "total_floor_area_m2", v)} />
+              onChange={(v) => update("geometry", "total_floor_area_m2", v)} error={getFieldError("geometry", "total_floor_area_m2")} />
             <NumField label="Floor-to-Floor Height (m)" value={draft.geometry.floor_to_floor_height_m as number} min={2.5} max={10} step={0.1}
               onChange={(v) => update("geometry", "floor_to_floor_height_m", v)} />
             <NumField label="Aspect Ratio" value={draft.geometry.aspect_ratio as number} min={0.5} max={5} step={0.1}
               onChange={(v) => update("geometry", "aspect_ratio", v)} />
             <NumField label="WWR" value={draft.geometry.wwr as number} min={0} max={0.95} step={0.01}
-              onChange={(v) => update("geometry", "wwr", v)} />
+              onChange={(v) => update("geometry", "wwr", v)} error={getFieldError("geometry", "wwr")} />
             <NumField label="Orientation (deg)" value={draft.geometry.orientation_deg as number} min={0} max={360}
               onChange={(v) => update("geometry", "orientation_deg", v)} />
           </>
@@ -128,7 +196,7 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
             <SelectField label="Window Type" value={draft.envelope.window_type as string} options={WINDOW_TYPES}
               onChange={(v) => update("envelope", "window_type", v)} />
             <NumField label="Window SHGC" value={draft.envelope.window_shgc as number} min={0.1} max={0.9} step={0.01}
-              onChange={(v) => update("envelope", "window_shgc", v)} />
+              onChange={(v) => update("envelope", "window_shgc", v)} error={getFieldError("envelope", "window_shgc")} />
             <NumField label="Infiltration (ACH)" value={draft.envelope.infiltration_ach as number} min={0} max={2} step={0.1}
               onChange={(v) => update("envelope", "infiltration_ach", v)} />
           </>
@@ -172,7 +240,7 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
         {activeSection === "internal_loads" && (
           <>
             <NumField label="People Density (ppl/m2)" value={(draft.internal_loads.people_density as number) ?? 0.0565} min={0.01} max={1} step={0.001}
-              onChange={(v) => update("internal_loads", "people_density", v)} />
+              onChange={(v) => update("internal_loads", "people_density", v)} error={getFieldError("internal_loads", "people_density")} />
             <NumField label="Lighting Power (W/m2)" value={(draft.internal_loads.lighting_power_density as number) ?? 10.76} min={1} max={50} step={0.1}
               onChange={(v) => update("internal_loads", "lighting_power_density", v)} />
             <NumField label="Equipment Power (W/m2)" value={(draft.internal_loads.equipment_power_density as number) ?? 10.76} min={1} max={50} step={0.1}
@@ -188,11 +256,11 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
         {activeSection === "setpoints" && (
           <>
             <NumField label="Cooling (Occupied)" value={draft.setpoints.cooling_occupied as number} min={18} max={30} step={0.5}
-              onChange={(v) => update("setpoints", "cooling_occupied", v)} unit="°C" />
+              onChange={(v) => update("setpoints", "cooling_occupied", v)} unit="°C" error={getFieldError("setpoints", "cooling_occupied")} />
             <NumField label="Heating (Occupied)" value={draft.setpoints.heating_occupied as number} min={15} max={25} step={0.5}
               onChange={(v) => update("setpoints", "heating_occupied", v)} unit="°C" />
             <NumField label="Cooling (Unoccupied)" value={draft.setpoints.cooling_unoccupied as number} min={25} max={35} step={0.5}
-              onChange={(v) => update("setpoints", "cooling_unoccupied", v)} unit="°C" />
+              onChange={(v) => update("setpoints", "cooling_unoccupied", v)} unit="°C" error={getFieldError("setpoints", "cooling_unoccupied")} />
             <NumField label="Heating (Unoccupied)" value={draft.setpoints.heating_unoccupied as number} min={10} max={20} step={0.5}
               onChange={(v) => update("setpoints", "heating_unoccupied", v)} unit="°C" />
           </>
@@ -201,7 +269,12 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
 
       {/* Save button */}
       <div className="border-t border-gray-200 px-5 py-3 flex items-center justify-between">
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        <div className="text-sm">
+          {error && <p className="text-red-600">{error}</p>}
+          {showErrors && validationErrors.length > 0 && (
+            <p className="text-red-500">{validationErrors.length} validation error{validationErrors.length > 1 ? "s" : ""}</p>
+          )}
+        </div>
         <button
           onClick={handleSave}
           disabled={saving}
@@ -217,24 +290,30 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
 // --- Field components ---
 
 function NumField({
-  label, value, min, max, step = 1, unit, onChange,
+  label, value, min, max, step = 1, unit, onChange, error,
 }: {
   label: string; value: number; min: number; max: number; step?: number; unit?: string;
-  onChange: (v: number) => void;
+  onChange: (v: number) => void; error?: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4">
-      <label className="text-sm text-gray-600 min-w-[160px]">{label}</label>
-      <div className="flex items-center gap-2">
-        <input
-          type="number"
-          value={value ?? ""}
-          min={min} max={max} step={step}
-          onChange={(e) => onChange(Number(e.target.value))}
-          className="w-28 rounded border border-gray-300 px-2 py-1.5 text-sm text-right"
-        />
-        {unit && <span className="text-xs text-gray-400">{unit}</span>}
+    <div>
+      <div className="flex items-center justify-between gap-4">
+        <label className="text-sm text-gray-600 min-w-[160px]">{label}</label>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            value={value ?? ""}
+            min={min} max={max} step={step}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className={clsx(
+              "w-28 rounded border px-2 py-1.5 text-sm text-right",
+              error ? "border-red-400 bg-red-50" : "border-gray-300",
+            )}
+          />
+          {unit && <span className="text-xs text-gray-400">{unit}</span>}
+        </div>
       </div>
+      {error && <p className="mt-0.5 text-right text-xs text-red-500">{error}</p>}
     </div>
   );
 }

@@ -9,6 +9,11 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
 } from "recharts";
 import { simulationsApi, type EnergyResult } from "@/api/client";
 
@@ -178,6 +183,57 @@ export default function Results() {
           </BarChart>
         </ResponsiveContainer>
       </div>
+
+      {/* Strategy Radar Chart */}
+      {comparison.baseline && allStrategies.length > 2 && (() => {
+        const baseEui = comparison.baseline!.eui_kwh_m2;
+        const baseCool = comparison.baseline!.cooling_energy_kwh ?? 1;
+        const baseHeat = comparison.baseline!.heating_energy_kwh ?? 1;
+        const baseFan = comparison.baseline!.fan_energy_kwh ?? 1;
+        const basePeak = comparison.baseline!.peak_demand_kw ?? 1;
+
+        // Normalize to 0-100 scale relative to baseline (lower is better)
+        const radarData = [
+          { metric: "EUI", ...Object.fromEntries(allStrategies.map((s) => [s.strategy, Math.round((s.eui_kwh_m2 / baseEui) * 100)])) },
+          { metric: "Cooling", ...Object.fromEntries(allStrategies.map((s) => [s.strategy, Math.round(((s.cooling_energy_kwh ?? baseCool) / baseCool) * 100)])) },
+          { metric: "Heating", ...Object.fromEntries(allStrategies.map((s) => [s.strategy, Math.round(((s.heating_energy_kwh ?? baseHeat) / baseHeat) * 100)])) },
+          { metric: "Fan", ...Object.fromEntries(allStrategies.map((s) => [s.strategy, Math.round(((s.fan_energy_kwh ?? baseFan) / baseFan) * 100)])) },
+          { metric: "Peak", ...Object.fromEntries(allStrategies.map((s) => [s.strategy, Math.round(((s.peak_demand_kw ?? basePeak) / basePeak) * 100)])) },
+        ];
+
+        const COLORS = ["#6B7280", "#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#14B8A6", "#F97316", "#6366F1"];
+        const top = comparison.recommended_strategy
+          ? [allStrategies.find((s) => s.strategy === "baseline")!, allStrategies.find((s) => s.strategy === comparison.recommended_strategy)!].filter(Boolean)
+          : allStrategies.slice(0, 3);
+
+        return (
+          <div className="mt-6 rounded-lg border border-gray-200 bg-white p-5">
+            <h3 className="mb-4 font-semibold text-gray-800">
+              Strategy Profile (% of Baseline)
+            </h3>
+            <p className="mb-2 text-xs text-gray-400">Lower values = better performance. 100% = baseline level.</p>
+            <ResponsiveContainer width="100%" height={320}>
+              <RadarChart data={radarData}>
+                <PolarGrid />
+                <PolarAngleAxis dataKey="metric" tick={{ fontSize: 12 }} />
+                <PolarRadiusAxis angle={90} domain={[0, 110]} tick={{ fontSize: 10 }} />
+                {top.map((s, i) => (
+                  <Radar
+                    key={s.strategy}
+                    name={STRATEGY_LABELS[s.strategy] ?? s.strategy}
+                    dataKey={s.strategy}
+                    stroke={COLORS[i % COLORS.length]}
+                    fill={COLORS[i % COLORS.length]}
+                    fillOpacity={0.15}
+                  />
+                ))}
+                <Legend />
+                <Tooltip />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+        );
+      })()}
 
       {/* Energy Breakdown Chart */}
       {breakdownChartData.length > 0 && (
