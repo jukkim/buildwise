@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -19,6 +20,9 @@ import { simulationsApi, type EnergyResult } from "@/api/client";
 import { Skeleton } from "@/components/Skeleton";
 import { showToast } from "@/components/Toast";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
+
+type SortKey = "strategy" | "eui" | "total" | "hvac" | "savings" | "cost" | "cost_savings";
+type SortDir = "asc" | "desc";
 
 const STRATEGY_LABELS: Record<string, string> = {
   baseline: "Baseline",
@@ -74,10 +78,44 @@ export default function Results() {
     </div>
   );
 
+  const [sortKey, setSortKey] = useState<SortKey>("strategy");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir(key === "strategy" ? "asc" : "desc");
+    }
+  };
+
   const allStrategies: EnergyResult[] = [
     ...(comparison.baseline ? [comparison.baseline] : []),
     ...comparison.strategies,
   ];
+
+  const getValue = (s: EnergyResult, key: SortKey): number | string => {
+    switch (key) {
+      case "strategy": return STRATEGY_LABELS[s.strategy] ?? s.strategy;
+      case "eui": return s.eui_kwh_m2;
+      case "total": return s.total_energy_kwh;
+      case "hvac": return s.hvac_energy_kwh ?? 0;
+      case "savings": return s.savings_pct ?? 0;
+      case "cost": return s.annual_cost_krw ?? 0;
+      case "cost_savings": return s.annual_savings_krw ?? 0;
+    }
+  };
+
+  const sortedStrategies = [...allStrategies].sort((a, b) => {
+    const va = getValue(a, sortKey);
+    const vb = getValue(b, sortKey);
+    const cmp = typeof va === "string" ? va.localeCompare(vb as string) : (va as number) - (vb as number);
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  const sortIcon = (key: SortKey) =>
+    sortKey === key ? (sortDir === "asc" ? " \u2191" : " \u2193") : "";
 
   const euiChartData = allStrategies.map((s) => ({
     strategy: STRATEGY_LABELS[s.strategy] ?? s.strategy,
@@ -150,28 +188,28 @@ export default function Results() {
             {comparison.climate_city}
           </p>
         </div>
-        <div className="flex gap-2 print:hidden">
+        <div className="flex flex-wrap gap-2 print:hidden">
           <button
             onClick={() => {
               navigator.clipboard.writeText(window.location.href);
               showToast("Link copied", "success");
             }}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:px-4 sm:py-2"
             title="Copy shareable link"
           >
-            Copy Link
+            <span className="hidden sm:inline">Copy </span>Link
           </button>
           <button
             onClick={() => window.print()}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:px-4 sm:py-2"
           >
             Print
           </button>
           <button
             onClick={downloadCsv}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:px-4 sm:py-2"
           >
-            Download CSV
+            <span className="hidden sm:inline">Download </span>CSV
           </button>
         </div>
       </div>
@@ -312,17 +350,27 @@ export default function Results() {
         <table className="min-w-full divide-y divide-gray-200 text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="sticky left-0 bg-gray-50 px-4 py-3 text-left font-medium text-gray-600">Strategy</th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600">EUI (kWh/m2)</th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600">Total (kWh)</th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600">HVAC (kWh)</th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600">Savings (%)</th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600">Cost (KRW)</th>
-              <th className="px-4 py-3 text-right font-medium text-gray-600">Savings (KRW)</th>
+              {([
+                ["strategy", "Strategy", "text-left"],
+                ["eui", "EUI (kWh/m\u00B2)", "text-right"],
+                ["total", "Total (kWh)", "text-right"],
+                ["hvac", "HVAC (kWh)", "text-right"],
+                ["savings", "Savings (%)", "text-right"],
+                ["cost", "Cost (KRW)", "text-right"],
+                ["cost_savings", "Savings (KRW)", "text-right"],
+              ] as [SortKey, string, string][]).map(([key, label, align]) => (
+                <th
+                  key={key}
+                  onClick={() => toggleSort(key)}
+                  className={`${key === "strategy" ? "sticky left-0 bg-gray-50 " : ""}px-4 py-3 ${align} font-medium text-gray-600 cursor-pointer select-none hover:text-gray-900`}
+                >
+                  {label}{sortIcon(key)}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white">
-            {allStrategies.map((s) => {
+            {sortedStrategies.map((s) => {
               const isRecommended = s.strategy === comparison.recommended_strategy;
               return (
                 <tr

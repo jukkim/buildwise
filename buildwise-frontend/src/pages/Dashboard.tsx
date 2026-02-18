@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [editName, setEditName] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "name">("newest");
 
   const { data, isLoading } = useQuery({
     queryKey: ["projects"],
@@ -60,9 +61,14 @@ export default function Dashboard() {
 
   const allProjects = data?.data ?? [];
   const totalBuildings = allProjects.reduce((sum: number, p: Project) => sum + p.buildings_count, 0);
-  const projects = search
+  const filtered = search
     ? allProjects.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
     : allProjects;
+  const projects = [...filtered].sort((a, b) => {
+    if (sortBy === "name") return a.name.localeCompare(b.name);
+    if (sortBy === "oldest") return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
   const userName = localStorage.getItem("buildwise_user_name") ?? "User";
 
   return (
@@ -94,9 +100,9 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* Search */}
+      {/* Search + Sort */}
       {allProjects.length > 0 && (
-        <div className="mb-4">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
           <input
             type="text"
             placeholder="Search projects..."
@@ -104,6 +110,15 @@ export default function Dashboard() {
             onChange={(e) => setSearch(e.target.value)}
             className="w-full max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as "newest" | "oldest" | "name")}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600"
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="name">Name A-Z</option>
+          </select>
         </div>
       )}
 

@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Link, Outlet, useNavigate } from "react-router-dom";
+import useScrollToTop from "@/hooks/useScrollToTop";
 
 export default function Layout() {
+  useScrollToTop();
   const navigate = useNavigate();
   const userName = localStorage.getItem("buildwise_user_name") ?? "User";
   const [mobileOpen, setMobileOpen] = useState(false);
