@@ -6,6 +6,7 @@ import { CardSkeleton } from "@/components/Skeleton";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { showToast } from "@/components/Toast";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
+import useDebounce from "@/hooks/useDebounce";
 import timeAgo from "@/utils/timeAgo";
 
 export default function Dashboard() {
@@ -62,8 +63,9 @@ export default function Dashboard() {
 
   const allProjects = data?.data ?? [];
   const totalBuildings = allProjects.reduce((sum: number, p: Project) => sum + p.buildings_count, 0);
-  const filtered = search
-    ? allProjects.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()))
+  const debouncedSearch = useDebounce(search);
+  const filtered = debouncedSearch
+    ? allProjects.filter((p) => p.name.toLowerCase().includes(debouncedSearch.toLowerCase()))
     : allProjects;
   const projects = [...filtered].sort((a, b) => {
     if (sortBy === "name") return a.name.localeCompare(b.name);
@@ -204,9 +206,9 @@ export default function Dashboard() {
           <CardSkeleton />
           <CardSkeleton />
         </div>
-      ) : projects.length === 0 && search ? (
+      ) : projects.length === 0 && debouncedSearch ? (
         <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
-          <p className="text-sm text-gray-500">No projects matching "{search}"</p>
+          <p className="text-sm text-gray-500">No projects matching "{debouncedSearch}"</p>
           <button
             onClick={() => setSearch("")}
             className="mt-3 text-sm text-blue-600 hover:underline"

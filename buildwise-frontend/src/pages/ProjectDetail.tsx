@@ -13,6 +13,7 @@ import { ListSkeleton } from "@/components/Skeleton";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { showToast } from "@/components/Toast";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
+import useDebounce from "@/hooks/useDebounce";
 import timeAgo from "@/utils/timeAgo";
 
 const HVAC_LABELS: Record<string, string> = {
@@ -34,6 +35,7 @@ export default function ProjectDetail() {
   const [showDeleteProject, setShowDeleteProject] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<BuildingTemplate | null>(null);
   const [newBuildingName, setNewBuildingName] = useState("");
+  const [buildingSearch, setBuildingSearch] = useState("");
 
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ["project", projectId],
@@ -124,6 +126,13 @@ export default function ProjectDetail() {
 
   useDocumentTitle(project?.name ?? "Project");
 
+  const debouncedBuildingSearch = useDebounce(buildingSearch);
+  const filteredBuildings = buildings
+    ? debouncedBuildingSearch
+      ? buildings.filter((b) => b.name.toLowerCase().includes(debouncedBuildingSearch.toLowerCase()))
+      : buildings
+    : [];
+
   if (projectLoading || !project) return <ListSkeleton rows={3} />;
 
   return (
@@ -203,6 +212,19 @@ export default function ProjectDetail() {
           {showTemplates ? "Cancel" : "Add Building"}
         </button>
       </div>
+
+      {/* Building search */}
+      {buildings && buildings.length > 3 && (
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Search buildings..."
+            value={buildingSearch}
+            onChange={(e) => setBuildingSearch(e.target.value)}
+            className="w-full max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+      )}
 
       {/* Template selection */}
       {showTemplates && templates && !selectedTemplate && (
@@ -313,6 +335,16 @@ export default function ProjectDetail() {
       {/* Building list */}
       {buildingsLoading ? (
         <ListSkeleton rows={2} />
+      ) : filteredBuildings.length === 0 && debouncedBuildingSearch ? (
+        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
+          <p className="text-sm text-gray-500">No buildings matching "{debouncedBuildingSearch}"</p>
+          <button
+            onClick={() => setBuildingSearch("")}
+            className="mt-3 text-sm text-blue-600 hover:underline"
+          >
+            Clear search
+          </button>
+        </div>
       ) : !buildings || buildings.length === 0 ? (
         <div className="rounded-lg border-2 border-dashed border-gray-300 p-12 text-center">
           <svg className="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -329,7 +361,7 @@ export default function ProjectDetail() {
         </div>
       ) : (
         <div className="space-y-3">
-          {buildings.map((b: Building) => {
+          {filteredBuildings.map((b: Building) => {
             const bps = b.bps as Record<string, Record<string, unknown>>;
             const area = bps?.geometry?.total_floor_area_m2;
             const floors = bps?.geometry?.num_floors_above;

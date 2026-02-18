@@ -33,6 +33,8 @@ const PERIOD_LABELS: Record<string, string> = {
 
 export default function Results() {
   const { configId } = useParams<{ configId: string }>();
+  const [sortKey, setSortKey] = useState<SortKey>("strategy");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   useDocumentTitle("Results");
 
@@ -71,9 +73,6 @@ export default function Results() {
       <Skeleton className="h-80 rounded-lg" />
     </div>
   );
-
-  const [sortKey, setSortKey] = useState<SortKey>("strategy");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -372,9 +371,9 @@ export default function Results() {
               return (
                 <tr
                   key={s.strategy}
-                  className={isRecommended ? "bg-green-50" : ""}
+                  className={`${isRecommended ? "bg-green-50" : "hover:bg-gray-50"} transition-colors`}
                 >
-                  <td className={`sticky left-0 px-4 py-3 font-medium text-gray-900 ${isRecommended ? "bg-green-50" : "bg-white"}`}>
+                  <td className={`sticky left-0 px-4 py-3 font-medium text-gray-900 ${isRecommended ? "bg-green-50" : "bg-white group-hover:bg-gray-50"}`}>
                     {STRATEGY_LABELS[s.strategy] ?? s.strategy}
                     {isRecommended && (
                       <span className="ml-2 rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-700">
