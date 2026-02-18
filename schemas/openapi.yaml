@@ -1,0 +1,888 @@
+openapi: 3.1.0
+info:
+  title: BuildWise API
+  version: 1.0.0
+  description: |
+    건물 에너지 시뮬레이션 SaaS 플랫폼 API.
+    자연어 입력 → 3D 건물 생성 → EnergyPlus 시뮬레이션 → EMS 전략 비교 → 결과 분석.
+  contact:
+    name: BuildWise
+    url: https://buildwise.ai
+
+servers:
+  - url: https://api.buildwise.ai/api/v1
+    description: Production
+  - url: http://localhost:8000/api/v1
+    description: Local development
+
+tags:
+  - name: auth
+    description: 인증 (Auth0)
+  - name: projects
+    description: 프로젝트 관리
+  - name: buildings
+    description: 건물 (BPS) 관리
+  - name: templates
+    description: 건물 유형 템플릿
+  - name: simulations
+    description: 시뮬레이션 실행/관리
+  - name: results
+    description: 시뮬레이션 결과 조회
+  - name: billing
+    description: 과금/구독 관리
+
+# ===========================================================================
+# Security
+# ===========================================================================
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Auth0 JWT token
+
+  # =========================================================================
+  # Schemas
+  # =========================================================================
+  schemas:
+    # --- Error ---
+    Error:
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+          example: "https://buildwise.ai/errors/validation"
+        title:
+          type: string
+          example: "Validation Error"
+        status:
+          type: integer
+          example: 422
+        detail:
+          type: string
+          example: "BPS geometry.num_floors_above must be >= 1"
+        instance:
+          type: string
+          format: uri
+
+    # --- Pagination ---
+    PaginationMeta:
+      type: object
+      properties:
+        total:
+          type: integer
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_pages:
+          type: integer
+
+    # --- User ---
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+        plan:
+          type: string
+          enum: [free, pro, enterprise]
+        simulation_count_monthly:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    # --- Project ---
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [active, archived, deleted]
+        buildings_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ProjectCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+
+    # --- Building ---
+    Building:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        building_type:
+          type: string
+          enum: [large_office, medium_office, small_office, standalone_retail, primary_school, hospital]
+        bps:
+          $ref: '#/components/schemas/BPS'
+        bps_version:
+          type: integer
+        model_3d_url:
+          type: string
+          format: uri
+        thumbnail_url:
+          type: string
+          format: uri
+        created_at:
+          type: string
+          format: date-time
+
+    BuildingCreate:
+      type: object
+      required: [name, bps]
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        bps:
+          $ref: '#/components/schemas/BPS'
+
+    # --- BPS (Building Parameter Schema) ---
+    BPS:
+      type: object
+      description: "Building Parameter Schema - SSOT. See schemas/bps.schema.json for full validation."
+      required: [location, geometry, hvac]
+      properties:
+        location:
+          type: object
+          properties:
+            city:
+              type: string
+              enum: [Seoul, Busan, Daegu, Daejeon, Gwangju, Incheon, Gangneung, Jeju, Cheongju, Ulsan]
+            climate_zone:
+              type: string
+              enum: ["3A", "4A", "5A"]
+        geometry:
+          type: object
+          properties:
+            building_type:
+              type: string
+              enum: [large_office, medium_office, small_office, standalone_retail, primary_school, hospital]
+            num_floors_above:
+              type: integer
+              minimum: 1
+            total_floor_area_m2:
+              type: number
+              minimum: 100
+            wwr:
+              oneOf:
+                - type: number
+                - type: object
+        envelope:
+          type: object
+        hvac:
+          type: object
+          required: [system_type]
+          properties:
+            system_type:
+              type: string
+              enum: [vav_chiller_boiler, vrf, psz_hp, psz_ac, vav_chiller_boiler_school]
+        schedules:
+          type: object
+        setpoints:
+          type: object
+
+    BPSPatch:
+      type: object
+      description: "BPS 부분 수정. 전달된 필드만 업데이트."
+      properties:
+        location:
+          type: object
+        geometry:
+          type: object
+        envelope:
+          type: object
+        hvac:
+          type: object
+        schedules:
+          type: object
+        setpoints:
+          type: object
+
+    # --- Building Template ---
+    BuildingTemplate:
+      type: object
+      properties:
+        building_type:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        default_bps:
+          $ref: '#/components/schemas/BPS'
+        baseline_eui_kwh_m2:
+          type: number
+        available_strategies:
+          type: array
+          items:
+            type: string
+
+    # --- Simulation ---
+    SimulationConfig:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        building_id:
+          type: string
+          format: uuid
+        climate_city:
+          type: string
+        period_type:
+          type: string
+        strategies:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+
+    SimulationStart:
+      type: object
+      required: [building_id]
+      properties:
+        building_id:
+          type: string
+          format: uuid
+        climate_city:
+          type: string
+          enum: [Seoul, Busan, Daegu, Daejeon, Gwangju, Incheon, Gangneung, Jeju, Cheongju, Ulsan]
+          default: Seoul
+        period_type:
+          type: string
+          enum: [1year, 1month_summer, 1month_winter]
+          default: 1year
+        strategies:
+          type: array
+          items:
+            type: string
+            enum: [baseline, m0, m1, m2, m3, m4, m5, m6, m7, m8]
+          description: "미지정시 건물유형에 따라 적용 가능한 전략 전체 실행"
+
+    SimulationRun:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        config_id:
+          type: string
+          format: uuid
+        strategy:
+          type: string
+        status:
+          type: string
+          enum: [pending, queued, running, completed, failed, cancelled]
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        duration_seconds:
+          type: integer
+
+    SimulationProgress:
+      type: object
+      properties:
+        config_id:
+          type: string
+          format: uuid
+        total_strategies:
+          type: integer
+        completed:
+          type: integer
+        running:
+          type: integer
+        failed:
+          type: integer
+        runs:
+          type: array
+          items:
+            $ref: '#/components/schemas/SimulationRun'
+        estimated_remaining_seconds:
+          type: integer
+
+    # --- Results ---
+    EnergyResultSummary:
+      type: object
+      properties:
+        strategy:
+          type: string
+        total_energy_kwh:
+          type: number
+        hvac_energy_kwh:
+          type: number
+        cooling_energy_kwh:
+          type: number
+        heating_energy_kwh:
+          type: number
+        fan_energy_kwh:
+          type: number
+        eui_kwh_m2:
+          type: number
+        peak_demand_kw:
+          type: number
+        savings_pct:
+          type: number
+        annual_cost_krw:
+          type: integer
+        annual_savings_krw:
+          type: integer
+
+    StrategyComparison:
+      type: object
+      properties:
+        building_name:
+          type: string
+        building_type:
+          type: string
+        climate_city:
+          type: string
+        baseline:
+          $ref: '#/components/schemas/EnergyResultSummary'
+        strategies:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnergyResultSummary'
+        recommended_strategy:
+          type: string
+        recommendation_reason:
+          type: string
+
+    TimeSeriesData:
+      type: object
+      properties:
+        strategy:
+          type: string
+        variable:
+          type: string
+        resolution:
+          type: string
+          enum: [hourly, daily, monthly]
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              time:
+                type: string
+                format: date-time
+              value:
+                type: number
+
+    # --- Billing ---
+    PlanInfo:
+      type: object
+      properties:
+        plan:
+          type: string
+          enum: [free, pro, enterprise]
+        price_monthly_usd:
+          type: number
+        max_buildings:
+          type: integer
+        max_simulations_monthly:
+          type: integer
+        allowed_strategies:
+          type: array
+          items:
+            type: string
+        has_pdf_export:
+          type: boolean
+
+    UsageInfo:
+      type: object
+      properties:
+        plan:
+          type: string
+        simulations_used:
+          type: integer
+        simulations_limit:
+          type: integer
+        buildings_count:
+          type: integer
+        buildings_limit:
+          type: integer
+        credits_remaining:
+          type: integer
+
+  # =========================================================================
+  # Parameters
+  # =========================================================================
+  parameters:
+    page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    per_page:
+      name: per_page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+# ===========================================================================
+# Paths
+# ===========================================================================
+paths:
+  # --- Auth ---
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: 현재 사용자 정보
+      operationId: getCurrentUser
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # --- Projects ---
+  /projects:
+    get:
+      tags: [projects]
+      summary: 프로젝트 목록
+      operationId: listProjects
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/per_page'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Project'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+
+    post:
+      tags: [projects]
+      summary: 프로젝트 생성
+      operationId: createProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreate'
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        "422":
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /projects/{project_id}:
+    get:
+      tags: [projects]
+      summary: 프로젝트 상세
+      operationId: getProject
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        "404":
+          description: Not Found
+
+  # --- Buildings ---
+  /projects/{project_id}/buildings:
+    post:
+      tags: [buildings]
+      summary: 건물 생성 (BPS 기반)
+      operationId: createBuilding
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuildingCreate'
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Building'
+        "422":
+          description: BPS Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /projects/{project_id}/buildings/{building_id}:
+    get:
+      tags: [buildings]
+      summary: 건물 상세 (BPS 포함)
+      operationId: getBuilding
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: building_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Building'
+
+  /projects/{project_id}/buildings/{building_id}/bps:
+    patch:
+      tags: [buildings]
+      summary: BPS 부분 수정
+      operationId: updateBPS
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: building_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BPSPatch'
+      responses:
+        "200":
+          description: Updated BPS
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Building'
+
+  # --- Templates ---
+  /buildings/templates:
+    get:
+      tags: [templates]
+      summary: 건물 유형 템플릿 목록 (6종)
+      operationId: listBuildingTemplates
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BuildingTemplate'
+
+  /buildings/templates/{building_type}:
+    get:
+      tags: [templates]
+      summary: 특정 건물 유형 템플릿 상세
+      operationId: getBuildingTemplate
+      parameters:
+        - name: building_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [large_office, medium_office, small_office, standalone_retail, primary_school, hospital]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildingTemplate'
+
+  # --- Simulations ---
+  /simulations:
+    post:
+      tags: [simulations]
+      summary: 시뮬레이션 시작 (Baseline + 선택 전략)
+      operationId: startSimulation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimulationStart'
+      responses:
+        "202":
+          description: Accepted (비동기 실행)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimulationProgress'
+        "402":
+          description: 시뮬레이션 한도 초과
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "422":
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /simulations/{config_id}/progress:
+    get:
+      tags: [simulations]
+      summary: 시뮬레이션 진행 상황 (SSE)
+      operationId: getSimulationProgress
+      description: |
+        Server-Sent Events (SSE) 스트림으로 실시간 진행 상황 전달.
+        `text/event-stream` content type.
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/SimulationProgress'
+
+  /simulations/{config_id}/cancel:
+    post:
+      tags: [simulations]
+      summary: 시뮬레이션 취소
+      operationId: cancelSimulation
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Cancelled
+
+  # --- Results ---
+  /simulations/{config_id}/results:
+    get:
+      tags: [results]
+      summary: 시뮬레이션 결과 요약
+      operationId: getResults
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StrategyComparison'
+        "404":
+          description: 시뮬레이션 미완료 또는 미존재
+
+  /simulations/{config_id}/results/timeseries:
+    get:
+      tags: [results]
+      summary: 시계열 데이터 조회
+      operationId: getTimeSeries
+      parameters:
+        - name: config_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: strategies
+          in: query
+          description: "쉼표 구분 전략 (예: baseline,m7,m8)"
+          schema:
+            type: string
+        - name: variables
+          in: query
+          description: "쉼표 구분 변수 (예: total_energy,cooling,heating)"
+          schema:
+            type: string
+        - name: resolution
+          in: query
+          schema:
+            type: string
+            enum: [hourly, daily, monthly]
+            default: monthly
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TimeSeriesData'
+
+  # --- Billing ---
+  /billing/plans:
+    get:
+      tags: [billing]
+      summary: 요금제 목록
+      operationId: listPlans
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlanInfo'
+
+  /billing/usage:
+    get:
+      tags: [billing]
+      summary: 현재 사용량
+      operationId: getUsage
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageInfo'
+
+  /billing/subscribe:
+    post:
+      tags: [billing]
+      summary: 구독/업그레이드
+      operationId: subscribe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [plan]
+              properties:
+                plan:
+                  type: string
+                  enum: [pro, enterprise]
+                stripe_payment_method_id:
+                  type: string
+      responses:
+        "200":
+          description: Subscription updated
+        "402":
+          description: Payment required

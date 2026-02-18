@@ -1,0 +1,552 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://buildwise.ai/schemas/bps/v1",
+  "title": "Building Parameter Schema (BPS)",
+  "description": "BuildWise 건물 파라미터 스키마 - 전체 시스템의 SSOT (Single Source of Truth)",
+  "type": "object",
+  "required": ["project_id", "name", "location", "geometry", "envelope", "hvac", "schedules", "setpoints"],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "프로젝트 고유 ID"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "건물 이름"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "BPS 버전 (수정 시 증가)"
+    },
+
+    "location": {
+      "type": "object",
+      "required": ["city", "climate_zone"],
+      "properties": {
+        "city": {
+          "type": "string",
+          "enum": ["Seoul", "Busan", "Daegu", "Daejeon", "Gwangju", "Incheon", "Gangneung", "Jeju", "Cheongju", "Ulsan"],
+          "description": "한국 10도시 (Phase 1 MVP)"
+        },
+        "district": {
+          "type": "string",
+          "description": "구/군 (선택)"
+        },
+        "latitude": {
+          "type": "number",
+          "minimum": 33.0,
+          "maximum": 39.0,
+          "description": "위도 (한국 범위)"
+        },
+        "longitude": {
+          "type": "number",
+          "minimum": 124.0,
+          "maximum": 132.0,
+          "description": "경도 (한국 범위)"
+        },
+        "climate_zone": {
+          "type": "string",
+          "enum": ["3A", "4A", "5A"],
+          "description": "ASHRAE Climate Zone"
+        },
+        "epw_file": {
+          "type": "string",
+          "pattern": "^KOR_[A-Za-z]+\\.epw$",
+          "description": "EPW 파일명 (자동 매핑)"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "geometry": {
+      "type": "object",
+      "required": ["building_type", "num_floors_above", "total_floor_area_m2"],
+      "properties": {
+        "building_type": {
+          "type": "string",
+          "enum": ["large_office", "medium_office", "small_office", "standalone_retail", "primary_school", "hospital"],
+          "description": "DOE Reference Building 기반 건물 유형"
+        },
+        "num_floors_above": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "지상 층수"
+        },
+        "num_floors_below": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 0,
+          "description": "지하 층수"
+        },
+        "total_floor_area_m2": {
+          "type": "number",
+          "minimum": 100,
+          "maximum": 500000,
+          "description": "연면적 (m2)"
+        },
+        "conditioned_floor_area_m2": {
+          "type": "number",
+          "minimum": 100,
+          "description": "냉난방 면적 (m2), 미지정시 total_floor_area_m2"
+        },
+        "floor_to_floor_height_m": {
+          "type": "number",
+          "minimum": 2.5,
+          "maximum": 10.0,
+          "default": 3.96,
+          "description": "층고 (m)"
+        },
+        "aspect_ratio": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 5.0,
+          "default": 1.5,
+          "description": "장변/단변 비율"
+        },
+        "footprint_shape": {
+          "type": "string",
+          "enum": ["rectangle", "L", "U", "T", "H"],
+          "default": "rectangle",
+          "description": "건물 평면 형상"
+        },
+        "wwr": {
+          "description": "Window-to-Wall Ratio (방위별 창면적비)",
+          "oneOf": [
+            {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 0.95,
+              "description": "전체 동일 WWR"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "north": { "type": "number", "minimum": 0.0, "maximum": 0.95 },
+                "south": { "type": "number", "minimum": 0.0, "maximum": 0.95 },
+                "east": { "type": "number", "minimum": 0.0, "maximum": 0.95 },
+                "west": { "type": "number", "minimum": 0.0, "maximum": 0.95 }
+              },
+              "required": ["north", "south", "east", "west"],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "orientation_deg": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 360,
+          "default": 0,
+          "description": "건물 회전 각도 (0=남향)"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "envelope": {
+      "type": "object",
+      "properties": {
+        "wall_type": {
+          "type": "string",
+          "enum": ["curtain_wall", "masonry", "metal_panel", "concrete", "wood_frame"],
+          "default": "curtain_wall"
+        },
+        "wall_u_value": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 5.0,
+          "description": "외벽 열관류율 (W/m2K)"
+        },
+        "roof_u_value": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 3.0,
+          "description": "지붕 열관류율 (W/m2K)"
+        },
+        "floor_u_value": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 3.0,
+          "description": "바닥 열관류율 (W/m2K)"
+        },
+        "window_type": {
+          "type": "string",
+          "enum": ["single_clear", "double_clear", "double_low_e", "triple_low_e"],
+          "default": "double_low_e"
+        },
+        "window_u_value": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 6.0,
+          "description": "창호 열관류율 (W/m2K)"
+        },
+        "window_shgc": {
+          "type": "number",
+          "minimum": 0.1,
+          "maximum": 0.9,
+          "default": 0.25,
+          "description": "Solar Heat Gain Coefficient"
+        },
+        "infiltration_ach": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 2.0,
+          "default": 0.5,
+          "description": "침기량 (ACH)"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "zones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "floor", "usage"],
+        "properties": {
+          "name": { "type": "string" },
+          "floor": { "type": "integer", "minimum": -10, "maximum": 100 },
+          "area_m2": { "type": "number", "minimum": 1 },
+          "usage": {
+            "type": "string",
+            "enum": ["office", "lobby", "conference", "restroom", "storage", "mechanical", "parking", "retail", "classroom", "corridor", "cafeteria", "data_center", "kitchen", "patient_room", "operating_room"]
+          },
+          "occupancy_density": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "people/m2"
+          },
+          "has_data_center": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "description": "미지정시 건물유형 기반 자동 생성"
+    },
+
+    "hvac": {
+      "type": "object",
+      "required": ["system_type"],
+      "properties": {
+        "system_type": {
+          "type": "string",
+          "enum": ["vav_chiller_boiler", "vrf", "psz_hp", "psz_ac", "vav_chiller_boiler_school"],
+          "description": "HVAC 시스템 유형"
+        },
+        "autosize": {
+          "type": "boolean",
+          "default": true,
+          "description": "설비 용량 자동 산정"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "system_type": { "const": "vav_chiller_boiler" } }
+          },
+          "then": {
+            "properties": {
+              "chillers": {
+                "type": "object",
+                "properties": {
+                  "count": { "type": "integer", "minimum": 1, "maximum": 10, "default": 2 },
+                  "capacity_kw": { "type": "number", "description": "단위 용량 (kW). autosize시 무시" },
+                  "cop": { "type": "number", "minimum": 2.0, "maximum": 10.0, "default": 6.1 }
+                }
+              },
+              "boilers": {
+                "type": "object",
+                "properties": {
+                  "count": { "type": "integer", "minimum": 1, "maximum": 10, "default": 2 },
+                  "capacity_kw": { "type": "number" },
+                  "efficiency": { "type": "number", "minimum": 0.5, "maximum": 1.0, "default": 0.80 }
+                }
+              },
+              "ahu": {
+                "type": "object",
+                "properties": {
+                  "count": { "type": "integer", "minimum": 1, "maximum": 10, "default": 2 },
+                  "supply_fan_power_kw": { "type": "number" },
+                  "has_economizer": { "type": "boolean", "default": true },
+                  "economizer_type": {
+                    "type": "string",
+                    "enum": ["DifferentialEnthalpy", "DifferentialDryBulb", "FixedEnthalpy"],
+                    "default": "DifferentialEnthalpy"
+                  }
+                }
+              },
+              "vav_terminals": {
+                "type": "object",
+                "properties": {
+                  "reheat_type": { "type": "string", "enum": ["hot_water", "electric", "none"], "default": "hot_water" },
+                  "min_airflow_ratio": { "type": "number", "minimum": 0.1, "maximum": 0.5, "default": 0.30 }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "system_type": { "const": "vrf" } }
+          },
+          "then": {
+            "properties": {
+              "vrf_outdoor_units": {
+                "type": "object",
+                "properties": {
+                  "count": { "type": "integer", "minimum": 1, "maximum": 20, "default": 3 },
+                  "capacity_cooling_kw": { "type": "number" },
+                  "capacity_heating_kw": { "type": "number" },
+                  "cop_cooling": { "type": "number", "minimum": 2.0, "maximum": 10.0, "default": 4.0 },
+                  "cop_heating": { "type": "number", "minimum": 2.0, "maximum": 8.0, "default": 3.5 },
+                  "heat_recovery": { "type": "boolean", "default": true }
+                }
+              },
+              "vrf_indoor_units": {
+                "type": "object",
+                "properties": {
+                  "count": { "type": "integer", "minimum": 1, "maximum": 100 }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "system_type": { "enum": ["psz_hp", "psz_ac"] } }
+          },
+          "then": {
+            "properties": {
+              "psz_units": {
+                "type": "object",
+                "properties": {
+                  "count": { "type": "integer", "minimum": 1, "maximum": 20 },
+                  "capacity_cooling_kw": { "type": "number" },
+                  "capacity_heating_kw": { "type": "number" },
+                  "cop_cooling": { "type": "number", "default": 3.67 },
+                  "cop_heating": { "type": "number", "default": 3.2 },
+                  "has_economizer": { "type": "boolean", "default": true }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+
+    "internal_loads": {
+      "type": "object",
+      "properties": {
+        "people_density": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 0.0565,
+          "description": "people/m2"
+        },
+        "lighting_power_density": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 50.0,
+          "default": 10.76,
+          "description": "W/m2"
+        },
+        "equipment_power_density": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 100.0,
+          "default": 10.76,
+          "description": "W/m2"
+        },
+        "has_data_center": {
+          "type": "boolean",
+          "default": false
+        },
+        "data_center_load_factor": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "default": 0.01,
+          "description": "DataCenter 부하 비율"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "schedules": {
+      "type": "object",
+      "properties": {
+        "occupancy_type": {
+          "type": "string",
+          "enum": ["office_standard", "school", "retail", "hospital_24h"],
+          "default": "office_standard"
+        },
+        "workdays": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+          },
+          "default": ["mon", "tue", "wed", "thu", "fri"]
+        },
+        "saturday": {
+          "type": "string",
+          "enum": ["full_day", "half_day", "off"],
+          "default": "half_day"
+        },
+        "operating_hours": {
+          "type": "object",
+          "properties": {
+            "start": { "type": "string", "pattern": "^[0-2][0-9]:[0-5][0-9]$", "default": "08:00" },
+            "end": { "type": "string", "pattern": "^[0-2][0-9]:[0-5][0-9]$", "default": "18:00" }
+          },
+          "required": ["start", "end"]
+        },
+        "holidays": {
+          "type": "string",
+          "enum": ["KR_standard", "none", "custom"],
+          "default": "KR_standard"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "setpoints": {
+      "type": "object",
+      "properties": {
+        "cooling_occupied": {
+          "type": "number",
+          "minimum": 18.0,
+          "maximum": 30.0,
+          "default": 24.0,
+          "description": "재실 냉방 설정온도 (C)"
+        },
+        "heating_occupied": {
+          "type": "number",
+          "minimum": 15.0,
+          "maximum": 25.0,
+          "default": 20.0,
+          "description": "재실 난방 설정온도 (C)"
+        },
+        "cooling_unoccupied": {
+          "type": "number",
+          "minimum": 25.0,
+          "maximum": 35.0,
+          "default": 29.0,
+          "description": "비재실 냉방 설정온도 (C)"
+        },
+        "heating_unoccupied": {
+          "type": "number",
+          "minimum": 10.0,
+          "maximum": 20.0,
+          "default": 15.0,
+          "description": "비재실 난방 설정온도 (C)"
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "simulation": {
+      "type": "object",
+      "properties": {
+        "period": {
+          "type": "string",
+          "enum": ["1year", "1month_summer", "1month_winter", "custom"],
+          "default": "1year"
+        },
+        "timestep": {
+          "type": "integer",
+          "enum": [1, 2, 4, 6],
+          "default": 4,
+          "description": "Timesteps per hour"
+        },
+        "strategies": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["baseline", "m0", "m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8"]
+          },
+          "default": ["baseline", "m0", "m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8"]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+
+  "$defs": {
+    "building_type_defaults": {
+      "description": "건물유형별 기본값 참조 테이블 (BPS 생성 시 서버에서 적용)",
+      "large_office": {
+        "geometry": { "num_floors_above": 12, "total_floor_area_m2": 46320, "floor_to_floor_height_m": 3.96, "aspect_ratio": 1.5, "wwr": 0.38 },
+        "hvac": { "system_type": "vav_chiller_boiler" },
+        "internal_loads": { "people_density": 0.0565, "lighting_power_density": 10.76, "equipment_power_density": 10.76, "has_data_center": true, "data_center_load_factor": 0.01 },
+        "baseline_eui_kwh_m2": 776.6
+      },
+      "medium_office": {
+        "geometry": { "num_floors_above": 3, "total_floor_area_m2": 4982, "floor_to_floor_height_m": 3.96, "aspect_ratio": 1.5, "wwr": 0.33 },
+        "hvac": { "system_type": "vrf" },
+        "internal_loads": { "people_density": 0.0565, "lighting_power_density": 10.76, "equipment_power_density": 10.76, "has_data_center": false },
+        "baseline_eui_kwh_m2": 85.2
+      },
+      "small_office": {
+        "geometry": { "num_floors_above": 1, "total_floor_area_m2": 511, "floor_to_floor_height_m": 3.05, "aspect_ratio": 1.5, "wwr": 0.21 },
+        "hvac": { "system_type": "psz_hp" },
+        "internal_loads": { "people_density": 0.0565, "lighting_power_density": 10.76, "equipment_power_density": 10.76, "has_data_center": false },
+        "baseline_eui_kwh_m2": 166.3
+      },
+      "standalone_retail": {
+        "geometry": { "num_floors_above": 1, "total_floor_area_m2": 2294, "floor_to_floor_height_m": 6.1, "aspect_ratio": 1.28, "wwr": 0.07 },
+        "hvac": { "system_type": "psz_ac" },
+        "internal_loads": { "people_density": 0.0565, "lighting_power_density": 16.4, "equipment_power_density": 3.59, "has_data_center": false },
+        "baseline_eui_kwh_m2": 157.2
+      },
+      "primary_school": {
+        "geometry": { "num_floors_above": 1, "total_floor_area_m2": 6871, "floor_to_floor_height_m": 3.96, "aspect_ratio": 1.0, "wwr": 0.35 },
+        "hvac": { "system_type": "vav_chiller_boiler_school" },
+        "internal_loads": { "people_density": 0.0565, "lighting_power_density": 14.3, "equipment_power_density": 5.38, "has_data_center": false },
+        "baseline_eui_kwh_m2": 134.8
+      },
+      "hospital": {
+        "geometry": { "num_floors_above": 5, "total_floor_area_m2": 22422, "floor_to_floor_height_m": 3.96, "aspect_ratio": 1.33, "wwr": 0.16 },
+        "hvac": { "system_type": "vav_chiller_boiler" },
+        "internal_loads": { "people_density": 0.10, "lighting_power_density": 12.58, "equipment_power_density": 10.23, "has_data_center": false },
+        "baseline_eui_kwh_m2": null
+      }
+    },
+
+    "city_climate_map": {
+      "description": "도시 → 기후대/좌표/EPW 매핑",
+      "Seoul":     { "climate_zone": "4A", "lat": 37.4979, "lon": 127.0276, "epw": "KOR_Seoul.epw" },
+      "Busan":     { "climate_zone": "3A", "lat": 35.1796, "lon": 129.0756, "epw": "KOR_Busan.epw" },
+      "Daegu":     { "climate_zone": "4A", "lat": 35.8714, "lon": 128.6014, "epw": "KOR_Daegu.epw" },
+      "Daejeon":   { "climate_zone": "4A", "lat": 36.3504, "lon": 127.3845, "epw": "KOR_Daejeon.epw" },
+      "Gwangju":   { "climate_zone": "4A", "lat": 35.1595, "lon": 126.8526, "epw": "KOR_Gwangju.epw" },
+      "Incheon":   { "climate_zone": "4A", "lat": 37.4563, "lon": 126.7052, "epw": "KOR_Incheon.epw" },
+      "Gangneung": { "climate_zone": "4A", "lat": 37.7519, "lon": 128.8761, "epw": "KOR_Gangneung.epw" },
+      "Jeju":      { "climate_zone": "3A", "lat": 33.5104, "lon": 126.5319, "epw": "KOR_Jeju.epw" },
+      "Cheongju":  { "climate_zone": "4A", "lat": 36.6424, "lon": 127.4890, "epw": "KOR_Cheongju.epw" },
+      "Ulsan":     { "climate_zone": "4A", "lat": 35.5384, "lon": 129.3114, "epw": "KOR_Ulsan.epw" }
+    },
+
+    "strategy_applicability": {
+      "description": "건물유형별 전략 적용 가능 매트릭스",
+      "large_office":     ["baseline", "m0", "m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8"],
+      "medium_office":    ["baseline", "m0", "m1", "m4", "m5", "m7", "m8"],
+      "small_office":     ["baseline", "m0", "m1", "m2", "m4", "m5", "m7", "m8"],
+      "standalone_retail": ["baseline", "m0", "m1", "m2", "m4", "m5", "m7", "m8"],
+      "primary_school":   ["baseline", "m0", "m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8"],
+      "hospital":         ["baseline", "m0", "m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8"]
+    }
+  },
+
+  "additionalProperties": false
+}

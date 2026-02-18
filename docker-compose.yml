@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  # PostgreSQL + TimescaleDB
+  db:
+    image: timescale/timescaledb:latest-pg16
+    container_name: buildwise-db
+    environment:
+      POSTGRES_DB: buildwise
+      POSTGRES_USER: buildwise
+      POSTGRES_PASSWORD: buildwise_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./schemas/database.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U buildwise"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis (Celery broker + cache)
+  redis:
+    image: redis:7-alpine
+    container_name: buildwise-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # EnergyPlus (시뮬레이션 엔진)
+  energyplus:
+    build:
+      context: ./energyplus
+      dockerfile: Dockerfile
+    container_name: buildwise-energyplus
+    volumes:
+      - ./energyplus/weather:/opt/weather:ro
+      - ep-workdir:/opt/workdir
+    environment:
+      WEATHER_DIR: /opt/weather
+      WORK_DIR: /opt/workdir
+
+volumes:
+  pgdata:
+  ep-workdir:
