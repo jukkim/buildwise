@@ -32,6 +32,26 @@ services:
       timeout: 5s
       retries: 5
 
+  # Backend API (optional - can also run locally with uvicorn)
+  backend:
+    build:
+      context: ./buildwise-backend
+      dockerfile: Dockerfile
+    container_name: buildwise-backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://buildwise:buildwise_dev@db:5432/buildwise
+      REDIS_URL: redis://redis:6379/0
+      DEBUG: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles:
+      - full
+
   # EnergyPlus (시뮬레이션 엔진)
   energyplus:
     build:

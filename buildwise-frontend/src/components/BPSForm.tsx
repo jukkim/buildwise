@@ -24,7 +24,7 @@ const HVAC_TYPES = [
 const WALL_TYPES = ["curtain_wall", "masonry", "metal_panel", "concrete", "wood_frame"];
 const WINDOW_TYPES = ["single_clear", "double_clear", "double_low_e", "triple_low_e"];
 
-type SectionKey = "location" | "geometry" | "envelope" | "setpoints";
+type SectionKey = "geometry" | "location" | "envelope" | "hvac" | "setpoints";
 
 export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
   const [activeSection, setActiveSection] = useState<SectionKey>("geometry");
@@ -32,6 +32,7 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
     location: { ...(bps.location ?? {}) },
     geometry: { ...(bps.geometry ?? {}) },
     envelope: { ...(bps.envelope ?? {}) },
+    hvac: { ...(bps.hvac ?? {}) },
     setpoints: { ...(bps.setpoints ?? {}) },
   });
 
@@ -43,7 +44,6 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
   };
 
   const handleSave = () => {
-    // Build patch with only changed sections
     const patch: Record<string, unknown> = {};
     for (const key of Object.keys(draft) as SectionKey[]) {
       const original = bps[key] ?? {};
@@ -60,19 +60,24 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
     { key: "geometry", label: "Geometry" },
     { key: "location", label: "Location" },
     { key: "envelope", label: "Envelope" },
+    { key: "hvac", label: "HVAC" },
     { key: "setpoints", label: "Setpoints" },
   ];
+
+  const hvacType = draft.hvac.system_type as string | undefined;
+  const isVAV = hvacType?.startsWith("vav_");
+  const isVRF = hvacType === "vrf";
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white">
       {/* Section tabs */}
-      <div className="flex border-b border-gray-200">
+      <div className="flex border-b border-gray-200 overflow-x-auto">
         {sections.map((s) => (
           <button
             key={s.key}
             onClick={() => setActiveSection(s.key)}
             className={clsx(
-              "px-4 py-3 text-sm font-medium transition-colors",
+              "whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors",
               activeSection === s.key
                 ? "border-b-2 border-blue-600 text-blue-600"
                 : "text-gray-500 hover:text-gray-700",
@@ -116,6 +121,41 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
               onChange={(v) => update("envelope", "window_shgc", v)} />
             <NumField label="Infiltration (ACH)" value={draft.envelope.infiltration_ach as number} min={0} max={2} step={0.1}
               onChange={(v) => update("envelope", "infiltration_ach", v)} />
+          </>
+        )}
+
+        {activeSection === "hvac" && (
+          <>
+            <SelectField label="System Type" value={hvacType ?? ""} options={HVAC_TYPES}
+              onChange={(v) => update("hvac", "system_type", v)} />
+            {isVAV && (
+              <>
+                <NumField label="Chiller COP" value={(draft.hvac.chiller_cop as number) ?? 5.5} min={2} max={10} step={0.1}
+                  onChange={(v) => update("hvac", "chiller_cop", v)} />
+                <NumField label="Boiler Efficiency" value={(draft.hvac.boiler_efficiency as number) ?? 0.85} min={0.5} max={1.0} step={0.01}
+                  onChange={(v) => update("hvac", "boiler_efficiency", v)} />
+                <NumField label="Fan Pressure (Pa)" value={(draft.hvac.fan_total_pressure_pa as number) ?? 1000} min={200} max={3000}
+                  onChange={(v) => update("hvac", "fan_total_pressure_pa", v)} />
+              </>
+            )}
+            {isVRF && (
+              <>
+                <NumField label="Cooling COP" value={(draft.hvac.cooling_cop as number) ?? 4.0} min={2} max={8} step={0.1}
+                  onChange={(v) => update("hvac", "cooling_cop", v)} />
+                <NumField label="Heating COP" value={(draft.hvac.heating_cop as number) ?? 4.5} min={2} max={8} step={0.1}
+                  onChange={(v) => update("hvac", "heating_cop", v)} />
+                <NumField label="Heat Recovery Eff" value={(draft.hvac.heat_recovery_efficiency as number) ?? 0.3} min={0} max={1} step={0.05}
+                  onChange={(v) => update("hvac", "heat_recovery_efficiency", v)} />
+              </>
+            )}
+            {!isVAV && !isVRF && hvacType && (
+              <>
+                <NumField label="Cooling COP/EER" value={(draft.hvac.cooling_cop as number) ?? 3.5} min={2} max={8} step={0.1}
+                  onChange={(v) => update("hvac", "cooling_cop", v)} />
+                <NumField label="Heating COP" value={(draft.hvac.heating_cop as number) ?? 3.0} min={1} max={6} step={0.1}
+                  onChange={(v) => update("hvac", "heating_cop", v)} />
+              </>
+            )}
           </>
         )}
 

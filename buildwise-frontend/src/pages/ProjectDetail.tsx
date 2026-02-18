@@ -26,6 +26,8 @@ export default function ProjectDetail() {
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState("");
   const [deletingBuildingId, setDeletingBuildingId] = useState<string | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<BuildingTemplate | null>(null);
+  const [newBuildingName, setNewBuildingName] = useState("");
 
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ["project", projectId],
@@ -46,12 +48,15 @@ export default function ProjectDetail() {
   });
 
   const createBuilding = useMutation({
-    mutationFn: (tmpl: BuildingTemplate) =>
-      buildingsApi.create(projectId!, tmpl.name, tmpl.default_bps),
-    onSuccess: () => {
+    mutationFn: ({ name, bps }: { name: string; bps: Record<string, unknown> }) =>
+      buildingsApi.create(projectId!, name, bps),
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["buildings", projectId] });
       queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       setShowTemplates(false);
+      setSelectedTemplate(null);
+      setNewBuildingName("");
+      navigate(`/projects/${projectId}/buildings/${res.data.id}`);
     },
   });
 
@@ -174,14 +179,16 @@ export default function ProjectDetail() {
       </div>
 
       {/* Template selection */}
-      {showTemplates && templates && (
+      {showTemplates && templates && !selectedTemplate && (
         <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {templates.map((tmpl: BuildingTemplate) => (
             <button
               key={tmpl.building_type}
-              onClick={() => createBuilding.mutate(tmpl)}
-              disabled={createBuilding.isPending}
-              className="rounded-lg border border-gray-200 bg-white p-4 text-left hover:border-blue-400 hover:shadow transition-all disabled:opacity-50"
+              onClick={() => {
+                setSelectedTemplate(tmpl);
+                setNewBuildingName(tmpl.name);
+              }}
+              className="rounded-lg border border-gray-200 bg-white p-4 text-left hover:border-blue-400 hover:shadow transition-all"
             >
               <h4 className="font-medium text-gray-900">{tmpl.name}</h4>
               <p className="mt-1 text-xs text-gray-500">{tmpl.description}</p>
@@ -192,6 +199,45 @@ export default function ProjectDetail() {
               )}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Name input after template selection */}
+      {selectedTemplate && (
+        <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <p className="text-sm text-gray-600">
+            Template: <span className="font-medium">{selectedTemplate.name}</span>
+          </p>
+          <div className="mt-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Building Name</label>
+            <input
+              type="text"
+              value={newBuildingName}
+              onChange={(e) => setNewBuildingName(e.target.value)}
+              className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newBuildingName.trim()) {
+                  createBuilding.mutate({ name: newBuildingName, bps: selectedTemplate.default_bps });
+                }
+              }}
+            />
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => createBuilding.mutate({ name: newBuildingName, bps: selectedTemplate.default_bps })}
+              disabled={!newBuildingName.trim() || createBuilding.isPending}
+              className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {createBuilding.isPending ? "Creating..." : "Create Building"}
+            </button>
+            <button
+              onClick={() => { setSelectedTemplate(null); setNewBuildingName(""); }}
+              className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+            >
+              Back
+            </button>
+          </div>
         </div>
       )}
 

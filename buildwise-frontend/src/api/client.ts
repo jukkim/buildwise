@@ -14,6 +14,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Response error interceptor
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("buildwise_user_id");
+      localStorage.removeItem("buildwise_user_name");
+      window.location.href = "/login";
+    }
+    return Promise.reject(error);
+  },
+);
+
 export default api;
 
 // ---- Type definitions ----
@@ -134,6 +147,8 @@ export const buildingsApi = {
     api.post<Building>(`/projects/${projectId}/buildings`, { name, bps }),
   get: (projectId: string, buildingId: string) =>
     api.get<Building>(`/projects/${projectId}/buildings/${buildingId}`),
+  update: (projectId: string, buildingId: string, data: { name?: string }) =>
+    api.patch<Building>(`/projects/${projectId}/buildings/${buildingId}`, data),
   updateBps: (
     projectId: string,
     buildingId: string,

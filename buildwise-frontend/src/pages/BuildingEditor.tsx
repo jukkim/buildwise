@@ -8,6 +8,17 @@ import {
 } from "@/api/client";
 import BPSForm from "@/components/BPSForm";
 
+const CITIES = [
+  "Seoul", "Busan", "Daegu", "Daejeon", "Gwangju",
+  "Incheon", "Gangneung", "Jeju", "Cheongju", "Ulsan",
+];
+
+const PERIODS = [
+  { value: "1year", label: "Full Year" },
+  { value: "1month_summer", label: "Summer Month (Aug)" },
+  { value: "1month_winter", label: "Winter Month (Jan)" },
+];
+
 export default function BuildingEditor() {
   const { projectId, buildingId } = useParams<{
     projectId: string;
@@ -16,6 +27,11 @@ export default function BuildingEditor() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState("");
+  const [showSimDialog, setShowSimDialog] = useState(false);
+  const [simCity, setSimCity] = useState("Seoul");
+  const [simPeriod, setSimPeriod] = useState("1year");
 
   const { data: building, isLoading } = useQuery({
     queryKey: ["building", buildingId],
@@ -46,9 +62,20 @@ export default function BuildingEditor() {
     },
   });
 
+  const renameMutation = useMutation({
+    mutationFn: (name: string) =>
+      buildingsApi.update(projectId!, buildingId!, { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["building", buildingId] });
+      queryClient.invalidateQueries({ queryKey: ["buildings", projectId] });
+      setEditingName(false);
+    },
+  });
+
   const simMutation = useMutation({
-    mutationFn: () => simulationsApi.start(buildingId!),
+    mutationFn: () => simulationsApi.start(buildingId!, simCity, simPeriod),
     onSuccess: (res) => {
+      setShowSimDialog(false);
       navigate(`/simulations/${res.data.config_id}/progress`);
     },
   });
@@ -56,6 +83,7 @@ export default function BuildingEditor() {
   if (isLoading || !building) return <div className="text-gray-500">Loading...</div>;
 
   const bps = building.bps as Record<string, Record<string, unknown>>;
+  const locationCity = (bps.location?.city as string) ?? "Seoul";
 
   return (
     <div>
@@ -68,19 +96,121 @@ export default function BuildingEditor() {
 
       <div className="mt-2 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{building.name}</h1>
+          {editingName ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={nameValue}
+                onChange={(e) => setNameValue(e.target.value)}
+                className="rounded border border-blue-300 px-2 py-1 text-2xl font-bold"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && nameValue.trim()) renameMutation.mutate(nameValue);
+                  if (e.key === "Escape") setEditingName(false);
+                }}
+              />
+              <button
+                onClick={() => renameMutation.mutate(nameValue)}
+                disabled={!nameValue.trim() || renameMutation.isPending}
+                className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setEditingName(false)}
+                className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-gray-900">{building.name}</h1>
+              <button
+                onClick={() => { setEditingName(true); setNameValue(building.name); }}
+                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                title="Rename building"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              </button>
+            </div>
+          )}
           <p className="text-sm text-gray-500">
-            {building.building_type} &middot; v{building.bps_version}
+            {building.building_type.replace(/_/g, " ")} &middot; v{building.bps_version}
           </p>
         </div>
         <button
-          onClick={() => simMutation.mutate()}
-          disabled={simMutation.isPending}
-          className="rounded-lg bg-green-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+          onClick={() => {
+            setSimCity(locationCity);
+            setShowSimDialog(true);
+          }}
+          className="rounded-lg bg-green-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-green-700"
         >
-          {simMutation.isPending ? "Starting..." : "Run Simulation"}
+          Run Simulation
         </button>
       </div>
+
+      {/* Simulation start dialog */}
+      {showSimDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900">Start Simulation</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Configure simulation parameters for {building.name}
+            </p>
+
+            <div className="mt-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Climate City</label>
+                <select
+                  value={simCity}
+                  onChange={(e) => setSimCity(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                >
+                  {CITIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Simulation Period</label>
+                <select
+                  value={simPeriod}
+                  onChange={(e) => setSimPeriod(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                >
+                  {PERIODS.map((p) => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-500">
+                All available strategies (baseline + M0~M8) will be simulated in parallel.
+              </div>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setShowSimDialog(false)}
+                className="rounded border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => simMutation.mutate()}
+                disabled={simMutation.isPending}
+                className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              >
+                {simMutation.isPending ? "Starting..." : "Start Simulation"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         {/* BPS Edit Form */}
@@ -97,7 +227,7 @@ export default function BuildingEditor() {
           <div className="rounded-lg border border-gray-200 bg-white p-5">
             <h3 className="mb-3 font-semibold text-gray-800">Summary</h3>
             <dl className="space-y-2 text-sm">
-              <SummaryRow label="Location" value={(bps.location?.city as string) ?? "-"} />
+              <SummaryRow label="Location" value={locationCity} />
               <SummaryRow label="Floors" value={String(bps.geometry?.num_floors_above ?? "-")} />
               <SummaryRow
                 label="Total Area"
@@ -105,7 +235,7 @@ export default function BuildingEditor() {
                   ? `${Number(bps.geometry.total_floor_area_m2).toLocaleString()} m2`
                   : "-"}
               />
-              <SummaryRow label="HVAC" value={(bps.hvac?.system_type as string) ?? "-"} />
+              <SummaryRow label="HVAC" value={(bps.hvac?.system_type as string)?.replace(/_/g, " ") ?? "-"} />
               <SummaryRow label="WWR" value={bps.geometry?.wwr != null ? String(bps.geometry.wwr) : "-"} />
               <SummaryRow label="Cooling" value={`${(bps.setpoints?.cooling_occupied as number) ?? 24}°C`} />
               <SummaryRow label="Heating" value={`${(bps.setpoints?.heating_occupied as number) ?? 20}°C`} />

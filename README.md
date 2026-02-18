@@ -11,36 +11,89 @@
 - Node.js 20+
 - Docker & Docker Compose
 
-### Development Setup
+### 1. Start Infrastructure
 
 ```bash
-# 1. 로컬 인프라 (PostgreSQL + TimescaleDB, Redis)
-docker-compose up -d
+# PostgreSQL + TimescaleDB, Redis
+make db
+```
 
-# 2. 백엔드
+### 2. Backend Setup
+
+```bash
 cd buildwise-backend
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
-alembic upgrade head
-uvicorn app.main:app --reload
 
-# 3. 프론트엔드
+# Run database migration
+alembic upgrade head
+
+# Seed demo data (demo@buildwise.ai, PRO plan)
+python -m scripts.seed
+
+# Start API server
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### 3. Frontend Setup
+
+```bash
 cd buildwise-frontend
 npm install
-npm run dev
+npm run dev   # → http://localhost:5173
 ```
+
+### 4. Login
+
+Open http://localhost:5173 and sign in with `demo@buildwise.ai`.
+
+### One-line Setup (Make)
+
+```bash
+make setup    # install deps → start db → migrate → seed
+make dev      # start backend (port 8000)
+# In another terminal:
+make frontend-dev  # start frontend (port 5173)
+```
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | `postgresql+asyncpg://buildwise:buildwise_dev@localhost:5432/buildwise` | PostgreSQL connection |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis for Celery |
+| `DEBUG` | `true` | Enable mock simulation mode |
+| `ENERGYPLUS_IMAGE` | (empty) | Docker image for E+ (empty = mock mode) |
 
 ### API Documentation
 
 - Swagger UI: http://localhost:8000/docs
 - OpenAPI Spec: `schemas/openapi.yaml`
 
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/auth/login` | Dev login by email |
+| GET | `/api/v1/auth/me` | Current user info |
+| GET/POST | `/api/v1/projects` | List / Create projects |
+| GET/PATCH/DELETE | `/api/v1/projects/{id}` | Project CRUD |
+| GET/POST | `/api/v1/projects/{id}/buildings` | List / Create buildings |
+| GET/PATCH/DELETE | `/api/v1/projects/{id}/buildings/{id}` | Building CRUD |
+| PATCH | `/api/v1/projects/{id}/buildings/{id}/bps` | Update BPS parameters |
+| GET | `/api/v1/projects/{id}/buildings/{id}/simulations` | Simulation history |
+| GET | `/api/v1/buildings/templates` | Building templates (6 types) |
+| POST | `/api/v1/simulations` | Start simulation |
+| GET | `/api/v1/simulations/{id}/progress` | Simulation progress |
+| POST | `/api/v1/simulations/{id}/cancel` | Cancel simulation |
+| GET | `/api/v1/simulations/{id}/results` | Strategy comparison results |
+
 ## Architecture
 
 ```
-Frontend: React 19 + TypeScript + React Three Fiber + Recharts
-Backend:  FastAPI + Celery + Redis
+Frontend: React 19 + TypeScript + Tailwind CSS 4 + Recharts
+Backend:  FastAPI + Celery + Redis + SQLAlchemy 2.0 (async)
 DB:       PostgreSQL 16 + TimescaleDB
 Infra:    GCP (Cloud Run + GKE + Cloud SQL + GCS)
 Engine:   EnergyPlus 24.1+ (Docker)
@@ -50,61 +103,67 @@ Engine:   EnergyPlus 24.1+ (Docker)
 
 ```
 buildwise/
-├── schemas/                    # 계약 (JSON Schema, OpenAPI, DDL)
+├── schemas/                    # Contracts (JSON Schema, OpenAPI, DDL)
 │   ├── bps.schema.json         # Building Parameter Schema
 │   ├── database.sql            # PostgreSQL DDL
-│   └── openapi.yaml            # API 계약
-├── docs/                       # 설계 문서
-├── buildwise-backend/          # FastAPI 백엔드
+│   └── openapi.yaml            # API contract
+├── docs/                       # Design documents
+├── buildwise-backend/          # FastAPI backend
 │   ├── app/
-│   │   ├── api/v1/             # API 라우트
-│   │   ├── models/             # SQLAlchemy 모델
-│   │   ├── schemas/            # Pydantic 스키마
-│   │   └── services/           # 비즈니스 로직
-│   │       ├── bps/            # BPS 검증/기본값
-│   │       ├── idf/            # IDF 생성 파이프라인
-│   │       ├── simulation/     # E+ 실행, Celery 태스크
-│   │       ├── ems/            # EMS 전략 적용
-│   │       ├── results/        # 결과 처리
-│   │       └── validation/     # 물리/IDF/결과 검증
+│   │   ├── api/v1/             # API routes
+│   │   ├── models/             # SQLAlchemy models
+│   │   ├── schemas/            # Pydantic schemas
+│   │   ├── services/           # Business logic
+│   │   │   ├── bps/            # BPS validation/defaults
+│   │   │   ├── idf/            # IDF generation pipeline
+│   │   │   ├── simulation/     # E+ runner + mock runner
+│   │   │   ├── ems/            # EMS strategy rendering
+│   │   │   └── results/        # Result parsing + comparison
+│   │   └── tasks/              # Celery tasks
+│   ├── tests/                  # pytest tests
+│   ├── alembic/                # Database migrations
+│   ├── scripts/                # Seed data, utilities
+│   ├── Dockerfile
 │   └── pyproject.toml
-├── buildwise-frontend/         # React 프론트엔드
-├── energyplus/                 # EnergyPlus 관련
-│   ├── ems_templates/          # Jinja2 EMS 템플릿 (15개)
-│   ├── building_templates/     # Base IDF 템플릿 (6종)
-│   ├── weather/                # EPW 파일 (10도시)
+├── buildwise-frontend/         # React frontend
+│   ├── src/
+│   │   ├── api/                # API client + types
+│   │   ├── components/         # Shared components
+│   │   └── pages/              # Route pages
+│   └── package.json
+├── energyplus/                 # EnergyPlus container
+│   ├── ems_templates/          # Jinja2 EMS templates (15)
+│   ├── building_templates/     # Base IDF templates (6 types)
+│   ├── weather/                # EPW files (10 Korean cities)
 │   └── Dockerfile
-├── config/                     # 설정 파일
-│   ├── building_defaults/      # 건물유형별 기본값
-│   ├── fair_comparison.yaml    # 공정비교 프레임워크
-│   └── strategy_definitions/   # 전략 정의
-├── tests/                      # 테스트
-└── docker-compose.yml          # 로컬 개발 환경
+├── Makefile                    # Dev commands
+└── docker-compose.yml          # Local dev environment
 ```
 
 ## Key Design Decisions
 
-| 결정 | 근거 |
-|------|------|
-| BPS as SSOT | 전체 시스템 단일 진실 소스 |
-| Template-based IDF | MVP에서 base_template 수정 방식 (scratch 대비 10배 빠름) |
-| Three.js 80% + Blender 5% | 서버 비용 90% 절감 |
-| SSE (not WebSocket) | MVP 단순화, Phase 2에서 WebSocket 전환 |
+| Decision | Rationale |
+|----------|-----------|
+| BPS as SSOT | Single source of truth for entire system |
+| Template-based IDF | Modify base_template instead of generating from scratch (10x faster for MVP) |
+| Mock simulation mode | Pre-computed results when DEBUG=true (no E+ needed for dev) |
+| Soft delete | Projects use status=DELETED instead of hard delete |
+| SSE (not WebSocket) | MVP simplification, WebSocket in Phase 2 |
 
 ## EMS Strategies (M0~M8)
 
-| 코드 | 이름 | 설명 |
-|------|------|------|
-| M0 | 야간 정지 | 퇴근 후 HVAC 자동 정지 |
-| M1 | 스마트 시작 | 기온에 따라 출근 전 예열/예냉 |
-| M2 | 외기 냉방 | 외기가 시원할 때 자연 환기 활용 |
-| M3 | 냉동기 단계제어 | 부하에 맞게 냉동기 대수 조절 |
-| M4 | 쾌적 최적화 (보통) | PMV 0.5 기준 설정온도 자동 조정 |
-| M5 | 쾌적 최적화 (절약) | PMV 0.7 기준 더 넓은 허용 범위 |
-| M6 | 설비 통합제어 | M2+M3 복합 적용 |
-| M7 | 통합+쾌적(보통) | M6+M4 최적 조합 |
-| M8 | 통합+쾌적(절약) | M6+M5 최대 절감 |
+| Code | Name | Description |
+|------|------|-------------|
+| M0 | Night Stop | Auto-stop HVAC after work hours |
+| M1 | Smart Start | Pre-heat/cool based on outdoor temp |
+| M2 | Economizer | Use outdoor air when conditions are favorable |
+| M3 | Chiller Staging | Match chiller count to load |
+| M4 | Comfort Optimize (Normal) | Auto-adjust setpoints, PMV 0.5 |
+| M5 | Comfort Optimize (Savings) | Wider comfort band, PMV 0.7 |
+| M6 | Integrated Control | M2 + M3 combined |
+| M7 | Full Normal | M6 + M4 optimal combination |
+| M8 | Full Savings | M6 + M5 maximum savings |
 
 ## Spec
 
-상세 스펙: `SPEC_v0.2.md`
+Full specification: `SPEC_v0.2.md`

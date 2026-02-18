@@ -84,6 +84,10 @@ class BuildingCreate(BaseModel):
     bps: BPS
 
 
+class BuildingUpdate(BaseModel):
+    name: str | None = Field(None, max_length=200)
+
+
 class BuildingResponse(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID

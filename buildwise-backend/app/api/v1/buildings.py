@@ -15,7 +15,7 @@ from sqlalchemy.orm import selectinload
 from app.models.project import Building, BuildingType, Project, ProjectStatus
 from app.models.simulation import SimulationConfig, SimulationStatus
 from app.models.user import User
-from app.schemas.api import BuildingCreate, BuildingResponse, SimulationHistoryItem
+from app.schemas.api import BuildingCreate, BuildingResponse, BuildingUpdate, SimulationHistoryItem
 from app.schemas.bps import BPS, BPSPatch
 from app.services.bps.validator import validate_bps
 
@@ -114,6 +114,29 @@ async def get_building(
     """GET /projects/{project_id}/buildings/{building_id} - 건물 상세."""
     await _get_project_or_404(project_id, user, db)
     building = await _get_building_or_404(building_id, project_id, db)
+    return building
+
+
+@router.patch(
+    "/{project_id}/buildings/{building_id}",
+    response_model=BuildingResponse,
+)
+async def update_building(
+    project_id: uuid.UUID,
+    building_id: uuid.UUID,
+    body: BuildingUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Building:
+    """PATCH /projects/{project_id}/buildings/{building_id} - 건물 정보 수정."""
+    await _get_project_or_404(project_id, user, db)
+    building = await _get_building_or_404(building_id, project_id, db)
+
+    if body.name is not None:
+        building.name = body.name
+
+    await db.flush()
+    await db.refresh(building)
     return building
 
 
