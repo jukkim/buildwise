@@ -19,6 +19,7 @@ export default function Dashboard() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "name">("newest");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   const { data, isLoading } = useQuery({
     queryKey: ["projects"],
@@ -119,6 +120,26 @@ export default function Dashboard() {
             <option value="oldest">Oldest first</option>
             <option value="name">Name A-Z</option>
           </select>
+          <div className="ml-auto flex rounded-lg border border-gray-300 overflow-hidden">
+            <button
+              onClick={() => setViewMode("grid")}
+              className={`px-2.5 py-2 ${viewMode === "grid" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+              title="Grid view"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className={`px-2.5 py-2 ${viewMode === "list" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+              title="List view"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
@@ -208,14 +229,16 @@ export default function Dashboard() {
           </button>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className={viewMode === "grid" ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-3" : "space-y-2"}>
           {projects.map((p: Project) => (
             <div
               key={p.id}
-              className="group relative rounded-lg border border-gray-200 bg-white p-5 hover:shadow-md transition-shadow"
+              className={`group relative rounded-lg border border-gray-200 bg-white hover:shadow-md transition-shadow ${
+                viewMode === "list" ? "flex items-center justify-between px-5 py-3" : "p-5"
+              }`}
             >
               {/* Action buttons */}
-              <div className="absolute right-3 top-3 hidden gap-1 group-hover:flex">
+              <div className={`${viewMode === "list" ? "flex" : "absolute right-3 top-3 hidden group-hover:flex"} gap-1 ${viewMode === "grid" ? "" : "shrink-0 ml-3"}`}>
                 <button
                   onClick={(e) => {
                     e.preventDefault();
@@ -244,7 +267,7 @@ export default function Dashboard() {
               </div>
 
               {editingId === p.id ? (
-                <div>
+                <div className={viewMode === "list" ? "flex-1" : ""}>
                   <input
                     type="text"
                     value={editName}
@@ -275,19 +298,19 @@ export default function Dashboard() {
                   </div>
                 </div>
               ) : (
-                <Link to={`/projects/${p.id}`}>
-                  <h3 className="font-semibold text-gray-900">{p.name}</h3>
-                  {p.description && (
+                <Link to={`/projects/${p.id}`} className={viewMode === "list" ? "flex-1 flex items-center gap-4 min-w-0" : ""}>
+                  <h3 className={`font-semibold text-gray-900 ${viewMode === "list" ? "truncate" : ""}`}>{p.name}</h3>
+                  {viewMode === "grid" && p.description && (
                     <p className="mt-1 text-sm text-gray-500 line-clamp-2">
                       {p.description}
                     </p>
                   )}
-                  <div className="mt-3 flex items-center gap-3 text-xs text-gray-400">
+                  <div className={`flex items-center gap-3 text-xs text-gray-400 ${viewMode === "grid" ? "mt-3" : ""}`}>
                     <span className="flex items-center gap-1">
                       <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                       </svg>
-                      {p.buildings_count} buildings
+                      {p.buildings_count}
                     </span>
                     <span title={new Date(p.created_at).toLocaleString()}>{timeAgo(p.created_at)}</span>
                   </div>

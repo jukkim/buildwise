@@ -332,19 +332,26 @@ export default function BuildingEditor() {
               <div className="space-y-2">
                 {history.map((item: SimulationHistoryItem) => {
                   const done = item.completed + item.failed >= item.total;
+                  const hasFailed = item.failed > 0;
+                  const isRunning = !done;
                   return (
                     <div
                       key={item.config_id}
                       className="flex items-center justify-between rounded border border-gray-100 px-3 py-2"
                     >
-                      <div className="text-sm">
+                      <div className="text-sm flex items-center gap-2">
+                        <span className={`inline-block h-2 w-2 rounded-full shrink-0 ${
+                          hasFailed && done ? "bg-yellow-400" :
+                          done ? "bg-green-400" :
+                          "bg-blue-400 animate-pulse"
+                        }`} />
                         <span className="font-medium text-gray-800">
                           {item.climate_city}
                         </span>
-                        <span className="ml-2 text-gray-400">
-                          {item.completed}/{item.total} strategies
+                        <span className="text-gray-400">
+                          {item.completed}/{item.total}
                         </span>
-                        <span className="ml-2 text-xs text-gray-400" title={new Date(item.created_at).toLocaleString()}>
+                        <span className="text-xs text-gray-400" title={new Date(item.created_at).toLocaleString()}>
                           {timeAgo(item.created_at)}
                         </span>
                       </div>
@@ -354,9 +361,11 @@ export default function BuildingEditor() {
                             ? `/simulations/${item.config_id}/results`
                             : `/simulations/${item.config_id}/progress`
                         }
-                        className="text-xs text-blue-600 hover:underline"
+                        className={`text-xs hover:underline ${
+                          isRunning ? "text-blue-600" : "text-green-600"
+                        }`}
                       >
-                        {done ? "Results" : "Progress"}
+                        {done ? "Results" : "In Progress"}
                       </Link>
                     </div>
                   );

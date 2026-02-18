@@ -315,9 +315,17 @@ export default function ProjectDetail() {
         <ListSkeleton rows={2} />
       ) : !buildings || buildings.length === 0 ? (
         <div className="rounded-lg border-2 border-dashed border-gray-300 p-12 text-center">
-          <p className="text-gray-500">
-            No buildings yet. Click "Add Building" to create one from a template.
-          </p>
+          <svg className="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+          <h3 className="mt-3 text-sm font-medium text-gray-900">No buildings yet</h3>
+          <p className="mt-1 text-sm text-gray-500">Get started by adding a building from a template.</p>
+          <button
+            onClick={() => setShowTemplates(true)}
+            className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Add Building
+          </button>
         </div>
       ) : (
         <div className="space-y-3">
