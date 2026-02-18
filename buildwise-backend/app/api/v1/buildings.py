@@ -13,7 +13,8 @@ from app.db import get_db
 from app.models.project import Building, BuildingType, Project, ProjectStatus
 from app.models.user import User
 from app.schemas.api import BuildingCreate, BuildingResponse
-from app.schemas.bps import BPSPatch
+from app.schemas.bps import BPS, BPSPatch
+from app.services.bps.validator import validate_bps
 
 router = APIRouter()
 
@@ -63,6 +64,14 @@ async def create_building(
     """POST /projects/{project_id}/buildings - 건물 생성."""
     await _get_project_or_404(project_id, user, db)
 
+    # BPS domain validation
+    errors = validate_bps(body.bps)
+    if errors:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"type": "bps_validation_error", "errors": errors},
+        )
+
     building = Building(
         project_id=project_id,
         name=body.name,
@@ -111,6 +120,21 @@ async def update_bps(
             current_bps[key] = {**current_bps[key], **value}
         else:
             current_bps[key] = value
+
+    # Validate merged BPS
+    try:
+        merged_bps = BPS.model_validate(current_bps)
+        errors = validate_bps(merged_bps)
+        if errors:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"type": "bps_validation_error", "errors": errors},
+            )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"type": "bps_validation_error", "errors": [str(exc)]},
+        )
 
     building.bps_json = current_bps
     building.bps_version += 1
