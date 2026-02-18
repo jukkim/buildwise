@@ -5,11 +5,25 @@ import ProjectDetail from "./pages/ProjectDetail";
 import BuildingEditor from "./pages/BuildingEditor";
 import SimulationProgress from "./pages/SimulationProgress";
 import Results from "./pages/Results";
+import Login from "./pages/Login";
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const userId = localStorage.getItem("buildwise_user_id");
+  if (!userId) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
 
 export default function App() {
   return (
     <Routes>
-      <Route element={<Layout />}>
+      <Route path="/login" element={<Login />} />
+      <Route
+        element={
+          <RequireAuth>
+            <Layout />
+          </RequireAuth>
+        }
+      >
         <Route path="/" element={<Navigate to="/projects" replace />} />
         <Route path="/projects" element={<Dashboard />} />
         <Route path="/projects/:projectId" element={<ProjectDetail />} />
