@@ -211,7 +211,9 @@ export default function SimulationProgress() {
               </span>
               {run.duration_seconds != null && (
                 <span className="ml-3 text-xs text-gray-400">
-                  {run.duration_seconds}s
+                  {run.duration_seconds >= 60
+                    ? `${Math.floor(run.duration_seconds / 60)}m ${run.duration_seconds % 60}s`
+                    : `${run.duration_seconds}s`}
                 </span>
               )}
             </div>

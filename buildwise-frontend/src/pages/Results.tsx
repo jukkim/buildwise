@@ -398,9 +398,17 @@ export default function Results() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     {s.savings_pct != null ? (
-                      <span className={s.savings_pct > 0 ? "text-green-600 font-medium" : "text-gray-600"}>
-                        {s.savings_pct > 0 ? "-" : ""}{s.savings_pct.toFixed(1)}%
-                      </span>
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="hidden sm:block w-16 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${s.savings_pct > 0 ? "bg-green-500" : "bg-gray-300"}`}
+                            style={{ width: `${Math.min(100, Math.abs(s.savings_pct) * 2)}%` }}
+                          />
+                        </div>
+                        <span className={s.savings_pct > 0 ? "text-green-600 font-medium" : "text-gray-600"}>
+                          {s.savings_pct > 0 ? "-" : ""}{s.savings_pct.toFixed(1)}%
+                        </span>
+                      </div>
                     ) : "-"}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-600">

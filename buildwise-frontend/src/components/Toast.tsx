@@ -19,7 +19,11 @@ export default function ToastContainer() {
 
   const addToast = useCallback((text: string, type: "error" | "success" | "info" = "error") => {
     const id = ++nextIdRef.current;
-    setToasts((prev) => [...prev, { id, text, type }]);
+    setToasts((prev) => {
+      const next = [...prev, { id, text, type }];
+      // Keep max 3 toasts — remove oldest if exceeded
+      return next.length > 3 ? next.slice(-3) : next;
+    });
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 5000);

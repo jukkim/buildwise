@@ -370,7 +370,7 @@ export default function ProjectDetail() {
             return (
               <div
                 key={b.id}
-                className="rounded-lg border border-gray-200 bg-white p-5"
+                className="rounded-lg border border-gray-200 bg-white p-5 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
