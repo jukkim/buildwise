@@ -69,7 +69,15 @@ install:
 
 # ---- Tests ----
 
-test: backend-test
+test: backend-test frontend-test
+
+test-all: backend-test frontend-test
+	@echo "All tests passed."
+
+# ---- Type checking ----
+
+check:
+	cd buildwise-frontend && npx tsc --noEmit
 
 # ---- Lint ----
 

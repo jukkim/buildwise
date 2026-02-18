@@ -19,6 +19,14 @@ export default function Layout() {
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
+      {/* Skip to content (keyboard accessibility) */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:rounded focus:bg-blue-600 focus:px-4 focus:py-2 focus:text-white"
+      >
+        Skip to content
+      </a>
+
       {/* Navbar */}
       <nav className="bg-white border-b border-gray-200">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -94,7 +102,7 @@ export default function Layout() {
       </nav>
 
       {/* Content */}
-      <main className="mx-auto max-w-7xl flex-1 px-4 py-6 sm:py-8 sm:px-6 lg:px-8 w-full">
+      <main id="main-content" className="mx-auto max-w-7xl flex-1 px-4 py-6 sm:py-8 sm:px-6 lg:px-8 w-full">
         <Outlet />
       </main>
 

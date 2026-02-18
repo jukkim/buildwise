@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from "react";
+import { useState, useRef, lazy, Suspense } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -39,6 +39,7 @@ export default function BuildingEditor() {
   const [showSimDialog, setShowSimDialog] = useState(false);
   const [simCity, setSimCity] = useState("Seoul");
   const [simPeriod, setSimPeriod] = useState("1year");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: building, isLoading } = useQuery({
     queryKey: ["building", buildingId],
@@ -169,6 +170,35 @@ export default function BuildingEditor() {
           </p>
         </div>
         <div className="flex gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = (ev) => {
+                try {
+                  const imported = JSON.parse(ev.target?.result as string);
+                  if (typeof imported !== "object" || !imported) throw new Error("Invalid JSON");
+                  patchMutation.mutate(imported);
+                  showToast("BPS imported", "success");
+                } catch {
+                  showToast("Invalid BPS JSON file");
+                }
+              };
+              reader.readAsText(file);
+              e.target.value = "";
+            }}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Import BPS
+          </button>
           <button
             onClick={() => {
               const blob = new Blob([JSON.stringify(building.bps, null, 2)], { type: "application/json" });

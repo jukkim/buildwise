@@ -81,6 +81,22 @@ make logs
 
 Frontend runs at http://localhost:3000, backend at http://localhost:8000.
 
+### Running Tests
+
+```bash
+# All tests (backend + frontend)
+make test
+
+# Backend only (pytest)
+make backend-test
+
+# Frontend only (vitest)
+make frontend-test
+
+# TypeScript type check
+make check
+```
+
 ### API Documentation
 
 - Swagger UI: http://localhost:8000/docs
