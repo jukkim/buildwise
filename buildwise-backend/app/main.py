@@ -3,6 +3,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.v1 import auth, billing, buildings, projects, results, simulations, templates
+
 app = FastAPI(
     title="BuildWise API",
     version="0.1.0",
@@ -25,11 +27,11 @@ async def health_check() -> dict[str, str]:
     return {"status": "ok", "service": "buildwise-api"}
 
 
-# API v1 routes will be registered here:
-# from app.api.v1 import auth, projects, buildings, simulations, results, billing
-# app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
-# app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"])
-# app.include_router(buildings.router, prefix="/api/v1/buildings", tags=["buildings"])
-# app.include_router(simulations.router, prefix="/api/v1/simulations", tags=["simulations"])
-# app.include_router(results.router, prefix="/api/v1/results", tags=["results"])
-# app.include_router(billing.router, prefix="/api/v1/billing", tags=["billing"])
+# API v1 routes
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"])
+app.include_router(buildings.router, prefix="/api/v1/projects", tags=["buildings"])
+app.include_router(templates.router, prefix="/api/v1/buildings/templates", tags=["templates"])
+app.include_router(simulations.router, prefix="/api/v1/simulations", tags=["simulations"])
+app.include_router(results.router, prefix="/api/v1/simulations", tags=["results"])
+app.include_router(billing.router, prefix="/api/v1/billing", tags=["billing"])
