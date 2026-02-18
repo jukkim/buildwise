@@ -189,6 +189,7 @@ class StrategyComparisonResponse(BaseModel):
     building_name: str
     building_type: str
     climate_city: str
+    period_type: str | None = None
     baseline: EnergyResultResponse | None
     strategies: list[EnergyResultResponse]
     recommended_strategy: str | None = None

@@ -1,4 +1,4 @@
-import { useState, useRef, lazy, Suspense } from "react";
+import { useState, useRef, useEffect, lazy, Suspense } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -40,6 +40,7 @@ export default function BuildingEditor() {
   const [simCity, setSimCity] = useState("Seoul");
   const [simPeriod, setSimPeriod] = useState("1year");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const simDialogRef = useRef<HTMLDivElement>(null);
 
   const { data: building, isLoading } = useQuery({
     queryKey: ["building", buildingId],
@@ -228,15 +229,11 @@ export default function BuildingEditor() {
 
       {/* Simulation start dialog */}
       {showSimDialog && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="sim-dialog-title"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowSimDialog(false); }}
-          onKeyDown={(e) => { if (e.key === "Escape") setShowSimDialog(false); }}
+        <SimDialogPortal
+          dialogRef={simDialogRef}
+          onClose={() => setShowSimDialog(false)}
         >
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+          <div ref={simDialogRef} className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
             <h3 id="sim-dialog-title" className="text-lg font-semibold text-gray-900">Start Simulation</h3>
             <p className="mt-1 text-sm text-gray-500">
               Configure simulation parameters for {building.name}
@@ -290,7 +287,7 @@ export default function BuildingEditor() {
               </button>
             </div>
           </div>
-        </div>
+        </SimDialogPortal>
       )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
@@ -394,6 +391,51 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between">
       <dt className="text-gray-500">{label}</dt>
       <dd className="text-gray-900">{value}</dd>
+    </div>
+  );
+}
+
+function SimDialogPortal({
+  dialogRef,
+  onClose,
+  children,
+}: {
+  dialogRef: React.RefObject<HTMLDivElement | null>;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "Tab" && dialogRef.current) {
+        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), select, input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [dialogRef, onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sim-dialog-title"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      {children}
     </div>
   );
 }

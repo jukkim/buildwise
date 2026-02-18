@@ -99,6 +99,7 @@ async def get_results(
         "building_name": config.building.name,
         "building_type": config.building.building_type.value,
         "climate_city": config.climate_city,
+        "period_type": config.period_type,
         "baseline": baseline_result,
         "strategies": strategy_results,
         "recommended_strategy": recommended,

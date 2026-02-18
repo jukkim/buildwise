@@ -125,6 +125,7 @@ export interface StrategyComparison {
   building_name: string;
   building_type: string;
   climate_city: string;
+  period_type: string | null;
   baseline: EnergyResult | null;
   strategies: EnergyResult[];
   recommended_strategy: string | null;

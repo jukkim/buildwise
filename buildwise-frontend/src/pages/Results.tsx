@@ -25,6 +25,12 @@ import { STRATEGY_LABELS } from "@/constants/strategies";
 type SortKey = "strategy" | "eui" | "total" | "hvac" | "savings" | "cost" | "cost_savings";
 type SortDir = "asc" | "desc";
 
+const PERIOD_LABELS: Record<string, string> = {
+  "1year": "Full Year",
+  "1month_summer": "Summer (Aug)",
+  "1month_winter": "Winter (Jan)",
+};
+
 export default function Results() {
   const { configId } = useParams<{ configId: string }>();
 
@@ -174,6 +180,9 @@ export default function Results() {
             </Link>
             {" "}&middot; {comparison.building_type.replace(/_/g, " ")} &middot;{" "}
             {comparison.climate_city}
+            {comparison.period_type && (
+              <> &middot; {PERIOD_LABELS[comparison.period_type] ?? comparison.period_type}</>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
