@@ -142,6 +142,8 @@ class SimulationRunResponse(BaseModel):
 
 class SimulationProgressResponse(BaseModel):
     config_id: uuid.UUID
+    building_id: uuid.UUID | None = None
+    project_id: uuid.UUID | None = None
     building_name: str | None = None
     climate_city: str | None = None
     total_strategies: int

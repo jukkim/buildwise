@@ -128,6 +128,8 @@ async def get_progress(
 
     return {
         "config_id": config.id,
+        "building_id": config.building_id,
+        "project_id": config.building.project_id if config.building else None,
         "building_name": config.building.name if config.building else None,
         "climate_city": config.climate_city,
         "total_strategies": len(config.runs),

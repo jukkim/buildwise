@@ -89,16 +89,35 @@ export default function SimulationProgress() {
 
   return (
     <div>
-      <Link to="/projects" className="text-sm text-blue-600 hover:underline">
-        &larr; Projects
-      </Link>
+      <div className="flex gap-4 text-sm">
+        <Link to="/projects" className="text-blue-600 hover:underline">
+          &larr; Projects
+        </Link>
+        {progress.project_id && progress.building_id && (
+          <Link
+            to={`/projects/${progress.project_id}/buildings/${progress.building_id}`}
+            className="text-blue-600 hover:underline"
+          >
+            &larr; Building Editor
+          </Link>
+        )}
+      </div>
 
       <h1 className="mt-2 text-2xl font-bold text-gray-900">
         Simulation Progress
       </h1>
       {(progress.building_name || progress.climate_city) && (
         <p className="text-sm text-gray-500 mb-4">
-          {progress.building_name}
+          {progress.building_name && progress.project_id && progress.building_id ? (
+            <Link
+              to={`/projects/${progress.project_id}/buildings/${progress.building_id}`}
+              className="hover:text-blue-600 hover:underline"
+            >
+              {progress.building_name}
+            </Link>
+          ) : (
+            progress.building_name
+          )}
           {progress.building_name && progress.climate_city && " \u00b7 "}
           {progress.climate_city}
         </p>

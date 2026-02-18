@@ -183,6 +183,16 @@ export default function Dashboard() {
           <CardSkeleton />
           <CardSkeleton />
         </div>
+      ) : projects.length === 0 && search ? (
+        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
+          <p className="text-sm text-gray-500">No projects matching "{search}"</p>
+          <button
+            onClick={() => setSearch("")}
+            className="mt-3 text-sm text-blue-600 hover:underline"
+          >
+            Clear search
+          </button>
+        </div>
       ) : projects.length === 0 ? (
         <div className="rounded-lg border-2 border-dashed border-gray-300 p-12 text-center">
           <svg className="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import clsx from "clsx";
 
 interface ToastMessage {
@@ -15,10 +15,10 @@ export function showToast(text: string, type: "error" | "success" | "info" = "er
 
 export default function ToastContainer() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  let nextId = 0;
+  const nextIdRef = useRef(0);
 
   const addToast = useCallback((text: string, type: "error" | "success" | "info" = "error") => {
-    const id = ++nextId;
+    const id = ++nextIdRef.current;
     setToasts((prev) => [...prev, { id, text, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
