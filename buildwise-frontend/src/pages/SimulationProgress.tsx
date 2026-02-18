@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { simulationsApi, type SimulationRun } from "@/api/client";
@@ -21,6 +21,7 @@ export default function SimulationProgress() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const hasAutoNavigated = useRef(false);
+  const [elapsed, setElapsed] = useState(0);
 
   useDocumentTitle("Simulation Progress");
 
@@ -54,6 +55,21 @@ export default function SimulationProgress() {
       return () => clearTimeout(timer);
     }
   }, [progress, configId, navigate]);
+
+  // Elapsed timer — ticks every second while simulation is running
+  useEffect(() => {
+    if (!progress) return;
+    const done = progress.completed + progress.failed >= progress.total_strategies;
+    if (done) return;
+    const firstRun = progress.runs.find((r) => r.started_at);
+    if (!firstRun?.started_at) return;
+    const start = new Date(firstRun.started_at).getTime();
+    setElapsed(Math.floor((Date.now() - start) / 1000));
+    const timer = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - start) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [progress]);
 
   if (isError) return (
     <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center">
@@ -146,6 +162,11 @@ export default function SimulationProgress() {
 
       {/* Status summary */}
       <div className="mb-6 flex items-center gap-3 text-sm">
+        {!allDone && elapsed > 0 && (
+          <span className="text-gray-500">
+            Elapsed: {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}
+          </span>
+        )}
         {progress.estimated_remaining_seconds && !allDone && (
           <span className="text-gray-500">
             ~{Math.ceil(progress.estimated_remaining_seconds / 60)} min remaining

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -113,6 +114,7 @@ export default function Results() {
   const euiChartData = allStrategies.map((s) => ({
     strategy: STRATEGY_LABELS[s.strategy] ?? s.strategy,
     "EUI (kWh/m2)": Number(s.eui_kwh_m2.toFixed(1)),
+    fill: s.strategy === comparison.recommended_strategy ? "#059669" : "#3B82F6",
   }));
 
   const breakdownChartData = allStrategies
@@ -264,7 +266,11 @@ export default function Results() {
             <YAxis unit=" kWh/m2" tick={{ fontSize: 11 }} />
             <Tooltip />
             <Legend />
-            <Bar dataKey="EUI (kWh/m2)" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="EUI (kWh/m2)" radius={[4, 4, 0, 0]}>
+              {euiChartData.map((entry, index) => (
+                <Cell key={index} fill={entry.fill} />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>

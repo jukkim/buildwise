@@ -64,6 +64,8 @@ export default function Layout() {
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
               className="sm:hidden rounded p-2 text-gray-500 hover:bg-gray-100"
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileOpen}
             >
               {mobileOpen ? (
                 <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
