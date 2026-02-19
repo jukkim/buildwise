@@ -22,6 +22,7 @@ import { Skeleton } from "@/components/Skeleton";
 import { showToast } from "@/components/Toast";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import { STRATEGY_LABELS } from "@/constants/strategies";
+import Breadcrumb from "@/components/Breadcrumb";
 
 type SortKey = "strategy" | "eui" | "total" | "hvac" | "savings" | "cost" | "cost_savings";
 type SortDir = "asc" | "desc";
@@ -199,20 +200,11 @@ export default function Results() {
 
   return (
     <div>
-      <div className="flex gap-4 text-sm">
-        <Link
-          to={`/simulations/${configId}/progress`}
-          className="text-blue-600 hover:underline"
-        >
-          &larr; Progress
-        </Link>
-        <Link
-          to={`/projects/${comparison.project_id}/buildings/${comparison.building_id}`}
-          className="text-blue-600 hover:underline"
-        >
-          &larr; Building Editor
-        </Link>
-      </div>
+      <Breadcrumb items={[
+        { label: "Projects", to: "/projects" },
+        { label: comparison.building_name, to: `/projects/${comparison.project_id}/buildings/${comparison.building_id}` },
+        { label: "Results" },
+      ]} />
 
       <div className="mt-2 flex items-center justify-between">
         <div>

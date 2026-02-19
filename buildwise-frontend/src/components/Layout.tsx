@@ -115,7 +115,10 @@ export default function Layout() {
       <footer className="border-t border-gray-200 bg-white py-4 mt-auto print:hidden">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex items-center justify-between text-xs text-gray-400">
           <span>BuildWise v0.1.0</span>
-          <span>Building Energy Simulation Platform</span>
+          <div className="flex items-center gap-4">
+            <span className="hidden sm:inline">EnergyPlus 24.1</span>
+            <span>Building Energy Simulation Platform</span>
+          </div>
         </div>
       </footer>
     </div>

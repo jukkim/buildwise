@@ -12,6 +12,7 @@ import BPSForm from "@/components/BPSForm";
 import { type BuildingViewerProps } from "@/components/BuildingViewer3D";
 import { Skeleton } from "@/components/Skeleton";
 import timeAgo from "@/utils/timeAgo";
+import Breadcrumb from "@/components/Breadcrumb";
 
 const BuildingViewer3D = lazy(() => import("@/components/BuildingViewer3D"));
 
@@ -118,12 +119,11 @@ export default function BuildingEditor() {
 
   return (
     <div>
-      <Link
-        to={`/projects/${projectId}`}
-        className="text-sm text-blue-600 hover:underline"
-      >
-        &larr; Back to Project
-      </Link>
+      <Breadcrumb items={[
+        { label: "Projects", to: "/projects" },
+        { label: "Project", to: `/projects/${projectId}` },
+        { label: building.name },
+      ]} />
 
       <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
         <div>

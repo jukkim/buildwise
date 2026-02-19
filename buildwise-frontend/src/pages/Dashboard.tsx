@@ -21,6 +21,7 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "name">("newest");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [bannerDismissed, setBannerDismissed] = useState(() => localStorage.getItem("buildwise_banner_dismissed") === "1");
 
   const { data, isLoading } = useQuery({
     queryKey: ["projects"],
@@ -77,20 +78,34 @@ export default function Dashboard() {
   return (
     <div>
       {/* Welcome banner */}
-      <div className="mb-6 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
-        <h1 className="text-2xl font-bold">Welcome back, {userName}</h1>
-        <p className="mt-1 text-blue-100">Manage your building energy simulation projects</p>
-        <div className="mt-4 flex gap-6">
-          <div>
-            <p className="text-2xl font-bold">{allProjects.length}</p>
-            <p className="text-xs text-blue-200">Projects</p>
-          </div>
-          <div>
-            <p className="text-2xl font-bold">{totalBuildings}</p>
-            <p className="text-xs text-blue-200">Buildings</p>
+      {!bannerDismissed && (
+        <div className="relative mb-6 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
+          <button
+            onClick={() => {
+              setBannerDismissed(true);
+              localStorage.setItem("buildwise_banner_dismissed", "1");
+            }}
+            className="absolute right-3 top-3 rounded p-1 text-blue-200 hover:bg-blue-500 hover:text-white"
+            title="Dismiss"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <h1 className="text-2xl font-bold">Welcome back, {userName}</h1>
+          <p className="mt-1 text-blue-100">Manage your building energy simulation projects</p>
+          <div className="mt-4 flex gap-6">
+            <div>
+              <p className="text-2xl font-bold">{allProjects.length}</p>
+              <p className="text-xs text-blue-200">Projects</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{totalBuildings}</p>
+              <p className="text-xs text-blue-200">Buildings</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between mb-4">

@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/Skeleton";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import clsx from "clsx";
 import { STRATEGY_LABELS } from "@/constants/strategies";
+import Breadcrumb from "@/components/Breadcrumb";
 
 const STATUS_COLORS: Record<string, string> = {
   completed: "bg-green-100 text-green-800",
@@ -112,19 +113,13 @@ export default function SimulationProgress() {
 
   return (
     <div>
-      <div className="flex gap-4 text-sm">
-        <Link to="/projects" className="text-blue-600 hover:underline">
-          &larr; Projects
-        </Link>
-        {progress.project_id && progress.building_id && (
-          <Link
-            to={`/projects/${progress.project_id}/buildings/${progress.building_id}`}
-            className="text-blue-600 hover:underline"
-          >
-            &larr; Building Editor
-          </Link>
-        )}
-      </div>
+      <Breadcrumb items={[
+        { label: "Projects", to: "/projects" },
+        ...(progress.building_name && progress.project_id && progress.building_id
+          ? [{ label: progress.building_name, to: `/projects/${progress.project_id}/buildings/${progress.building_id}` }]
+          : []),
+        { label: "Simulation" },
+      ]} />
 
       <h1 className="mt-2 text-2xl font-bold text-gray-900">
         Simulation Progress

@@ -7,15 +7,16 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  showDetails: boolean;
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, showDetails: false };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
   }
 
@@ -32,14 +33,20 @@ export default class ErrorBoundary extends Component<Props, State> {
           </p>
           <div className="mt-6 flex gap-3">
             <button
-              onClick={() => this.setState({ hasError: false, error: null })}
+              onClick={() => this.setState({ hasError: false, error: null, showDetails: false })}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
             >
               Try Again
             </button>
             <button
+              onClick={() => window.location.reload()}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Reload Page
+            </button>
+            <button
               onClick={() => {
-                this.setState({ hasError: false, error: null });
+                this.setState({ hasError: false, error: null, showDetails: false });
                 window.location.href = "/projects";
               }}
               className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -47,6 +54,21 @@ export default class ErrorBoundary extends Component<Props, State> {
               Go to Projects
             </button>
           </div>
+          {this.state.error?.stack && (
+            <div className="mt-4">
+              <button
+                onClick={() => this.setState((s) => ({ showDetails: !s.showDetails }))}
+                className="text-xs text-gray-400 hover:text-gray-600"
+              >
+                {this.state.showDetails ? "Hide details" : "Show details"}
+              </button>
+              {this.state.showDetails && (
+                <pre className="mt-2 max-w-2xl max-h-48 overflow-auto rounded bg-gray-100 p-3 text-left text-xs text-gray-600 font-mono">
+                  {this.state.error.stack}
+                </pre>
+              )}
+            </div>
+          )}
         </div>
       );
     }
