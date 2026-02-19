@@ -143,7 +143,7 @@ export default function Layout() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex items-center justify-between text-xs text-gray-400">
           <span>&copy; {new Date().getFullYear()} BuildWise v0.1.0</span>
           <div className="flex items-center gap-4">
-            <span className="hidden sm:inline">EnergyPlus 24.1</span>
+            <span className="hidden sm:inline" title="Powered by EnergyPlus simulation engine">EnergyPlus 24.1</span>
             <span>Building Energy Simulation Platform</span>
           </div>
         </div>

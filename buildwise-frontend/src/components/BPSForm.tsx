@@ -334,6 +334,9 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
           <>
             <SelectField label="System Type" value={hvacType ?? ""} options={HVAC_TYPES}
               onChange={(v) => update("hvac", "system_type", v)} />
+            {isSectionDirty("hvac") && (
+              <p className="text-xs text-amber-500">Changing HVAC type may affect COP and efficiency defaults.</p>
+            )}
             {isVAV && (
               <>
                 <NumField label="Chiller COP" value={(draft.hvac.chiller_cop as number) ?? 5.5} min={2} max={10} step={0.1}
