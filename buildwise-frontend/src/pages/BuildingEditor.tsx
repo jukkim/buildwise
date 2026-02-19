@@ -43,6 +43,7 @@ export default function BuildingEditor() {
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [viewer3dFullscreen, setViewer3dFullscreen] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const simDialogRef = useRef<HTMLDivElement>(null);
 
@@ -119,8 +120,40 @@ export default function BuildingEditor() {
   const bps = building.bps as Record<string, Record<string, unknown>>;
   const locationCity = (bps.location?.city as string) ?? "Seoul";
 
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (!file || !file.name.endsWith(".json")) {
+      showToast("Please drop a .json file");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const imported = JSON.parse(ev.target?.result as string);
+        if (typeof imported !== "object" || !imported) throw new Error("Invalid");
+        patchMutation.mutate(imported);
+        showToast("BPS imported via drop", "success");
+      } catch {
+        showToast("Invalid BPS JSON file");
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
-    <div>
+    <div
+      onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+      onDragLeave={() => setIsDragging(false)}
+      onDrop={handleDrop}
+      className={isDragging ? "ring-2 ring-blue-400 ring-inset rounded-lg" : ""}
+    >
+      {isDragging && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-blue-50/80 pointer-events-none">
+          <p className="text-lg font-medium text-blue-600">Drop BPS JSON file to import</p>
+        </div>
+      )}
       <Breadcrumb items={[
         { label: "Projects", to: "/projects" },
         { label: "Project", to: `/projects/${projectId}` },

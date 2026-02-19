@@ -261,8 +261,13 @@ export default function Results() {
         <h1 className="text-xl font-bold">BuildWise Energy Report</h1>
         <p className="text-sm text-gray-600">
           {comparison.building_name} &middot; {comparison.building_type.replace(/_/g, " ")} &middot; {comparison.climate_city}
-          &middot; Generated {new Date().toLocaleDateString()}
+          &middot; {allStrategies.length} strategies &middot; Generated {new Date().toLocaleDateString()}
         </p>
+        {comparison.recommended_strategy && (
+          <p className="text-sm text-gray-600 mt-1">
+            Recommended: {STRATEGY_LABELS[comparison.recommended_strategy] ?? comparison.recommended_strategy}
+          </p>
+        )}
       </div>
 
       <div className="mt-2 flex items-center justify-between">

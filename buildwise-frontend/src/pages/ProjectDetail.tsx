@@ -335,16 +335,22 @@ export default function ProjectDetail() {
             const floors = bps?.geometry?.num_floors_above;
             const area = bps?.geometry?.total_floor_area_m2;
             const hvac = bps?.hvac?.system_type as string;
+            const existingCount = buildings?.filter((b) => b.building_type === tmpl.building_type).length ?? 0;
             return (
               <button
                 key={tmpl.building_type}
                 onClick={() => {
                   setSelectedTemplate(tmpl);
-                  setNewBuildingName(tmpl.name);
+                  setNewBuildingName(existingCount > 0 ? `${tmpl.name} (${existingCount + 1})` : tmpl.name);
                 }}
                 className="rounded-lg border border-gray-200 bg-white p-4 text-left hover:border-blue-400 hover:shadow transition-all"
               >
-                <h4 className="font-medium text-gray-900">{tmpl.name}</h4>
+                <h4 className="font-medium text-gray-900">
+                  {tmpl.name}
+                  {existingCount > 0 && (
+                    <span className="ml-2 text-xs font-normal text-gray-400">({existingCount} existing)</span>
+                  )}
+                </h4>
                 <p className="mt-1 text-xs text-gray-500">{tmpl.description}</p>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs">
                   {floors != null && (
