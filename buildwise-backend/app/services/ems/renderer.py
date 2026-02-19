@@ -9,7 +9,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from jinja2 import Environment, FileSystemLoader, TemplateNotFound
+from jinja2 import FileSystemLoader, TemplateNotFound
+from jinja2.sandbox import SandboxedEnvironment
 
 logger = logging.getLogger(__name__)
 
@@ -22,14 +23,14 @@ class EMSRenderer:
 
     def __init__(self, template_dir: Path | None = None) -> None:
         self.template_dir = template_dir or _DEFAULT_TEMPLATE_DIR
-        self._env: Environment | None = None
+        self._env: SandboxedEnvironment | None = None
 
     @property
-    def env(self) -> Environment:
+    def env(self) -> SandboxedEnvironment:
         if self._env is None:
             if not self.template_dir.exists():
                 raise FileNotFoundError(f"EMS template directory not found: {self.template_dir}")
-            self._env = Environment(
+            self._env = SandboxedEnvironment(
                 loader=FileSystemLoader(str(self.template_dir)),
                 keep_trailing_newline=True,
                 trim_blocks=True,

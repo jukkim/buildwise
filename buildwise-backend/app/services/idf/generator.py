@@ -17,7 +17,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2.sandbox import SandboxedEnvironment
+from jinja2 import FileSystemLoader
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,7 @@ def _render_ems_templates(
         logger.warning("EMS template dir not found: %s", ems_template_dir)
         return f"! EMS templates directory not found: {ems_template_dir}\n"
 
-    env = Environment(
+    env = SandboxedEnvironment(
         loader=FileSystemLoader(str(ems_template_dir)),
         keep_trailing_newline=True,
     )

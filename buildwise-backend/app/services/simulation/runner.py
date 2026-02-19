@@ -7,13 +7,37 @@ from __future__ import annotations
 
 import logging
 import os
+import re
+import shutil
 import subprocess
 import tempfile
+import uuid as uuid_mod
 from pathlib import Path
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Strict EPW filename pattern (alphanumeric, dots, hyphens, underscores)
+_EPW_FILENAME_RE = re.compile(r"^[A-Za-z0-9_.\-]+\.epw$")
+
+
+def _validate_run_id(run_id: str) -> str:
+    """Validate run_id is a proper UUID to prevent path traversal."""
+    try:
+        validated = uuid_mod.UUID(run_id)
+        return str(validated)
+    except (ValueError, AttributeError):
+        raise ValueError(f"Invalid run_id format: {run_id}")
+
+
+def _validate_epw_filename(epw_file: str) -> str:
+    """Validate EPW filename contains no path separators."""
+    # Strip any directory components
+    clean = Path(epw_file).name
+    if not _EPW_FILENAME_RE.match(clean):
+        raise ValueError(f"Invalid EPW filename: {epw_file}")
+    return clean
 
 
 async def run_energyplus(
@@ -26,23 +50,37 @@ async def run_energyplus(
     Args:
         idf_content: Complete IDF file string.
         epw_file: EPW filename (e.g. "KOR_Seoul.Ws.108.epw").
-        run_id: Unique run identifier for output directory.
+        run_id: Unique run identifier (must be valid UUID).
 
     Returns:
         dict with keys: output_dir, exit_code, stdout, stderr
+
+    Raises:
+        ValueError: If run_id is not a valid UUID or epw_file is invalid.
+        FileNotFoundError: If EPW file cannot be found.
+        RuntimeError: If EnergyPlus fails or times out.
     """
+    # Validate inputs to prevent path traversal
+    safe_run_id = _validate_run_id(run_id)
+    safe_epw = _validate_epw_filename(epw_file)
+
     # Create temp directory for this run
-    base_dir = Path(tempfile.gettempdir()) / "buildwise" / "runs" / run_id
+    base_dir = Path(tempfile.gettempdir()) / "buildwise" / "runs" / safe_run_id
     base_dir.mkdir(parents=True, exist_ok=True)
+
+    # Verify base_dir is under expected parent
+    expected_parent = Path(tempfile.gettempdir()) / "buildwise" / "runs"
+    if not base_dir.resolve().is_relative_to(expected_parent.resolve()):
+        raise ValueError(f"Run directory escaped sandbox: {base_dir}")
 
     idf_path = base_dir / "in.idf"
     idf_path.write_text(idf_content, encoding="utf-8")
 
     # Locate EPW file
     epw_search_paths = [
-        Path(os.environ.get("BUILDWISE_EPW_DIR", "")) / epw_file,
-        Path(__file__).parent.parent.parent.parent / "config" / "weather" / epw_file,
-        Path("/app/weather") / epw_file,  # Docker container path
+        Path(os.environ.get("BUILDWISE_EPW_DIR", "")) / safe_epw,
+        Path(__file__).parent.parent.parent.parent / "config" / "weather" / safe_epw,
+        Path("/app/weather") / safe_epw,  # Docker container path
     ]
     epw_path = None
     for p in epw_search_paths:
@@ -51,8 +89,8 @@ async def run_energyplus(
             break
 
     if epw_path is None:
-        logger.error("EPW file not found: %s", epw_file)
-        raise FileNotFoundError(f"EPW file not found: {epw_file}")
+        logger.error("EPW file not found: %s", safe_epw)
+        raise FileNotFoundError(f"EPW file not found: {safe_epw}")
 
     # Run EnergyPlus
     ep_exe = os.environ.get("ENERGYPLUS_EXE", "energyplus")
@@ -68,29 +106,44 @@ async def run_energyplus(
 
     logger.info("Running EnergyPlus: %s", " ".join(cmd))
 
+    # Redirect stdout/stderr to files to avoid unbounded memory buffering
+    stdout_log = base_dir / "stdout.log"
+    stderr_log = base_dir / "stderr.log"
+
     try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=settings.energyplus_timeout_seconds,
-            cwd=str(base_dir),
-        )
+        with open(stdout_log, "w") as stdout_f, open(stderr_log, "w") as stderr_f:
+            proc = subprocess.run(
+                cmd,
+                stdout=stdout_f,
+                stderr=stderr_f,
+                timeout=settings.energyplus_timeout_seconds,
+                cwd=str(base_dir),
+            )
+
+        # Read last portion of logs for error reporting
+        stdout_tail = ""
+        stderr_tail = ""
+        if stdout_log.exists():
+            stdout_tail = stdout_log.read_text(encoding="utf-8", errors="replace")[-5000:]
+        if stderr_log.exists():
+            stderr_tail = stderr_log.read_text(encoding="utf-8", errors="replace")[-5000:]
 
         result = {
             "output_dir": str(base_dir),
             "exit_code": proc.returncode,
-            "stdout": proc.stdout[-5000:] if proc.stdout else "",
-            "stderr": proc.stderr[-5000:] if proc.stderr else "",
+            "stdout": stdout_tail,
+            "stderr": stderr_tail,
         }
 
         if proc.returncode != 0:
             logger.error(
                 "EnergyPlus failed (exit %d): %s",
                 proc.returncode,
-                proc.stderr[:500],
+                stderr_tail[:500],
             )
-            raise RuntimeError(f"EnergyPlus exit code {proc.returncode}: {proc.stderr[:500]}")
+            raise RuntimeError(
+                f"EnergyPlus exit code {proc.returncode}"
+            )
 
         logger.info("EnergyPlus completed: %s", base_dir)
         return result
@@ -98,3 +151,15 @@ async def run_energyplus(
     except subprocess.TimeoutExpired:
         logger.error("EnergyPlus timed out after %ds", settings.energyplus_timeout_seconds)
         raise RuntimeError(f"EnergyPlus timed out after {settings.energyplus_timeout_seconds}s")
+
+
+def cleanup_run_directory(run_id: str) -> None:
+    """Remove temporary simulation files for a completed/failed run."""
+    try:
+        safe_run_id = _validate_run_id(run_id)
+        base_dir = Path(tempfile.gettempdir()) / "buildwise" / "runs" / safe_run_id
+        if base_dir.exists():
+            shutil.rmtree(base_dir, ignore_errors=True)
+            logger.debug("Cleaned up run directory: %s", base_dir)
+    except ValueError:
+        pass  # Invalid run_id, nothing to clean

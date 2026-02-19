@@ -13,8 +13,15 @@ from app.api.deps import get_current_user
 from app.db import get_db
 from app.models.project import Building
 from app.models.simulation import SimulationConfig, SimulationRun, SimulationStatus, SimulationStrategy
-from app.models.user import User
+from app.models.user import User, UserPlan
 from app.schemas.api import SimulationProgressResponse, SimulationRunResponse, SimulationStart
+
+# Plan-based simulation limits (configs per month)
+_PLAN_LIMITS: dict[str, int] = {
+    UserPlan.FREE: 10,
+    UserPlan.PRO: 100,
+    UserPlan.ENTERPRISE: 1000,
+}
 
 router = APIRouter()
 
@@ -40,6 +47,14 @@ async def start_simulation(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """POST /simulations - 시뮬레이션 시작."""
+    # Check monthly simulation quota
+    plan_limit = _PLAN_LIMITS.get(user.plan, 10)
+    if user.simulation_count_monthly >= plan_limit:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Monthly simulation limit reached ({plan_limit}). Upgrade your plan for more.",
+        )
+
     # Verify building exists and belongs to user
     result = await db.execute(
         select(Building)
@@ -79,6 +94,9 @@ async def start_simulation(
         db.add(run)
         runs.append(run)
     await db.flush()
+
+    # Increment monthly simulation counter
+    user.simulation_count_monthly += 1
 
     # Dispatch Celery task to run all strategies
     from app.tasks.simulation import dispatch_simulation
@@ -166,6 +184,13 @@ async def cancel_simulation(
         if run.status in (SimulationStatus.PENDING, SimulationStatus.QUEUED, SimulationStatus.RUNNING):
             run.status = SimulationStatus.CANCELLED
             cancelled += 1
+            # Revoke Celery task if we have the task ID
+            if run.runner_id:
+                try:
+                    from app.worker import celery_app
+                    celery_app.control.revoke(run.runner_id, terminate=True, signal="SIGTERM")
+                except Exception:
+                    pass  # Best-effort revocation
 
     await db.flush()
     return {"message": f"Cancelled {cancelled} runs"}

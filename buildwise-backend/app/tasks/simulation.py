@@ -42,7 +42,7 @@ def run_single_strategy(self, run_id: str) -> dict:
     1. Load SimulationRun + config + building BPS
     2. Generate IDF file from BPS + strategy
     3. Execute EnergyPlus
-    4. Parse results → EnergyResult
+    4. Parse results -> EnergyResult
     5. Update run status
     """
     return _run_async(_execute_strategy(run_id, self))
@@ -57,6 +57,11 @@ async def _execute_strategy(run_id: str, task) -> dict:
         run = result.scalar_one_or_none()
         if run is None:
             return {"error": f"Run {run_id} not found"}
+
+        # Check if already cancelled before starting
+        if run.status == SimulationStatus.CANCELLED:
+            logger.info("Run %s already cancelled, skipping", run_id)
+            return {"status": "cancelled"}
 
         # Mark as running
         run.status = SimulationStatus.RUNNING
@@ -108,7 +113,18 @@ async def _execute_strategy(run_id: str, task) -> dict:
                     epw_file=config.epw_file,
                     run_id=run_id,
                 )
-                parsed = parse_energyplus_output(ep_result["output_dir"])
+                try:
+                    parsed = parse_energyplus_output(ep_result["output_dir"])
+                finally:
+                    # Clean up temp files after parsing
+                    from app.services.simulation.runner import cleanup_run_directory
+                    cleanup_run_directory(run_id)
+
+            # Re-check cancellation before storing results
+            await db.refresh(run, ["status"])
+            if run.status == SimulationStatus.CANCELLED:
+                logger.info("Run %s cancelled during execution, discarding results", run_id)
+                return {"status": "cancelled"}
 
             # 6. Store results
             energy = EnergyResult(
@@ -168,16 +184,27 @@ async def _dispatch(config_id: str) -> dict:
         runs = result.scalars().all()
 
         dispatched = []
+        run_objects = []
         for run in runs:
             run.status = SimulationStatus.QUEUED
             run.queued_at = datetime.now(timezone.utc)
             dispatched.append(str(run.id))
+            run_objects.append(run)
 
         await db.commit()
 
-    # Dispatch individual strategy tasks
-    for rid in dispatched:
-        run_single_strategy.delay(rid)
+    # Dispatch individual strategy tasks and store task IDs
+    async with async_session_factory() as db:
+        for i, rid in enumerate(dispatched):
+            async_result = run_single_strategy.delay(rid)
+            # Store Celery task ID in runner_id for later revocation
+            run_obj = await db.execute(
+                select(SimulationRun).where(SimulationRun.id == uuid.UUID(rid))
+            )
+            run = run_obj.scalar_one()
+            run.runner_id = async_result.id
+            run.runner_type = "celery"
+        await db.commit()
 
     logger.info("Dispatched %d runs for config %s", len(dispatched), config_id)
     return {"dispatched": len(dispatched), "run_ids": dispatched}

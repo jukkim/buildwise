@@ -6,6 +6,7 @@ climate city, and strategy. Values derived from energyplus_sim 450+ results.
 
 from __future__ import annotations
 
+import hashlib
 import random
 
 # Base EUI values per building type (kWh/m2/year) from validated simulations
@@ -46,15 +47,30 @@ _STRATEGY_SAVINGS: dict[str, dict[str, float]] = {
     "m8": {"savings_pct": 15.2},  # Full Savings
 }
 
-# Energy breakdown ratios (fraction of total)
-_BREAKDOWN: dict[str, float] = {
-    "hvac": 0.45,
-    "cooling": 0.22,
-    "heating": 0.15,
-    "fan": 0.08,
-    "pump": 0.05,
+# Hierarchical energy breakdown: top-level categories sum to 1.0
+_BREAKDOWN_TOPLEVEL: dict[str, float] = {
+    "hvac": 0.50,
     "lighting": 0.15,
-    "equipment": 0.35,
+    "equipment": 0.30,
+    "other": 0.05,
+}
+
+# HVAC sub-breakdown: fractions of HVAC, summing to 1.0
+_HVAC_BREAKDOWN: dict[str, float] = {
+    "cooling": 0.48,
+    "heating": 0.32,
+    "fan": 0.13,
+    "pump": 0.07,
+}
+
+# Peak demand factor per building type (avg demand * factor = peak demand)
+_PEAK_FACTOR: dict[str, float] = {
+    "large_office": 2.3,
+    "medium_office": 2.5,
+    "small_office": 2.8,
+    "standalone_retail": 2.6,
+    "primary_school": 3.3,
+    "hospital": 1.8,
 }
 
 # KRW per kWh (simplified)
@@ -70,13 +86,19 @@ def generate_mock_result(
     """Generate realistic mock energy simulation results.
 
     Returns dict compatible with EnergyResult model fields.
+    Uses deterministic noise based on building characteristics so all
+    strategies for the same building get consistent baseline values.
     """
     base_eui = _BASE_EUI.get(building_type, 180.0)
     climate_factor = _CLIMATE_FACTOR.get(climate_city, 1.0)
     savings_info = _STRATEGY_SAVINGS.get(strategy, {"savings_pct": 0.0})
 
-    # Add small random variation (±3%)
-    noise = 1.0 + random.uniform(-0.03, 0.03)
+    # Deterministic noise based on building characteristics (not strategy)
+    # so all strategies for the same building use the same baseline noise
+    seed_str = f"{building_type}:{climate_city}:{total_floor_area_m2}"
+    seed = int(hashlib.sha256(seed_str.encode()).hexdigest()[:8], 16)
+    rng = random.Random(seed)
+    noise = 1.0 + rng.uniform(-0.03, 0.03)
 
     # Calculate EUI
     baseline_eui = base_eui * climate_factor * noise
@@ -86,17 +108,20 @@ def generate_mock_result(
     # Total energy
     total_energy = strategy_eui * total_floor_area_m2
 
-    # Breakdown
-    hvac = total_energy * _BREAKDOWN["hvac"]
-    cooling = total_energy * _BREAKDOWN["cooling"]
-    heating = total_energy * _BREAKDOWN["heating"]
-    fan = total_energy * _BREAKDOWN["fan"]
-    pump = total_energy * _BREAKDOWN["pump"]
-    lighting = total_energy * _BREAKDOWN["lighting"]
-    equipment = total_energy * _BREAKDOWN["equipment"]
+    # Hierarchical breakdown (top-level sums to 1.0)
+    hvac = total_energy * _BREAKDOWN_TOPLEVEL["hvac"]
+    lighting = total_energy * _BREAKDOWN_TOPLEVEL["lighting"]
+    equipment = total_energy * _BREAKDOWN_TOPLEVEL["equipment"]
 
-    # Peak demand (rough: total / 8760 * peak factor)
-    peak_kw = total_energy / 8760 * 2.5
+    # HVAC sub-components (sub-fractions of HVAC, summing to 1.0)
+    cooling = hvac * _HVAC_BREAKDOWN["cooling"]
+    heating = hvac * _HVAC_BREAKDOWN["heating"]
+    fan = hvac * _HVAC_BREAKDOWN["fan"]
+    pump = hvac * _HVAC_BREAKDOWN["pump"]
+
+    # Peak demand (building-type-specific factor)
+    peak_factor = _PEAK_FACTOR.get(building_type, 2.5)
+    peak_kw = total_energy / 8760 * peak_factor
 
     # Cost
     annual_cost = int(total_energy * _KRW_PER_KWH)
