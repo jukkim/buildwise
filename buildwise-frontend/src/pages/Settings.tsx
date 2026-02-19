@@ -238,6 +238,7 @@ export default function Settings() {
           {([
             ["Ctrl + S", "Save BPS changes (in Building Editor)"],
             ["\u2190 \u2192", "Navigate BPS sections (when tab focused)"],
+            ["N", "New Project (on Dashboard)"],
             ["Enter", "Submit forms / confirm actions"],
             ["Escape", "Close dialogs / cancel editing"],
             ["Tab", "Navigate between interactive elements"],
@@ -247,6 +248,28 @@ export default function Settings() {
               <kbd className="rounded bg-gray-100 px-2 py-0.5 text-xs font-mono text-gray-700 border border-gray-200">{key}</kbd>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Appearance */}
+      <section className="rounded-lg border border-gray-200 bg-white p-6 mt-6">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Appearance</h2>
+        <div className="flex gap-4">
+          <div className="flex-1 rounded-lg border-2 border-blue-500 bg-white p-4 text-center cursor-default">
+            <div className="mx-auto mb-2 h-8 w-12 rounded bg-gray-100 border border-gray-200" />
+            <p className="text-xs font-medium text-gray-700">Light</p>
+            <p className="text-[10px] text-blue-500">Active</p>
+          </div>
+          <div className="flex-1 rounded-lg border-2 border-gray-200 bg-gray-50 p-4 text-center cursor-not-allowed opacity-60">
+            <div className="mx-auto mb-2 h-8 w-12 rounded bg-gray-700 border border-gray-600" />
+            <p className="text-xs font-medium text-gray-500">Dark</p>
+            <p className="text-[10px] text-gray-400">Coming soon</p>
+          </div>
+          <div className="flex-1 rounded-lg border-2 border-gray-200 bg-gray-50 p-4 text-center cursor-not-allowed opacity-60">
+            <div className="mx-auto mb-2 h-8 w-12 rounded bg-gradient-to-r from-gray-100 to-gray-700 border border-gray-300" />
+            <p className="text-xs font-medium text-gray-500">System</p>
+            <p className="text-[10px] text-gray-400">Coming soon</p>
+          </div>
         </div>
       </section>
     </div>

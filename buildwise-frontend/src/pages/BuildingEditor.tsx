@@ -314,7 +314,7 @@ export default function BuildingEditor() {
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                <span>{filled}/{sections.length} sections</span>
+                <span>{filled}/{sections.length} sections ({pct}%)</span>
               </div>
             );
           })()}
