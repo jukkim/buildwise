@@ -39,6 +39,7 @@ export default function ProjectDetail() {
   const [editingDesc, setEditingDesc] = useState(false);
   const [descValue, setDescValue] = useState("");
   const [cloningBuildingId, setCloningBuildingId] = useState<string | null>(null);
+  const [buildingSort, setBuildingSort] = useState<"newest" | "oldest" | "name">("newest");
 
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ["project", projectId],
@@ -133,9 +134,16 @@ export default function ProjectDetail() {
 
   const debouncedBuildingSearch = useDebounce(buildingSearch);
   const filteredBuildings = buildings
-    ? debouncedBuildingSearch
-      ? buildings.filter((b) => b.name.toLowerCase().includes(debouncedBuildingSearch.toLowerCase()))
-      : buildings
+    ? (() => {
+        const filtered = debouncedBuildingSearch
+          ? buildings.filter((b) => b.name.toLowerCase().includes(debouncedBuildingSearch.toLowerCase()))
+          : buildings;
+        return [...filtered].sort((a, b) => {
+          if (buildingSort === "name") return a.name.localeCompare(b.name);
+          if (buildingSort === "oldest") return new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+        });
+      })()
     : [];
 
   if (projectLoading || !project) return <ListSkeleton rows={3} />;
@@ -272,9 +280,9 @@ export default function ProjectDetail() {
         </button>
       </div>
 
-      {/* Building search */}
+      {/* Building search + sort */}
       {buildings && buildings.length > 3 && (
-        <div className="mb-4">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
           <input
             type="text"
             placeholder="Search buildings..."
@@ -282,6 +290,15 @@ export default function ProjectDetail() {
             onChange={(e) => setBuildingSearch(e.target.value)}
             className="w-full max-w-xs rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           />
+          <select
+            value={buildingSort}
+            onChange={(e) => setBuildingSort(e.target.value as "newest" | "oldest" | "name")}
+            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-600"
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="name">Name A-Z</option>
+          </select>
         </div>
       )}
 

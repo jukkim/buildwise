@@ -123,8 +123,16 @@ export default function Results() {
     return sortDir === "asc" ? cmp : -cmp;
   });
 
-  const sortIcon = (key: SortKey) =>
-    sortKey === key ? (sortDir === "asc" ? " \u2191" : " \u2193") : "";
+  const SortIcon = ({ col }: { col: SortKey }) => {
+    if (sortKey !== col) return <span className="ml-1 inline-block w-3" />;
+    return (
+      <svg className="ml-1 inline-block h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {sortDir === "asc"
+          ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+          : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />}
+      </svg>
+    );
+  };
 
   const euiChartData = allStrategies.map((s) => ({
     strategy: STRATEGY_LABELS[s.strategy] ?? s.strategy,
@@ -393,9 +401,9 @@ export default function Results() {
       )}
 
       {/* Detail table */}
-      <div className="mt-6 overflow-x-auto rounded-lg border border-gray-200">
+      <div className="mt-6 overflow-x-auto overflow-y-auto max-h-[70vh] rounded-lg border border-gray-200">
         <table className="min-w-full divide-y divide-gray-200 text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
               {([
                 ["strategy", "Strategy", "text-left"],
@@ -411,7 +419,7 @@ export default function Results() {
                   onClick={() => toggleSort(key)}
                   className={`${key === "strategy" ? "sticky left-0 bg-gray-50 " : ""}px-4 py-3 ${align} font-medium text-gray-600 cursor-pointer select-none hover:text-gray-900`}
                 >
-                  {label}{sortIcon(key)}
+                  {label}<SortIcon col={key} />
                 </th>
               ))}
             </tr>

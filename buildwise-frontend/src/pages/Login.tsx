@@ -6,13 +6,19 @@ import useDocumentTitle from "@/hooks/useDocumentTitle";
 export default function Login() {
   useDocumentTitle("Sign In");
   const navigate = useNavigate();
-  const [email, setEmail] = useState("demo@buildwise.ai");
+  const [email, setEmail] = useState(() => localStorage.getItem("buildwise_last_email") ?? "demo@buildwise.ai");
+  const [rememberEmail, setRememberEmail] = useState(() => !!localStorage.getItem("buildwise_last_email"));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async () => {
     setLoading(true);
     setError(null);
+    if (rememberEmail) {
+      localStorage.setItem("buildwise_last_email", email);
+    } else {
+      localStorage.removeItem("buildwise_last_email");
+    }
     try {
       // MVP: lookup user by email via auth endpoint
       const res = await api.post<{ id: string; name: string; email: string }>(
@@ -72,6 +78,16 @@ export default function Login() {
               }}
             />
           </div>
+
+          <label className="flex items-center gap-2 text-sm text-gray-600">
+            <input
+              type="checkbox"
+              checked={rememberEmail}
+              onChange={(e) => setRememberEmail(e.target.checked)}
+              className="rounded border-gray-300"
+            />
+            Remember email
+          </label>
 
           {error && (
             <p className="text-sm text-red-600">{error}</p>
