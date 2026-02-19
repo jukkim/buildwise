@@ -509,7 +509,7 @@ export default function Results() {
               const worstStrategy = nonBaseline.length > 1
                 ? nonBaseline.reduce((worst, s) => s.eui_kwh_m2 > worst.eui_kwh_m2 ? s : worst).strategy
                 : null;
-              return sortedStrategies.map((s) => {
+              return sortedStrategies.map((s, rowIdx) => {
               const isRecommended = s.strategy === comparison.recommended_strategy;
               const isWorst = s.strategy === worstStrategy && s.strategy !== comparison.recommended_strategy;
               const baselineEui = comparison.baseline?.eui_kwh_m2;
@@ -522,6 +522,7 @@ export default function Results() {
                   className={`${isRecommended ? "bg-green-50" : isWorst ? "bg-red-50/50" : "hover:bg-gray-50"} transition-colors`}
                 >
                   <td className={`sticky left-0 px-4 py-3 font-medium text-gray-900 ${isRecommended ? "bg-green-50" : isWorst ? "bg-red-50/50" : "bg-white group-hover:bg-gray-50"}`}>
+                    <span className="mr-2 text-xs text-gray-400">#{rowIdx + 1}</span>
                     {STRATEGY_LABELS[s.strategy] ?? s.strategy}
                     {isRecommended && (
                       <span className="ml-2 rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-700">

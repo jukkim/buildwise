@@ -297,6 +297,25 @@ export default function BuildingEditor() {
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         {/* BPS Edit Form */}
         <div>
+          {(() => {
+            const sections = ["location", "geometry", "envelope", "hvac", "setpoints", "internal_loads", "schedules"];
+            const filled = sections.filter((s) => {
+              const sec = bps[s];
+              return sec && Object.keys(sec).length > 0;
+            }).length;
+            const pct = Math.round((filled / sections.length) * 100);
+            return (
+              <div className="mb-2 flex items-center gap-2 text-xs text-gray-400">
+                <div className="h-1.5 flex-1 rounded-full bg-gray-200 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${pct === 100 ? "bg-green-500" : "bg-blue-500"}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <span>{filled}/{sections.length} sections</span>
+              </div>
+            );
+          })()}
           <BPSForm
             bps={bps}
             onSave={(patch) => patchMutation.mutate(patch)}
