@@ -471,11 +471,13 @@ export default function Dashboard() {
                       <span className="ml-2 rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">Active</span>
                     )}
                   </h3>
-                  {p.description && (
+                  {p.description ? (
                     <p className={`text-sm text-gray-500 ${viewMode === "grid" ? "mt-1 line-clamp-2" : "hidden sm:block truncate max-w-xs"}`}>
                       {p.description}
                     </p>
-                  )}
+                  ) : viewMode === "grid" ? (
+                    <p className="mt-1 text-sm text-gray-300 italic">No description</p>
+                  ) : null}
                   <div className={`flex items-center gap-3 text-xs text-gray-400 ${viewMode === "grid" ? "mt-3" : ""}`}>
                     <span className="flex items-center gap-1">
                       <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -150,7 +150,7 @@ export default function SimulationProgress() {
             {progress.failed > 0 && <span className="text-red-500"> ({progress.failed} failed)</span>}
             {progress.running > 0 && <span className="text-blue-500"> &middot; {progress.running} running</span>}
           </span>
-          <span>{pct}%</span>
+          <span className={pct >= 100 ? "text-green-600 font-medium" : pct >= 50 ? "text-blue-600" : "text-gray-600"}>{pct}%</span>
         </div>
         <div className="h-3 rounded-full bg-gray-200 overflow-hidden">
           <div

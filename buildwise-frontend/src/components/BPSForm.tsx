@@ -311,8 +311,28 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
         )}
 
         {activeSection === "location" && (
-          <SelectField label="City" value={draft.location.city as string} options={CITIES}
-            onChange={(v) => update("location", "city", v)} />
+          <>
+            <SelectField label="City" value={draft.location.city as string} options={CITIES}
+              onChange={(v) => update("location", "city", v)} />
+            {(() => {
+              const hints: Record<string, string> = {
+                Seoul: "4A Mixed-Humid · Cold winters, hot humid summers",
+                Busan: "3A Warm-Humid · Mild coastal climate",
+                Daegu: "4A Mixed-Humid · Hot summers, cold winters",
+                Daejeon: "4A Mixed-Humid · Central inland climate",
+                Gwangju: "4A Mixed-Humid · Warm southern region",
+                Incheon: "4A Mixed-Humid · Coastal with sea breeze",
+                Gangneung: "4A Mixed-Humid · East coast mountain influence",
+                Jeju: "3A Warm-Humid · Subtropical island climate",
+                Cheongju: "4A Mixed-Humid · Continental inland",
+                Ulsan: "3A Warm-Humid · Southeastern coastal",
+              };
+              const city = draft.location.city as string;
+              return hints[city] ? (
+                <p className="text-xs text-gray-400 mt-1">{hints[city]}</p>
+              ) : null;
+            })()}
+          </>
         )}
 
         {activeSection === "envelope" && (
