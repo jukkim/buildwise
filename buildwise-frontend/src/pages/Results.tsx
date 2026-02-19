@@ -363,6 +363,11 @@ export default function Results() {
         </button>
         {!collapsed.eui && (
           <div className="px-5 pb-5">
+            {euiChartData.length === 0 ? (
+              <div className="flex h-[300px] items-center justify-center text-sm text-gray-400">
+                No EUI data available
+              </div>
+            ) : (
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={euiChartData}>
                 <CartesianGrid strokeDasharray="3 3" />
@@ -377,6 +382,7 @@ export default function Results() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            )}
           </div>
         )}
       </div>

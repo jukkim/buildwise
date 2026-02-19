@@ -49,7 +49,15 @@ export default function Settings() {
 
       {/* Profile */}
       <section className="rounded-lg border border-gray-200 bg-white p-6 mb-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">Profile</h2>
+        <div className="flex items-center gap-4 mb-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-lg font-bold text-blue-700">
+            {(user?.name ?? "U").split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-800">{user?.name ?? "User"}</h2>
+            <p className="text-sm text-gray-500">{user?.email}</p>
+          </div>
+        </div>
         <dl className="space-y-3">
           <div className="flex justify-between">
             <dt className="text-sm text-gray-500">Name</dt>
@@ -223,6 +231,7 @@ export default function Settings() {
         <div className="space-y-2 text-sm">
           {([
             ["Ctrl + S", "Save BPS changes (in Building Editor)"],
+            ["\u2190 \u2192", "Navigate BPS sections (when tab focused)"],
             ["Enter", "Submit forms / confirm actions"],
             ["Escape", "Close dialogs / cancel editing"],
             ["Tab", "Navigate between interactive elements"],
