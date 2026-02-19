@@ -547,6 +547,17 @@ export default function ProjectDetail() {
                       )}
                       <span>v{b.bps_version}</span>
                       <span title={new Date(b.updated_at).toLocaleString()}>{timeAgo(b.updated_at)}</span>
+                      {area != null && (() => {
+                        const maxArea = Math.max(...(buildings ?? []).map((bb) => Number((bb.bps as Record<string, Record<string, unknown>>)?.geometry?.total_floor_area_m2 ?? 0)));
+                        const pct = maxArea > 0 ? (Number(area) / maxArea) * 100 : 0;
+                        return (
+                          <span className="inline-flex items-center gap-1" title={`${Number(area).toLocaleString()} m²`}>
+                            <span className="inline-block h-1.5 w-8 rounded-full bg-gray-200 overflow-hidden">
+                              <span className="block h-full rounded-full bg-blue-400" style={{ width: `${pct}%` }} />
+                            </span>
+                          </span>
+                        );
+                      })()}
                       {Date.now() - new Date(b.created_at).getTime() < 86400000 && (
                         <span className="rounded bg-blue-100 px-1.5 py-0.5 text-blue-700 font-medium">New</span>
                       )}

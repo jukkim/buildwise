@@ -243,7 +243,19 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
             {sectionHasErrors(s.key) ? (
               <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-red-500" />
             ) : isSectionDirty(s.key) ? (
-              <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500" />
+              <>
+                <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500" />
+                {(() => {
+                  const orig = bps[s.key] ?? {};
+                  const cur = draft[s.key];
+                  const count = Object.keys(cur).filter(
+                    (f) => JSON.stringify(cur[f]) !== JSON.stringify(orig[f]),
+                  ).length;
+                  return count > 0 ? (
+                    <span className="ml-0.5 text-[10px] text-blue-400">{count}</span>
+                  ) : null;
+                })()}
+              </>
             ) : null}
           </button>
         ))}

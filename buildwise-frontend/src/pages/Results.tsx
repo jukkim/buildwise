@@ -511,6 +511,22 @@ export default function Results() {
         </div>
       )}
 
+      {/* Cost comparison text */}
+      {comparison.baseline?.annual_cost_krw && allStrategies.filter((s) => s.annual_cost_krw).length > 1 && (
+        <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-5 py-3 text-sm text-gray-600">
+          <span className="font-medium text-gray-700">Annual Cost Range: </span>
+          {(() => {
+            const costs = allStrategies.filter((s) => s.annual_cost_krw != null).map((s) => s.annual_cost_krw!);
+            const minCost = Math.min(...costs);
+            const maxCost = Math.max(...costs);
+            return `${(minCost / 10000).toFixed(0)}만원 ~ ${(maxCost / 10000).toFixed(0)}만원`;
+          })()}
+          {comparison.baseline.annual_cost_krw && (
+            <span className="text-gray-400"> (baseline: {(comparison.baseline.annual_cost_krw / 10000).toFixed(0)}만원)</span>
+          )}
+        </div>
+      )}
+
       {/* Detail table */}
       <div className="mt-6 overflow-x-auto overflow-y-auto max-h-[70vh] rounded-lg border border-gray-200">
         <table className="min-w-full divide-y divide-gray-200 text-sm">
