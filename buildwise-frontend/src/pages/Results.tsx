@@ -624,6 +624,12 @@ export default function Results() {
                 <Fragment key={s.strategy}>
                 <tr
                   onClick={() => setSelectedRow(isSelected ? null : s.strategy)}
+                  onDoubleClick={() => {
+                    const text = `${STRATEGY_LABELS[s.strategy] ?? s.strategy}: EUI ${s.eui_kwh_m2.toFixed(1)} kWh/m², ${s.savings_pct != null ? `${s.savings_pct.toFixed(1)}% savings` : "baseline"}${s.annual_cost_krw ? `, ${(s.annual_cost_krw / 10000).toFixed(0)}만원/yr` : ""}`;
+                    navigator.clipboard.writeText(text);
+                    showToast("Strategy result copied", "success");
+                  }}
+                  title="Click to expand, double-click to copy"
                   className={`cursor-pointer transition-colors ${isSelected ? "ring-2 ring-blue-400 ring-inset" : ""} ${isRecommended ? "bg-green-50" : isWorst ? "bg-red-50/50" : s.strategy === "baseline" ? "bg-gray-50/70" : "hover:bg-gray-50"}`}
                 >
                   <td className={`sticky left-0 px-4 py-3 font-medium text-gray-900 ${isRecommended ? "bg-green-50" : isWorst ? "bg-red-50/50" : s.strategy === "baseline" ? "bg-gray-50" : "bg-white group-hover:bg-gray-50"}`}>

@@ -586,9 +586,11 @@ export default function ProjectDetail() {
                           </span>
                         );
                       })()}
-                      {Date.now() - new Date(b.created_at).getTime() < 86400000 && (
+                      {Date.now() - new Date(b.created_at).getTime() < 86400000 ? (
                         <span className="rounded bg-blue-100 px-1.5 py-0.5 text-blue-700 font-medium">New</span>
-                      )}
+                      ) : Date.now() - new Date(b.updated_at).getTime() < 3600000 ? (
+                        <span className="rounded bg-green-100 px-1.5 py-0.5 text-green-700 font-medium">Recently edited</span>
+                      ) : null}
                     </div>
                   </div>
 

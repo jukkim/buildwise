@@ -303,9 +303,14 @@ export default function Settings() {
       </section>
 
       {/* Keyboard Shortcuts */}
-      <section className="rounded-lg border border-gray-200 bg-white p-6 mt-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">Keyboard Shortcuts</h2>
-        <div className="space-y-2 text-sm">
+      <details className="rounded-lg border border-gray-200 bg-white mt-6 group">
+        <summary className="cursor-pointer p-6 text-lg font-semibold text-gray-800 list-none flex items-center justify-between">
+          Keyboard Shortcuts
+          <svg className="h-5 w-5 text-gray-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </summary>
+        <div className="space-y-2 text-sm px-6 pb-6">
           {([
             ["Ctrl + S", "Save BPS changes (in Building Editor)"],
             ["\u2190 \u2192", "Navigate BPS sections (when tab focused)"],
@@ -320,7 +325,7 @@ export default function Settings() {
             </div>
           ))}
         </div>
-      </section>
+      </details>
 
       {/* Appearance */}
       <section className="rounded-lg border border-gray-200 bg-white p-6 mt-6">

@@ -205,6 +205,11 @@ export default function SimulationProgress() {
             Completed with {progress.failed} failed strateg{progress.failed === 1 ? "y" : "ies"}.
             {progress.completed > 0 && ` ${progress.completed} succeeded.`}
           </p>
+          {progress.completed === 0 && (
+            <p className="mt-1 text-xs text-yellow-600">
+              All strategies failed. Check building parameters and try again.
+            </p>
+          )}
         </div>
       )}
 
