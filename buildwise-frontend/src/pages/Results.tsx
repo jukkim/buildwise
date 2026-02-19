@@ -288,6 +288,24 @@ export default function Results() {
               <> &middot; {PERIOD_LABELS[comparison.period_type] ?? comparison.period_type}</>
             )}
           </p>
+          <div className="mt-1 flex items-center gap-2">
+            <span className={`inline-block rounded px-2 py-0.5 text-xs ${
+              {
+                medium_office: "bg-blue-100 text-blue-700",
+                large_office: "bg-indigo-100 text-indigo-700",
+                small_office: "bg-sky-100 text-sky-700",
+                primary_school: "bg-green-100 text-green-700",
+                secondary_school: "bg-emerald-100 text-emerald-700",
+                hospital: "bg-red-100 text-red-700",
+                retail: "bg-amber-100 text-amber-700",
+                hotel: "bg-purple-100 text-purple-700",
+                warehouse: "bg-gray-200 text-gray-700",
+                apartment: "bg-teal-100 text-teal-700",
+              }[comparison.building_type] ?? "bg-gray-100 text-gray-700"
+            }`}>
+              {comparison.building_type.replace(/_/g, " ")}
+            </span>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
           <button

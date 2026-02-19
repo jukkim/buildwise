@@ -254,12 +254,13 @@ export default function SimulationProgress() {
         {[...progress.runs].sort((a, b) => {
           const order: Record<string, number> = { running: 0, queued: 1, pending: 2, completed: 3, failed: 4, cancelled: 5 };
           return (order[a.status] ?? 9) - (order[b.status] ?? 9);
-        }).map((run: SimulationRun) => (
+        }).map((run: SimulationRun, idx: number) => (
           <div
             key={run.id}
             className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3"
           >
             <div>
+              <span className="mr-2 text-xs text-gray-300">#{idx + 1}</span>
               <span
                 className={`font-medium ${run.status === "cancelled" ? "text-gray-400 line-through" : "text-gray-900"}`}
                 title={STRATEGY_DESCRIPTIONS[run.strategy] ?? ""}

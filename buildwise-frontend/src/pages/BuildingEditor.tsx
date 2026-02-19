@@ -459,7 +459,14 @@ export default function BuildingEditor() {
                         <span className="font-medium text-gray-800">
                           {item.climate_city}
                         </span>
-                        <span className="text-xs text-gray-400">
+                        <span className="text-xs text-gray-400 flex items-center gap-0.5">
+                          {item.period_type === "1month_summer" ? (
+                            <svg className="h-3 w-3 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" strokeWidth={2} /><path strokeLinecap="round" strokeWidth={2} d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" /></svg>
+                          ) : item.period_type === "1month_winter" ? (
+                            <svg className="h-3 w-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07" /></svg>
+                          ) : (
+                            <svg className="h-3 w-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                          )}
                           {PERIODS.find((p) => p.value === item.period_type)?.label ?? item.period_type}
                         </span>
                         <span className="text-gray-400">
