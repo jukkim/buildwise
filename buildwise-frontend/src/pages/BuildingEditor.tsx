@@ -462,7 +462,7 @@ export default function BuildingEditor() {
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
               <h3 className="font-semibold text-gray-800">3D Preview</h3>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">Drag to rotate</span>
+                <span className="text-xs text-gray-400">Drag to rotate · Scroll to zoom</span>
                 <button
                   onClick={() => setViewer3dFullscreen((v) => !v)}
                   className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"

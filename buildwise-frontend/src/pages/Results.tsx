@@ -586,12 +586,28 @@ export default function Results() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-600">
-                    {s.eui_kwh_m2.toFixed(1)}
-                    {euiDelta != null && (
-                      <span className={`ml-1 text-xs ${euiDelta < 0 ? "text-green-500" : euiDelta > 0 ? "text-red-400" : "text-gray-400"}`}>
-                        ({euiDelta > 0 ? "+" : ""}{euiDelta.toFixed(1)})
+                    <div className="flex items-center justify-end gap-2">
+                      {(() => {
+                        const maxEui = Math.max(...allStrategies.map((st) => st.eui_kwh_m2));
+                        const pct = maxEui > 0 ? (s.eui_kwh_m2 / maxEui) * 100 : 0;
+                        return (
+                          <span className="hidden sm:inline-block w-12 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                            <span
+                              className={`block h-full rounded-full ${isRecommended ? "bg-green-400" : "bg-blue-300"}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </span>
+                        );
+                      })()}
+                      <span>
+                        {s.eui_kwh_m2.toFixed(1)}
+                        {euiDelta != null && (
+                          <span className={`ml-1 text-xs ${euiDelta < 0 ? "text-green-500" : euiDelta > 0 ? "text-red-400" : "text-gray-400"}`}>
+                            ({euiDelta > 0 ? "+" : ""}{euiDelta.toFixed(1)})
+                          </span>
+                        )}
                       </span>
-                    )}
+                    </div>
                   </td>
                   <td className="hidden sm:table-cell px-4 py-3 text-right text-gray-600">
                     {s.total_energy_kwh.toLocaleString()}
