@@ -37,6 +37,7 @@ export default function Results() {
   const navigate = useNavigate();
   const [sortKey, setSortKey] = useState<SortKey>("strategy");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const { data: comparison, isLoading, isError, refetch } = useQuery({
     queryKey: ["results", configId],
@@ -308,24 +309,34 @@ export default function Results() {
       })()}
 
       {/* EUI Chart */}
-      <div className="mt-6 rounded-lg border border-gray-200 bg-white p-5">
-        <h3 className="mb-4 font-semibold text-gray-800">
-          Energy Use Intensity (EUI)
-        </h3>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={euiChartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="strategy" tick={{ fontSize: 11 }} />
-            <YAxis unit=" kWh/m2" tick={{ fontSize: 11 }} />
-            <Tooltip />
-            <Legend />
-            <Bar dataKey="EUI (kWh/m2)" radius={[4, 4, 0, 0]}>
-              {euiChartData.map((entry, index) => (
-                <Cell key={index} fill={entry.fill} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+      <div className="mt-6 rounded-lg border border-gray-200 bg-white">
+        <button
+          onClick={() => setCollapsed((c) => ({ ...c, eui: !c.eui }))}
+          className="flex w-full items-center justify-between p-5 text-left"
+        >
+          <h3 className="font-semibold text-gray-800">Energy Use Intensity (EUI)</h3>
+          <svg className={`h-5 w-5 text-gray-400 transition-transform ${collapsed.eui ? "" : "rotate-180"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        {!collapsed.eui && (
+          <div className="px-5 pb-5">
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={euiChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="strategy" tick={{ fontSize: 11 }} />
+                <YAxis unit=" kWh/m2" tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="EUI (kWh/m2)" radius={[4, 4, 0, 0]}>
+                  {euiChartData.map((entry, index) => (
+                    <Cell key={index} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       {/* Strategy Radar Chart */}
@@ -351,52 +362,72 @@ export default function Results() {
           : allStrategies.slice(0, 3);
 
         return (
-          <div className="mt-6 rounded-lg border border-gray-200 bg-white p-5">
-            <h3 className="mb-4 font-semibold text-gray-800">
-              Strategy Profile (% of Baseline)
-            </h3>
-            <p className="mb-2 text-xs text-gray-400">Lower values = better performance. 100% = baseline level.</p>
-            <ResponsiveContainer width="100%" height={320}>
-              <RadarChart data={radarData}>
-                <PolarGrid />
-                <PolarAngleAxis dataKey="metric" tick={{ fontSize: 12 }} />
-                <PolarRadiusAxis angle={90} domain={[0, 110]} tick={{ fontSize: 10 }} />
-                {top.map((s, i) => (
-                  <Radar
-                    key={s.strategy}
-                    name={STRATEGY_LABELS[s.strategy] ?? s.strategy}
-                    dataKey={s.strategy}
-                    stroke={COLORS[i % COLORS.length]}
-                    fill={COLORS[i % COLORS.length]}
-                    fillOpacity={0.15}
-                  />
-                ))}
-                <Legend />
-                <Tooltip />
-              </RadarChart>
-            </ResponsiveContainer>
+          <div className="mt-6 rounded-lg border border-gray-200 bg-white">
+            <button
+              onClick={() => setCollapsed((c) => ({ ...c, radar: !c.radar }))}
+              className="flex w-full items-center justify-between p-5 text-left"
+            >
+              <h3 className="font-semibold text-gray-800">Strategy Profile (% of Baseline)</h3>
+              <svg className={`h-5 w-5 text-gray-400 transition-transform ${collapsed.radar ? "" : "rotate-180"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {!collapsed.radar && (
+              <div className="px-5 pb-5">
+                <p className="mb-2 text-xs text-gray-400">Lower values = better performance. 100% = baseline level.</p>
+                <ResponsiveContainer width="100%" height={320}>
+                  <RadarChart data={radarData}>
+                    <PolarGrid />
+                    <PolarAngleAxis dataKey="metric" tick={{ fontSize: 12 }} />
+                    <PolarRadiusAxis angle={90} domain={[0, 110]} tick={{ fontSize: 10 }} />
+                    {top.map((s, i) => (
+                      <Radar
+                        key={s.strategy}
+                        name={STRATEGY_LABELS[s.strategy] ?? s.strategy}
+                        dataKey={s.strategy}
+                        stroke={COLORS[i % COLORS.length]}
+                        fill={COLORS[i % COLORS.length]}
+                        fillOpacity={0.15}
+                      />
+                    ))}
+                    <Legend />
+                    <Tooltip />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
         );
       })()}
 
       {/* Energy Breakdown Chart */}
       {breakdownChartData.length > 0 && (
-        <div className="mt-6 rounded-lg border border-gray-200 bg-white p-5">
-          <h3 className="mb-4 font-semibold text-gray-800">
-            Energy Breakdown (MWh)
-          </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={breakdownChartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="strategy" tick={{ fontSize: 11 }} />
-              <YAxis unit=" MWh" tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="Cooling" stackId="a" fill="#60A5FA" />
-              <Bar dataKey="Heating" stackId="a" fill="#F87171" />
-              <Bar dataKey="Fan" stackId="a" fill="#A78BFA" />
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="mt-6 rounded-lg border border-gray-200 bg-white">
+          <button
+            onClick={() => setCollapsed((c) => ({ ...c, breakdown: !c.breakdown }))}
+            className="flex w-full items-center justify-between p-5 text-left"
+          >
+            <h3 className="font-semibold text-gray-800">Energy Breakdown (MWh)</h3>
+            <svg className={`h-5 w-5 text-gray-400 transition-transform ${collapsed.breakdown ? "" : "rotate-180"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {!collapsed.breakdown && (
+            <div className="px-5 pb-5">
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={breakdownChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="strategy" tick={{ fontSize: 11 }} />
+                  <YAxis unit=" MWh" tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="Cooling" stackId="a" fill="#60A5FA" />
+                  <Bar dataKey="Heating" stackId="a" fill="#F87171" />
+                  <Bar dataKey="Fan" stackId="a" fill="#A78BFA" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       )}
 

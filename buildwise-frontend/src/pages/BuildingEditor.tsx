@@ -39,6 +39,7 @@ export default function BuildingEditor() {
   const [showSimDialog, setShowSimDialog] = useState(false);
   const [simCity, setSimCity] = useState("Seoul");
   const [simPeriod, setSimPeriod] = useState("1year");
+  const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const simDialogRef = useRef<HTMLDivElement>(null);
 
@@ -302,25 +303,35 @@ export default function BuildingEditor() {
         {/* Right column */}
         <div className="space-y-6">
           {/* Quick summary */}
-          <div className="rounded-lg border border-gray-200 bg-white p-5">
-            <h3 className="mb-3 font-semibold text-gray-800">Summary</h3>
-            <dl className="space-y-2 text-sm">
-              <SummaryRow label="Location" value={locationCity} />
-              <SummaryRow label="Floors" value={String(bps.geometry?.num_floors_above ?? "-")} />
-              <SummaryRow
-                label="Total Area"
-                value={bps.geometry?.total_floor_area_m2
-                  ? `${Number(bps.geometry.total_floor_area_m2).toLocaleString()} m2`
-                  : "-"}
-              />
-              <SummaryRow label="HVAC" value={(bps.hvac?.system_type as string)?.replace(/_/g, " ") ?? "-"} />
-              <SummaryRow label="WWR" value={bps.geometry?.wwr != null ? String(bps.geometry.wwr) : "-"} />
-              <SummaryRow label="Wall" value={(bps.envelope?.wall_type as string)?.replace(/_/g, " ") ?? "-"} />
-              <SummaryRow label="Window" value={(bps.envelope?.window_type as string)?.replace(/_/g, " ") ?? "-"} />
-              <SummaryRow label="Cooling" value={`${(bps.setpoints?.cooling_occupied as number) ?? 24}°C`} />
-              <SummaryRow label="Heating" value={`${(bps.setpoints?.heating_occupied as number) ?? 20}°C`} />
-              <SummaryRow label="Lighting" value={bps.internal_loads?.lighting_power_density != null ? `${bps.internal_loads.lighting_power_density} W/m2` : "-"} />
-            </dl>
+          <div className="rounded-lg border border-gray-200 bg-white">
+            <button
+              onClick={() => setSummaryCollapsed((v) => !v)}
+              className="flex w-full items-center justify-between p-5 text-left"
+            >
+              <h3 className="font-semibold text-gray-800">Summary</h3>
+              <svg className={`h-5 w-5 text-gray-400 transition-transform ${summaryCollapsed ? "" : "rotate-180"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {!summaryCollapsed && (
+              <dl className="space-y-2 px-5 pb-5 text-sm">
+                <SummaryRow label="Location" value={locationCity} />
+                <SummaryRow label="Floors" value={String(bps.geometry?.num_floors_above ?? "-")} />
+                <SummaryRow
+                  label="Total Area"
+                  value={bps.geometry?.total_floor_area_m2
+                    ? `${Number(bps.geometry.total_floor_area_m2).toLocaleString()} m2`
+                    : "-"}
+                />
+                <SummaryRow label="HVAC" value={(bps.hvac?.system_type as string)?.replace(/_/g, " ") ?? "-"} />
+                <SummaryRow label="WWR" value={bps.geometry?.wwr != null ? String(bps.geometry.wwr) : "-"} />
+                <SummaryRow label="Wall" value={(bps.envelope?.wall_type as string)?.replace(/_/g, " ") ?? "-"} />
+                <SummaryRow label="Window" value={(bps.envelope?.window_type as string)?.replace(/_/g, " ") ?? "-"} />
+                <SummaryRow label="Cooling" value={`${(bps.setpoints?.cooling_occupied as number) ?? 24}°C`} />
+                <SummaryRow label="Heating" value={`${(bps.setpoints?.heating_occupied as number) ?? 20}°C`} />
+                <SummaryRow label="Lighting" value={bps.internal_loads?.lighting_power_density != null ? `${bps.internal_loads.lighting_power_density} W/m2` : "-"} />
+              </dl>
+            )}
           </div>
 
           {/* Simulation history */}

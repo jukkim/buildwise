@@ -349,7 +349,23 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
               </svg>
               {idx > 0 ? sections[idx - 1].label : ""}
             </button>
-            <span className="text-xs text-gray-400">{idx + 1} / {sections.length}</span>
+            <div className="flex items-center gap-2">
+              {isSectionDirty(activeSection) && (
+                <button
+                  onClick={() => {
+                    setDraft((prev) => ({
+                      ...prev,
+                      [activeSection]: { ...(bps[activeSection] ?? {}) },
+                    }));
+                  }}
+                  className="text-xs text-gray-400 hover:text-red-500"
+                  title={`Reset ${sections[idx].label} to saved values`}
+                >
+                  Reset
+                </button>
+              )}
+              <span className="text-xs text-gray-400">{idx + 1} / {sections.length}</span>
+            </div>
             <button
               onClick={() => idx < sections.length - 1 && setActiveSection(sections[idx + 1].key)}
               disabled={idx === sections.length - 1}
