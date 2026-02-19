@@ -240,6 +240,9 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
             )}
           >
             {s.label}
+            {draft[s.key] && Object.keys(draft[s.key]).length > 0 && (
+              <span className="ml-0.5 text-[10px] text-gray-300">{Object.keys(draft[s.key]).length}</span>
+            )}
             {sectionHasErrors(s.key) ? (
               <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-red-500" />
             ) : isSectionDirty(s.key) ? (

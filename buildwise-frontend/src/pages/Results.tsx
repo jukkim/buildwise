@@ -624,9 +624,9 @@ export default function Results() {
                 <Fragment key={s.strategy}>
                 <tr
                   onClick={() => setSelectedRow(isSelected ? null : s.strategy)}
-                  className={`cursor-pointer transition-colors ${isSelected ? "ring-2 ring-blue-400 ring-inset" : ""} ${isRecommended ? "bg-green-50" : isWorst ? "bg-red-50/50" : "hover:bg-gray-50"}`}
+                  className={`cursor-pointer transition-colors ${isSelected ? "ring-2 ring-blue-400 ring-inset" : ""} ${isRecommended ? "bg-green-50" : isWorst ? "bg-red-50/50" : s.strategy === "baseline" ? "bg-gray-50/70" : "hover:bg-gray-50"}`}
                 >
-                  <td className={`sticky left-0 px-4 py-3 font-medium text-gray-900 ${isRecommended ? "bg-green-50" : isWorst ? "bg-red-50/50" : "bg-white group-hover:bg-gray-50"}`}>
+                  <td className={`sticky left-0 px-4 py-3 font-medium text-gray-900 ${isRecommended ? "bg-green-50" : isWorst ? "bg-red-50/50" : s.strategy === "baseline" ? "bg-gray-50" : "bg-white group-hover:bg-gray-50"}`}>
                     <span className="mr-2 text-xs text-gray-400">#{rowIdx + 1}</span>
                     <span title={STRATEGY_DESCRIPTIONS[s.strategy] ?? ""}>{STRATEGY_LABELS[s.strategy] ?? s.strategy}</span>
                     {isRecommended && (
@@ -637,6 +637,11 @@ export default function Results() {
                     {isWorst && (
                       <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-600">
                         Highest
+                      </span>
+                    )}
+                    {s.strategy === "baseline" && !isRecommended && (
+                      <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
+                        Reference
                       </span>
                     )}
                   </td>

@@ -285,6 +285,9 @@ export default function ProjectDetail() {
             </svg>
             <span title={new Date(project.updated_at).toLocaleString()}>Updated {timeAgo(project.updated_at)}</span>
           </div>
+          <div className="flex items-center gap-1.5 text-gray-400 text-xs">
+            <span>{Math.floor((Date.now() - new Date(project.created_at).getTime()) / 86400000)}d old</span>
+          </div>
         </div>
       )}
 

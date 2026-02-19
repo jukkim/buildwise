@@ -69,7 +69,7 @@ export default function Layout() {
                 <Link
                   key={link.to}
                   to={link.to}
-                  className={`flex items-center gap-1.5 text-sm ${pathname.startsWith(link.to) ? "font-semibold text-blue-600" : "text-gray-600 hover:text-gray-900"}`}
+                  className={`flex items-center gap-1.5 text-sm py-1 border-b-2 ${pathname.startsWith(link.to) ? "font-semibold text-blue-600 border-blue-600" : "text-gray-600 hover:text-gray-900 border-transparent"}`}
                 >
                   {link.icon}
                   {link.label}
