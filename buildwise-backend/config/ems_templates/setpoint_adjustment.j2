@@ -1,0 +1,89 @@
+! ============================================================================
+! Setpoint Adjustment Template
+! 외기온 기반 설정온도 조건부 조정
+! 기존 스케줄과 협업 (전면 교체 금지)
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    Outdoor_Temp,            !- Name
+    Environment,             !- Output:Variable or Output:Meter Index Key Name
+    Site Outdoor Air Drybulb Temperature;  !- Output:Variable or Output:Meter Name
+
+! --- Actuators ---
+{% for zone in zones %}
+EnergyManagementSystem:Actuator,
+    {{ zone.name }}_Heating_SP,  !- Name
+    {{ zone.name }},          !- Actuated Component Unique Name
+    Zone Temperature Control, !- Actuated Component Type
+    Heating Setpoint;         !- Actuated Component Control Type
+
+EnergyManagementSystem:Actuator,
+    {{ zone.name }}_Cooling_SP,  !- Name
+    {{ zone.name }},          !- Actuated Component Unique Name
+    Zone Temperature Control, !- Actuated Component Type
+    Cooling Setpoint;         !- Actuated Component Control Type
+
+{% endfor %}
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    Cooling_Adjustment,      !- Erl Variable Name
+    Heating_Adjustment;      !- Erl Variable Name
+
+! --- Program ---
+EnergyManagementSystem:Program,
+    Setpoint_Adjustment_Program,  !- Name
+    ! 설정값
+    SET HighTempThreshold = {{ high_temp_threshold | default(30) }},
+    SET LowTempThreshold = {{ low_temp_threshold | default(5) }},
+    !
+    ! 외기온 기반 조건부 조정
+    IF Outdoor_Temp > HighTempThreshold,
+        ! 외기가 더울 때: 냉방 설정온도 +1°C 완화
+        SET Cooling_Adjustment = 1.0,
+        SET Heating_Adjustment = 0,
+    ELSEIF Outdoor_Temp < LowTempThreshold,
+        ! 외기가 추울 때: 난방 설정온도 -1°C 완화
+        SET Cooling_Adjustment = 0,
+        SET Heating_Adjustment = -1.0,
+    ELSE,
+        ! 정상 범위: 조정 없음
+        SET Cooling_Adjustment = 0,
+        SET Heating_Adjustment = 0,
+    ENDIF,
+    !
+    ! 각 존에 적용
+    {% for zone in zones %}
+    IF Cooling_Adjustment > 0,
+        SET {{ zone.name }}_Cooling_SP = NULL + Cooling_Adjustment,
+        SET {{ zone.name }}_Heating_SP = NULL,
+    ELSEIF Heating_Adjustment < 0,
+        SET {{ zone.name }}_Cooling_SP = NULL,
+        SET {{ zone.name }}_Heating_SP = NULL + Heating_Adjustment,
+    ELSE,
+        SET {{ zone.name }}_Cooling_SP = NULL,  ! 스케줄값 사용
+        SET {{ zone.name }}_Heating_SP = NULL,  ! 스케줄값 사용
+    ENDIF,
+    !
+    {% endfor %}
+    ;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    Setpoint_Adjustment_Manager,  !- Name
+    BeginTimestepBeforePredictor,  !- EnergyPlus Model Calling Point
+    Setpoint_Adjustment_Program;   !- Program Name 1
+
+! --- Output Variables ---
+EnergyManagementSystem:OutputVariable,
+    EMS Cooling Adjustment,  !- Name
+    Cooling_Adjustment,      !- EMS Variable Name
+    Averaged,                !- Type of Data in Variable
+    ZoneTimeStep;            !- Update Frequency
+
+EnergyManagementSystem:OutputVariable,
+    EMS Heating Adjustment,  !- Name
+    Heating_Adjustment,      !- EMS Variable Name
+    Averaged,                !- Type of Data in Variable
+    ZoneTimeStep;            !- Update Frequency

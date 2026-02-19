@@ -8,6 +8,7 @@ from app.services.idf.generator import (
     _generate_constructions,
     _generate_design_days,
     _generate_global_geometry_rules,
+    _generate_ground_temps,
     _resolve_run_period,
     _generate_hvac,
     _generate_idf_envelope,
@@ -93,31 +94,73 @@ class TestSanitizeIdfField:
 
 
 class TestStrategyTemplateMapping:
-    """Test strategy to EMS template selection."""
+    """Test strategy to EMS template selection per building type."""
 
     def test_baseline_has_no_templates(self):
-        templates = _get_ems_templates("baseline", "vav_chiller_boiler")
+        templates = _get_ems_templates("baseline", "large_office")
         assert templates == []
 
-    def test_m0_has_optimal_start(self):
-        templates = _get_ems_templates("m0", "vav_chiller_boiler")
-        assert "optimal_start_stop.j2" in templates
+    def test_m0_large_office(self):
+        templates = _get_ems_templates("m0", "large_office")
+        assert "m2_night_ventilation.j2" in templates
+        assert "occupancy_control.j2" in templates
 
-    def test_m7_has_multiple_templates(self):
-        templates = _get_ems_templates("m7", "vav_chiller_boiler")
-        assert len(templates) == 4
+    def test_m0_medium_office_vrf(self):
+        templates = _get_ems_templates("m0", "medium_office")
+        assert templates == ["vrf_night_setback.j2"]
 
-    def test_vrf_override_m0(self):
-        templates = _get_ems_templates("m0", "vrf")
+    def test_m1_large_office(self):
+        templates = _get_ems_templates("m1", "large_office")
+        assert templates == ["optimal_start.j2"]
+
+    def test_m1_medium_office_vrf(self):
+        templates = _get_ems_templates("m1", "medium_office")
         assert templates == ["optimal_start_vrf_v2.j2"]
 
-    def test_vrf_falls_back_for_m2(self):
-        templates = _get_ems_templates("m2", "vrf")
-        assert templates == STRATEGY_TEMPLATE_MAP["m2"]
+    def test_m2_economizer(self):
+        templates = _get_ems_templates("m2", "large_office")
+        assert templates == ["enthalpy_economizer.j2"]
+
+    def test_m2_not_applicable_medium_office(self):
+        templates = _get_ems_templates("m2", "medium_office")
+        assert templates == []
+
+    def test_m3_staging_large_office(self):
+        templates = _get_ems_templates("m3", "large_office")
+        assert templates == ["staging_control.j2"]
+
+    def test_m3_not_applicable_small_office(self):
+        templates = _get_ems_templates("m3", "small_office")
+        assert templates == []
+
+    def test_m4_wildcard_all_buildings(self):
+        for bt in ["large_office", "medium_office", "small_office", "standalone_retail", "primary_school"]:
+            templates = _get_ems_templates("m4", bt)
+            assert "m4_peak_limiting.j2" in templates
+            assert "setpoint_adjustment.j2" in templates
+
+    def test_m7_large_office_has_4_templates(self):
+        templates = _get_ems_templates("m7", "large_office")
+        assert len(templates) == 4
+        assert "enthalpy_economizer.j2" in templates
+        assert "staging_control.j2" in templates
+
+    def test_m7_medium_office_vrf(self):
+        templates = _get_ems_templates("m7", "medium_office")
+        assert "vrf_full_control.j2" in templates
+        assert "setpoint_adjustment.j2" in templates
 
     def test_unknown_strategy(self):
-        templates = _get_ems_templates("unknown", "vav_chiller_boiler")
+        templates = _get_ems_templates("unknown", "large_office")
         assert templates == []
+
+    def test_unknown_building_no_wildcard(self):
+        templates = _get_ems_templates("m3", "unknown_type")
+        assert templates == []
+
+    def test_unknown_building_with_wildcard(self):
+        templates = _get_ems_templates("m4", "unknown_type")
+        assert "m4_peak_limiting.j2" in templates
 
 
 class TestZoneGeometry:
@@ -184,6 +227,21 @@ class TestGenerateIdfSections:
     def test_design_days_unknown_city_defaults_to_seoul(self):
         result = _generate_design_days("UnknownCity")
         assert "33.3" in result  # Seoul summer temp
+
+    def test_ground_temps_seoul(self):
+        result = _generate_ground_temps("Seoul")
+        assert "Site:GroundTemperature:BuildingSurface" in result
+        assert "1.5" in result  # Jan
+        assert "26.0" in result  # Aug
+
+    def test_ground_temps_jeju(self):
+        result = _generate_ground_temps("Jeju")
+        assert "6.5" in result  # Jan (milder)
+        assert "27.0" in result  # Aug
+
+    def test_ground_temps_unknown_defaults_to_seoul(self):
+        result = _generate_ground_temps("UnknownCity")
+        assert "1.5" in result  # Seoul Jan
 
     def test_constructions(self):
         bps = _sample_bps()
@@ -360,6 +418,7 @@ class TestGenerateIdf:
         assert "Material:NoMass," in idf
         assert "Construction," in idf
         assert "WindowMaterial:SimpleGlazingSystem," in idf
+        assert "Site:GroundTemperature:BuildingSurface," in idf
         assert "ScheduleTypeLimits," in idf
         assert "People," in idf
         assert "Lights," in idf

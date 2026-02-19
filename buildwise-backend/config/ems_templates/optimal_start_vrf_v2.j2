@@ -1,0 +1,214 @@
+! ============================================================================
+! Optimal Start VRF v2 - Enhanced Version
+! VRF 시스템용 향상된 최적 기동/정지 제어
+!
+! 개선사항:
+! 1. 조기 기동: 필요시에만 스케줄 이전에 기동
+! 2. 지연 기동: 이미 적정 온도면 기동 지연
+! 3. 조기 정지: 퇴실 전 미리 정지하여 잔열 활용
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    Zone_Temperature,        !- Name
+    {{ zone_name | default('GF_Core') }},
+    Zone Mean Air Temperature;
+
+EnergyManagementSystem:Sensor,
+    Outdoor_Temp,            !- Name
+    Environment,
+    Site Outdoor Air Drybulb Temperature;
+
+! --- Actuators ---
+EnergyManagementSystem:Actuator,
+    VRF_GF_Mode,             !- Name
+    VRF_GF,
+    Variable Refrigerant Flow Heat Pump,
+    Operating Mode;
+
+EnergyManagementSystem:Actuator,
+    VRF_MF_Mode,             !- Name
+    VRF_MF,
+    Variable Refrigerant Flow Heat Pump,
+    Operating Mode;
+
+EnergyManagementSystem:Actuator,
+    VRF_TF_Mode,             !- Name
+    VRF_TF,
+    Variable Refrigerant Flow Heat Pump,
+    Operating Mode;
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    Optimal_Start_Time,
+    Optimal_Stop_Time,
+    VRF_Operating_Mode,
+    Early_Start_Active,
+    Late_Stop_Active;
+
+! --- Main Program ---
+EnergyManagementSystem:Program,
+    VRF_Optimal_Start_V2,
+    ! Configuration
+    SET OccupancyStart = {{ occupancy_start | default(9) }},
+    SET OccupancyEnd = {{ occupancy_end | default(18) }},
+    SET CoolingSetpoint = {{ cooling_setpoint | default(26.0) }},
+    SET HeatingSetpoint = {{ heating_setpoint | default(20.0) }},
+    SET MaxStartAdvance = {{ max_start_advance | default(3.0) }},
+    SET MaxStopAdvance = {{ max_stop_advance | default(1.0) }},
+    SET TempTolerance = 1.0,
+    SET TempChangeRate = 2.0,
+    !
+    SET CurrentHour = CurrentTime,
+    SET CurrentDay = DayOfWeek,
+    !
+    ! Initialize
+    SET Early_Start_Active = 0,
+    SET Late_Stop_Active = 0,
+    !
+    ! Weekend - OFF
+    IF CurrentDay == 1 || CurrentDay == 7,
+        SET VRF_GF_Mode = Null,
+        SET VRF_MF_Mode = Null,
+        SET VRF_TF_Mode = Null,
+        RETURN,
+    ENDIF,
+    !
+    ! ===== DETERMINE REQUIRED MODE =====
+    IF Zone_Temperature > CoolingSetpoint + TempTolerance,
+        SET TempDiff = Zone_Temperature - CoolingSetpoint,
+        SET VRF_Operating_Mode = 1,  ! Cooling needed
+    ELSEIF Zone_Temperature < HeatingSetpoint - TempTolerance,
+        SET TempDiff = HeatingSetpoint - Zone_Temperature,
+        SET VRF_Operating_Mode = 2,  ! Heating needed
+    ELSE,
+        SET TempDiff = 0,
+        SET VRF_Operating_Mode = 0,  ! Comfortable
+    ENDIF,
+    !
+    ! ===== CALCULATE OPTIMAL START TIME =====
+    IF TempDiff > 0,
+        SET AdvanceTime = TempDiff / TempChangeRate,
+        IF AdvanceTime > MaxStartAdvance,
+            SET AdvanceTime = MaxStartAdvance,
+        ENDIF,
+    ELSE,
+        SET AdvanceTime = 0,
+    ENDIF,
+    SET Optimal_Start_Time = OccupancyStart - AdvanceTime,
+    !
+    ! ===== CALCULATE OPTIMAL STOP TIME =====
+    ! Stop early to use thermal mass (coast down)
+    SET Optimal_Stop_Time = OccupancyEnd - MaxStopAdvance,
+    !
+    ! ===== CONTROL LOGIC =====
+    !
+    ! Before optimal start time - FORCE OFF (delay start if comfortable)
+    IF CurrentHour < Optimal_Start_Time,
+        IF VRF_Operating_Mode == 0,
+            ! Zone is comfortable - keep HVAC off
+            SET VRF_GF_Mode = 0,
+            SET VRF_MF_Mode = 0,
+            SET VRF_TF_Mode = 0,
+        ELSE,
+            ! Zone needs conditioning - check if we should start early
+            IF CurrentHour >= (Optimal_Start_Time - 0.25),
+                ! Within 15 min of optimal start - allow system ON
+                SET Early_Start_Active = 1,
+                SET VRF_GF_Mode = Null,
+                SET VRF_MF_Mode = Null,
+                SET VRF_TF_Mode = Null,
+            ELSE,
+                ! Too early - keep off
+                SET VRF_GF_Mode = 0,
+                SET VRF_MF_Mode = 0,
+                SET VRF_TF_Mode = 0,
+            ENDIF,
+        ENDIF,
+        RETURN,
+    ENDIF,
+    !
+    ! During occupied hours (optimal_start to optimal_stop) - NORMAL OPERATION
+    IF CurrentHour >= Optimal_Start_Time && CurrentHour < Optimal_Stop_Time,
+        SET VRF_GF_Mode = Null,
+        SET VRF_MF_Mode = Null,
+        SET VRF_TF_Mode = Null,
+        RETURN,
+    ENDIF,
+    !
+    ! After optimal stop time - EARLY SHUTDOWN (coast down)
+    IF CurrentHour >= Optimal_Stop_Time && CurrentHour < OccupancyEnd,
+        SET Late_Stop_Active = 1,
+        ! Check if zone can coast
+        IF VRF_Operating_Mode == 1,
+            ! Cooling mode - if not too hot, allow coast
+            IF Zone_Temperature < CoolingSetpoint + 2,
+                SET VRF_GF_Mode = 0,
+                SET VRF_MF_Mode = 0,
+                SET VRF_TF_Mode = 0,
+            ELSE,
+                SET VRF_GF_Mode = Null,
+                SET VRF_MF_Mode = Null,
+                SET VRF_TF_Mode = Null,
+            ENDIF,
+        ELSEIF VRF_Operating_Mode == 2,
+            ! Heating mode - if not too cold, allow coast
+            IF Zone_Temperature > HeatingSetpoint - 2,
+                SET VRF_GF_Mode = 0,
+                SET VRF_MF_Mode = 0,
+                SET VRF_TF_Mode = 0,
+            ELSE,
+                SET VRF_GF_Mode = Null,
+                SET VRF_MF_Mode = Null,
+                SET VRF_TF_Mode = Null,
+            ENDIF,
+        ELSE,
+            ! Comfortable - shut down early
+            SET VRF_GF_Mode = 0,
+            SET VRF_MF_Mode = 0,
+            SET VRF_TF_Mode = 0,
+        ENDIF,
+        RETURN,
+    ENDIF,
+    !
+    ! After occupancy - OFF (let schedule handle)
+    SET VRF_GF_Mode = Null,
+    SET VRF_MF_Mode = Null,
+    SET VRF_TF_Mode = Null;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    VRF_Optimal_Start_V2_Manager,
+    BeginTimestepBeforePredictor,
+    VRF_Optimal_Start_V2;
+
+! --- Output Variables ---
+EnergyManagementSystem:OutputVariable,
+    VRF Optimal Start Time,
+    Optimal_Start_Time,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    VRF Optimal Stop Time,
+    Optimal_Stop_Time,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    VRF Operating Mode,
+    VRF_Operating_Mode,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    VRF Early Start Active,
+    Early_Start_Active,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    VRF Late Stop Active,
+    Late_Stop_Active,
+    Averaged,
+    ZoneTimeStep;

@@ -1,0 +1,135 @@
+! ============================================================================
+! Enthalpy Economizer EMS Template
+! 외기 엔탈피 기반 자연 냉방
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    OA_Drybulb,              !- Name
+    Environment,             !- Output:Variable or Output:Meter Index Key Name
+    Site Outdoor Air Drybulb Temperature;  !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    OA_Humidity,             !- Name
+    Environment,             !- Output:Variable or Output:Meter Index Key Name
+    Site Outdoor Air Humidity Ratio;  !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    RA_Drybulb,              !- Name
+    {{ return_air_node }},   !- Output:Variable or Output:Meter Index Key Name
+    System Node Temperature; !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    RA_Humidity,             !- Name
+    {{ return_air_node }},   !- Output:Variable or Output:Meter Index Key Name
+    System Node Humidity Ratio;  !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    Zone_Temp,               !- Name
+    {{ representative_zone }},  !- Output:Variable or Output:Meter Index Key Name
+    Zone Mean Air Temperature;  !- Output:Variable or Output:Meter Name
+
+! --- Actuators ---
+EnergyManagementSystem:Actuator,
+    OA_Damper_Position,      !- Name
+    {{ oa_controller_name }},  !- Actuated Component Unique Name
+    Outdoor Air Controller,  !- Actuated Component Type
+    Air Mass Flow Rate;      !- Actuated Component Control Type
+
+! --- Internal Variables ---
+EnergyManagementSystem:InternalVariable,
+    Max_OA_Flow,             !- Name
+    {{ oa_controller_name }},  !- Internal Data Index Key Name
+    Outdoor Air Controller Maximum Mass Flow Rate;  !- Internal Data Type
+
+EnergyManagementSystem:InternalVariable,
+    Min_OA_Flow,             !- Name
+    {{ oa_controller_name }},  !- Internal Data Index Key Name
+    Outdoor Air Controller Minimum Mass Flow Rate;  !- Internal Data Type
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    OA_Enthalpy,             !- Name
+    RA_Enthalpy,             !- Name
+    Economizer_Mode;         !- Name
+
+! --- Program ---
+EnergyManagementSystem:Program,
+    Enthalpy_Economizer_Program,  !- Name
+    ! 엔탈피 계산 (근사식: h = 1.006*T + W*(2501 + 1.86*T))
+    SET OA_Enthalpy = 1.006 * OA_Drybulb + OA_Humidity * (2501 + 1.86 * OA_Drybulb),
+    SET RA_Enthalpy = 1.006 * RA_Drybulb + RA_Humidity * (2501 + 1.86 * RA_Drybulb),
+    !
+    ! 설정값
+    SET CoolingSetpoint = {{ cooling_setpoint | default(24.0) }},
+    SET EnthalpyLimit = {{ enthalpy_limit | default(50.0) }},  ! kJ/kg (더 엄격하게)
+    SET MinOAFraction = {{ min_oa_fraction | default(0.15) }},
+    SET MinOATemp = {{ min_oa_temp | default(15.0) }},  ! 최소 외기온도 (°C)
+    SET MaxOATemp = {{ max_oa_temp | default(26.0) }},  ! 최대 외기온도 (°C) - 이 이상이면 냉방 필요
+    !
+    ! 이코노마이저 모드 결정 (냉방 모드 + 엔탈피 조건)
+    ! 조건 1: 냉방 필요 (존 온도 > 설정온도)
+    ! 조건 2: 외기온도가 적정 범위 (15~26°C)
+    ! 조건 3: 외기 엔탈피 < 환기 엔탈피
+    ! 조건 4: 외기 엔탈피 < 엔탈피 한계
+    !
+    IF Zone_Temp > CoolingSetpoint,
+        ! 냉방 필요
+        IF OA_Drybulb >= MinOATemp,
+            IF OA_Drybulb <= MaxOATemp,
+                ! 외기온도 적정 범위
+                IF OA_Enthalpy < RA_Enthalpy,
+                    IF OA_Enthalpy < EnthalpyLimit,
+                        ! 외기냉방 가능: 모든 조건 충족
+                        SET Economizer_Mode = 1,
+                        SET OA_Damper_Position = Max_OA_Flow,
+                    ELSE,
+                        ! 외기 엔탈피 과다 (습함)
+                        SET Economizer_Mode = 0,
+                        SET OA_Damper_Position = Min_OA_Flow,
+                    ENDIF,
+                ELSE,
+                    ! 환기 엔탈피가 더 낮음 (외기보다 실내가 시원)
+                    SET Economizer_Mode = 0,
+                    SET OA_Damper_Position = Min_OA_Flow,
+                ENDIF,
+            ELSE,
+                ! 외기온도 너무 높음 (26°C 초과) - 기계냉방 필요
+                SET Economizer_Mode = 0,
+                SET OA_Damper_Position = Min_OA_Flow,
+            ENDIF,
+        ELSE,
+            ! 외기온도 너무 낮음 (15°C 미만) - 외기냉방 과냉 위험
+            SET Economizer_Mode = 0,
+            SET OA_Damper_Position = Min_OA_Flow,
+        ENDIF,
+    ELSE,
+        ! 냉방 불필요
+        SET Economizer_Mode = 0,
+        SET OA_Damper_Position = Min_OA_Flow,
+    ENDIF;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    Economizer_Control_Manager,  !- Name
+    AfterPredictorAfterHVACManagers,  !- EnergyPlus Model Calling Point
+    Enthalpy_Economizer_Program;  !- Program Name 1
+
+! --- Output Variables ---
+EnergyManagementSystem:OutputVariable,
+    Economizer Mode Status,  !- Name
+    Economizer_Mode,         !- EMS Variable Name
+    Averaged,                !- Type of Data in Variable
+    ZoneTimeStep;            !- Update Frequency
+
+EnergyManagementSystem:OutputVariable,
+    Outdoor Air Enthalpy,    !- Name
+    OA_Enthalpy,             !- EMS Variable Name
+    Averaged,                !- Type of Data in Variable
+    ZoneTimeStep;            !- Update Frequency
+
+EnergyManagementSystem:OutputVariable,
+    Return Air Enthalpy,     !- Name
+    RA_Enthalpy,             !- EMS Variable Name
+    Averaged,                !- Type of Data in Variable
+    ZoneTimeStep;            !- Update Frequency

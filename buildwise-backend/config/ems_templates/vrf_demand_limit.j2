@@ -1,0 +1,153 @@
+! ============================================================================
+! VRF Demand Limiting EMS Template
+! VRF 시스템 피크 수요 제한 제어
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    Outdoor_Temp,            !- Name
+    Environment,             !- Output:Variable or Output:Meter Index Key Name
+    Site Outdoor Air Drybulb Temperature;  !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    VRF_GF_Power,            !- Name
+    VRF_GF,                  !- Output:Variable or Output:Meter Index Key Name
+    VRF Heat Pump Cooling Electricity Rate;  !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    VRF_MF_Power,            !- Name
+    VRF_MF,                  !- Output:Variable or Output:Meter Index Key Name
+    VRF Heat Pump Cooling Electricity Rate;  !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    VRF_TF_Power,            !- Name
+    VRF_TF,                  !- Output:Variable or Output:Meter Index Key Name
+    VRF Heat Pump Cooling Electricity Rate;  !- Output:Variable or Output:Meter Name
+
+! --- Actuators for VRF Operating Mode ---
+EnergyManagementSystem:Actuator,
+    VRF_GF_Mode,             !- Name
+    VRF_GF,                  !- Actuated Component Unique Name
+    Variable Refrigerant Flow Heat Pump,  !- Actuated Component Type
+    Operating Mode;          !- Actuated Component Control Type
+
+EnergyManagementSystem:Actuator,
+    VRF_MF_Mode,             !- Name
+    VRF_MF,                  !- Actuated Component Unique Name
+    Variable Refrigerant Flow Heat Pump,  !- Actuated Component Type
+    Operating Mode;          !- Actuated Component Control Type
+
+EnergyManagementSystem:Actuator,
+    VRF_TF_Mode,             !- Name
+    VRF_TF,                  !- Actuated Component Unique Name
+    Variable Refrigerant Flow Heat Pump,  !- Actuated Component Type
+    Operating Mode;          !- Actuated Component Control Type
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    Demand_Limit_Active,     !- Name
+    VRF_Shed_Level,          !- Name (0=none, 1=TF off, 2=TF+MF off)
+    Total_VRF_Power;         !- Name
+
+! --- Program ---
+EnergyManagementSystem:Program,
+    VRF_Demand_Limit_Program,  !- Name
+    ! Configuration
+    SET VRFPowerLimit = {{ vrf_power_limit_kw | default(80) }} * 1000,  ! Convert to W
+    SET PeakStartHour = {{ peak_start | default(14) }},
+    SET PeakEndHour = {{ peak_end | default(17) }},
+    SET HighTempThreshold = {{ high_temp | default(33) }},
+    !
+    ! Current time
+    SET CurrentHour = CurrentTime,
+    !
+    ! Calculate total VRF power
+    SET Total_VRF_Power = VRF_GF_Power + VRF_MF_Power + VRF_TF_Power,
+    !
+    ! Check if in peak period (weekdays only)
+    SET CurrentDay = DayOfWeek,
+    IF CurrentDay == 1 || CurrentDay == 7,
+        SET Demand_Limit_Active = 0,
+        SET VRF_Shed_Level = 0,
+        SET VRF_TF_Mode = Null,
+        SET VRF_MF_Mode = Null,
+        SET VRF_GF_Mode = Null,
+        RETURN,
+    ENDIF,
+    !
+    IF CurrentHour >= PeakStartHour && CurrentHour < PeakEndHour,
+        !
+        ! Check VRF power against limit
+        IF Total_VRF_Power > VRFPowerLimit,
+            !
+            ! High temperature override
+            IF Outdoor_Temp > HighTempThreshold,
+                SET Demand_Limit_Active = 0,
+                SET VRF_Shed_Level = 0,
+                SET VRF_TF_Mode = Null,
+                SET VRF_MF_Mode = Null,
+                SET VRF_GF_Mode = Null,
+            ELSE,
+                SET Demand_Limit_Active = 1,
+                !
+                ! Determine shed level
+                SET OverageRatio = (Total_VRF_Power - VRFPowerLimit) / VRFPowerLimit,
+                !
+                IF OverageRatio > 0.3,
+                    ! High overage - shed top and middle floor
+                    SET VRF_Shed_Level = 2,
+                    SET VRF_TF_Mode = 0,
+                    SET VRF_MF_Mode = 0,
+                    SET VRF_GF_Mode = Null,
+                ELSEIF OverageRatio > 0.1,
+                    ! Moderate overage - shed top floor only
+                    SET VRF_Shed_Level = 1,
+                    SET VRF_TF_Mode = 0,
+                    SET VRF_MF_Mode = Null,
+                    SET VRF_GF_Mode = Null,
+                ELSE,
+                    SET VRF_Shed_Level = 0,
+                    SET VRF_TF_Mode = Null,
+                    SET VRF_MF_Mode = Null,
+                    SET VRF_GF_Mode = Null,
+                ENDIF,
+            ENDIF,
+        ELSE,
+            SET Demand_Limit_Active = 0,
+            SET VRF_Shed_Level = 0,
+            SET VRF_TF_Mode = Null,
+            SET VRF_MF_Mode = Null,
+            SET VRF_GF_Mode = Null,
+        ENDIF,
+    ELSE,
+        SET Demand_Limit_Active = 0,
+        SET VRF_Shed_Level = 0,
+        SET VRF_TF_Mode = Null,
+        SET VRF_MF_Mode = Null,
+        SET VRF_GF_Mode = Null,
+    ENDIF;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    VRF_Demand_Limit_Manager,  !- Name
+    BeginTimestepBeforePredictor,  !- EnergyPlus Model Calling Point
+    VRF_Demand_Limit_Program;  !- Program Name 1
+
+! --- Output Variables ---
+EnergyManagementSystem:OutputVariable,
+    VRF Demand Limit Active, !- Name
+    Demand_Limit_Active,     !- EMS Variable Name
+    Averaged,                !- Type of Data in Variable
+    ZoneTimeStep;            !- Update Frequency
+
+EnergyManagementSystem:OutputVariable,
+    VRF Shed Level,          !- Name
+    VRF_Shed_Level,          !- EMS Variable Name
+    Averaged,                !- Type of Data in Variable
+    ZoneTimeStep;            !- Update Frequency
+
+EnergyManagementSystem:OutputVariable,
+    Total VRF Power,         !- Name
+    Total_VRF_Power,         !- EMS Variable Name
+    Averaged,                !- Type of Data in Variable
+    ZoneTimeStep;            !- Update Frequency

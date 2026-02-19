@@ -1,0 +1,173 @@
+! ============================================================================
+! Optimal Start EMS Template
+! 재실 시간 맞춤 최적 기동 시점 결정
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    Zone_Temperature,        !- Name
+    {{ representative_zone }},  !- Output:Variable or Output:Meter Index Key Name (동적)
+    Zone Mean Air Temperature;  !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    Outdoor_Temp,            !- Name
+    Environment,             !- Output:Variable or Output:Meter Index Key Name
+    Site Outdoor Air Drybulb Temperature;  !- Output:Variable or Output:Meter Name
+
+! --- Actuators: AirLoop Availability (동적) ---
+{% for airloop in airloops %}
+EnergyManagementSystem:Actuator,
+    {{ airloop.name }}_Availability,  !- Name
+    {{ airloop.original_name }},      !- Actuated Component Unique Name (IDF 참조)
+    AirLoopHVAC,             !- Actuated Component Type
+    Availability Status;     !- Actuated Component Control Type
+
+{% endfor %}
+
+
+! --- Actuators: Setpoint Control (NEW) ---
+{% for zone in zones %}
+EnergyManagementSystem:Actuator,
+    {{ zone.name }}_Heating_SP,
+    {{ zone.original_name }},    !- IDF Zone 참조
+    Zone Temperature Control,
+    Heating Setpoint;
+
+EnergyManagementSystem:Actuator,
+    {{ zone.name }}_Cooling_SP,
+    {{ zone.original_name }},    !- IDF Zone 참조
+    Zone Temperature Control,
+    Cooling Setpoint;
+{% endfor %}
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    Optimal_Start_Time,      !- Name
+    Time_To_Setpoint,        !- Name
+    Learning_Factor;         !- Name
+
+! --- Trend Variables ---
+EnergyManagementSystem:TrendVariable,
+    Zone_Temp_Trend,         !- Name
+    Zone_Temperature,        !- EMS Variable Name
+    96;                      !- Number of Timesteps (24hr at 15min)
+
+EnergyManagementSystem:TrendVariable,
+    Outdoor_Temp_Trend,      !- Name
+    Outdoor_Temp,            !- EMS Variable Name
+    96;                      !- Number of Timesteps
+
+! --- Program ---
+EnergyManagementSystem:Program,
+    Optimal_Start_Program,   !- Name
+    ! 설정값
+    SET TargetTime = {{ target_hour | default(9) }},  ! 목표 도달 시간 (09:00)
+    SET CoolingSetpoint = {{ cooling_setpoint | default(24.0) }},
+    SET HeatingSetpoint = {{ heating_setpoint | default(22.0) }},
+    SET MaxStartAdvance = {{ max_start_advance | default(3.0) }},  ! 최대 선행 시간
+    !
+    ! 현재 시간
+    SET CurrentHour = CurrentTime,
+    SET CurrentDay = DayOfWeek,
+    !
+    ! 주말 체크 (1=일요일, 7=토요일)
+    IF CurrentDay == 1 || CurrentDay == 7,
+        ! 주말: 모든 시스템 OFF
+{% for airloop in airloops %}
+        SET {{ airloop.name }}_Availability = 0,
+{% endfor %}
+        RETURN,
+    ENDIF,
+    !
+    ! 온도 차이 계산
+    SET TempDiff = 0,
+    IF Zone_Temperature > CoolingSetpoint,
+        SET TempDiff = Zone_Temperature - CoolingSetpoint,
+        SET Mode = 1,  ! 냉방
+    ELSEIF Zone_Temperature < HeatingSetpoint,
+        SET TempDiff = HeatingSetpoint - Zone_Temperature,
+        SET Mode = 2,  ! 난방
+    ELSE,
+        SET TempDiff = 0,
+        SET Mode = 0,  ! 쾌적
+    ENDIF,
+    !
+    ! 필요 기동 시간 추정 (단순 선형 모델)
+    ! 실제 구현에서는 학습 알고리즘 적용
+    SET TempChangeRate = 2.0,  ! °C/hour (기본값)
+    IF TempDiff > 0,
+        SET Time_To_Setpoint = TempDiff / TempChangeRate,
+    ELSE,
+        SET Time_To_Setpoint = 0,
+    ENDIF,
+    !
+    ! 최대 선행 시간 제한
+    IF Time_To_Setpoint > MaxStartAdvance,
+        SET Time_To_Setpoint = MaxStartAdvance,
+    ENDIF,
+    !
+    ! 최적 기동 시간 계산
+    SET Optimal_Start_Time = TargetTime - Time_To_Setpoint,
+    !
+    !
+    ! === NEW: 설정온도 제어 ===
+    {% for zone in zones %}
+    ! {{ zone.name }} 설정온도 조정
+    IF CurrentHour >= Optimal_Start_Time && CurrentHour < TargetTime,
+        ! 예열/예냉 단계: 더 공격적인 설정온도
+        IF Mode == 1,
+            SET {{ zone.name }}_Cooling_SP = CoolingSetpoint - 1.0,  ! -1°C
+            SET {{ zone.name }}_Heating_SP = NULL,
+        ELSEIF Mode == 2,
+            SET {{ zone.name }}_Cooling_SP = NULL,
+            SET {{ zone.name }}_Heating_SP = HeatingSetpoint + 1.0,  ! +1°C
+        ELSE,
+            SET {{ zone.name }}_Cooling_SP = NULL,
+            SET {{ zone.name }}_Heating_SP = NULL,
+        ENDIF,
+    ELSEIF CurrentHour >= TargetTime && CurrentHour < 18,
+        ! 재실 시간: 스케줄값 사용
+        SET {{ zone.name }}_Cooling_SP = NULL,
+        SET {{ zone.name }}_Heating_SP = NULL,
+    ELSE,
+        ! 비재실 시간: 스케줄값 사용
+        SET {{ zone.name }}_Cooling_SP = NULL,
+        SET {{ zone.name }}_Heating_SP = NULL,
+    ENDIF,
+    !
+    {% endfor %}
+    ! HVAC 가동 판단
+    IF CurrentHour >= Optimal_Start_Time,
+        IF CurrentHour < 18,  ! 18시 이전
+{% for airloop in airloops %}
+            SET {{ airloop.name }}_Availability = 1,  ! ON
+{% endfor %}
+        ELSE,
+{% for airloop in airloops %}
+            SET {{ airloop.name }}_Availability = 0,  ! OFF
+{% endfor %}
+        ENDIF,
+    ELSE,
+{% for airloop in airloops %}
+        SET {{ airloop.name }}_Availability = 0,  ! OFF
+{% endfor %}
+    ENDIF;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    Optimal_Start_Manager,   !- Name
+    BeginTimestepBeforePredictor,  !- EnergyPlus Model Calling Point
+    Optimal_Start_Program;   !- Program Name 1
+
+! --- Output Variables ---
+EnergyManagementSystem:OutputVariable,
+    Optimal Start Time,      !- Name
+    Optimal_Start_Time,      !- EMS Variable Name
+    Averaged,                !- Type of Data in Variable
+    ZoneTimeStep;            !- Update Frequency
+
+EnergyManagementSystem:OutputVariable,
+    Time To Setpoint,        !- Name
+    Time_To_Setpoint,        !- EMS Variable Name
+    Averaged,                !- Type of Data in Variable
+    ZoneTimeStep;            !- Update Frequency

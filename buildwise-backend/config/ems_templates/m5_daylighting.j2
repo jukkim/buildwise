@@ -1,0 +1,146 @@
+! ============================================================================
+! M5: Daylighting Control (자연채광 기반 조명 제어) EMS Template
+! 자연채광 조도에 따라 조명 출력을 자동 조절하여 에너지 절감
+! 적용 건물: Standalone Retail (Skylight 포함), Primary School (교실)
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    Current_Hour,            !- Name
+    Environment,             !- Output:Variable or Output:Meter Index Key Name
+    Site Hour of Day;        !- Output:Variable or Output:Meter Name
+
+{% for zone in zones %}
+{% if zone.has_daylighting|default(false) %}
+EnergyManagementSystem:Sensor,
+    {{ zone.name }}_Daylight_Illum,
+    {{ zone.name }} Daylighting Reference Point 1,
+    Daylighting Reference Point 1 Illuminance;
+
+EnergyManagementSystem:Sensor,
+    {{ zone.name }}_Lighting_Power,
+    {{ zone.name }} Lights,
+    Lights Electricity Rate;
+{% endif %}
+{% endfor %}
+
+! --- Actuators ---
+! Lighting Power Multiplier (0.0 = Off, 1.0 = Full)
+{% for zone in zones %}
+{% if zone.has_daylighting|default(false) %}
+EnergyManagementSystem:Actuator,
+    {{ zone.name }}_Light_Multiplier,
+    {{ zone.name }} Lights,
+    Lights,
+    Electricity Rate;
+{% endif %}
+{% endfor %}
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    Daylighting_Active,        !- Erl Variable Name
+    Target_Illuminance,        !- Erl Variable Name
+    Min_Light_Fraction,        !- Erl Variable Name
+    Max_Light_Fraction;        !- Erl Variable Name
+
+! --- Initialization Program ---
+EnergyManagementSystem:Program,
+    Daylighting_Init_Program,  !- Name
+    SET Daylighting_Active = 0,
+    SET Target_Illuminance = {{ target_illuminance|default('500') }},  ! lux
+    SET Min_Light_Fraction = {{ min_light_fraction|default('0.3') }},  ! 30% 최소
+    SET Max_Light_Fraction = {{ max_light_fraction|default('1.0') }};  ! 100% 최대
+
+! --- Main Daylighting Control Program ---
+EnergyManagementSystem:Program,
+    Daylighting_Control_Program,  !- Name
+    ! 주간 시간대 확인 (06:00~18:00)
+    IF (Current_Hour >= 6) && (Current_Hour < 18),
+        SET Daylighting_Active = 1,
+        !
+        ! 각 존별 조명 제어
+{% for zone in zones %}
+{% if zone.has_daylighting|default(false) %}
+        ! {{ zone.name }} - Daylighting Control
+        IF {{ zone.name }}_Daylight_Illum >= Target_Illuminance,
+            ! 자연채광 충분: 조명 최소화
+            SET {{ zone.name }}_Light_Multiplier = Min_Light_Fraction,
+        ELSEIF {{ zone.name }}_Daylight_Illum < (Target_Illuminance * 0.3),
+            ! 자연채광 부족: 조명 최대화
+            SET {{ zone.name }}_Light_Multiplier = Max_Light_Fraction,
+        ELSE,
+            ! 중간 범위: 비례 제어 (연속 디밍)
+            SET {{ zone.name }}_Light_Multiplier = Min_Light_Fraction +
+                ((Max_Light_Fraction - Min_Light_Fraction) *
+                 (1.0 - ({{ zone.name }}_Daylight_Illum / Target_Illuminance))),
+        ENDIF,
+{% endif %}
+{% endfor %}
+    ELSE,
+        ! 야간 시간대: Daylighting 비활성화 (스케줄 기반 조명)
+        SET Daylighting_Active = 0,
+{% for zone in zones %}
+{% if zone.has_daylighting|default(false) %}
+        SET {{ zone.name }}_Light_Multiplier = Max_Light_Fraction,  ! 스케줄 따름
+{% endif %}
+{% endfor %}
+    ENDIF;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    Daylighting_Init_Manager,
+    BeginNewEnvironment,
+    Daylighting_Init_Program;
+
+EnergyManagementSystem:ProgramCallingManager,
+    Daylighting_Control_Manager,
+    BeginTimestepBeforePredictor,
+    Daylighting_Control_Program;
+
+! --- Output Variables (for debugging) ---
+EnergyManagementSystem:OutputVariable,
+    Daylighting Control Active [0/1],
+    Daylighting_Active,
+    Averaged,
+    SystemTimeStep;
+
+{% for zone in zones %}
+{% if zone.has_daylighting|default(false) %}
+EnergyManagementSystem:OutputVariable,
+    {{ zone.name }} Light Multiplier [0-1],
+    {{ zone.name }}_Light_Multiplier,
+    Averaged,
+    SystemTimeStep;
+{% endif %}
+{% endfor %}
+
+! --- Daylighting Objects (Skylight/Window 필요) ---
+{% for zone in zones %}
+{% if zone.has_daylighting|default(false) %}
+Daylighting:Controls,
+    {{ zone.name }} Daylighting Control,  !- Name
+    {{ zone.name }},                      !- Zone Name
+    SplitFlux,                            !- Daylighting Method
+    ,                                     !- Availability Schedule Name
+    Continuous,                           !- Lighting Control Type
+    {{ min_light_fraction|default('0.3') }},  !- Minimum Input Power Fraction for Continuous Dimming Control
+    {{ min_light_fraction|default('0.3') }},  !- Minimum Light Output Fraction for Continuous Dimming Control
+    1,                                    !- Number of Stepped Control Steps
+    1.0,                                  !- Probability Lighting will be Reset When Needed in Manual Stepped Control
+    {{ zone.name }} Daylighting Reference Point 1,  !- Glare Calculation Daylighting Reference Point Name
+    180,                                  !- Glare Calculation Azimuth Angle of View Direction Clockwise from Zone y-Axis {deg}
+    20,                                   !- Maximum Allowable Discomfort Glare Index
+    ,                                     !- DElight Gridding Resolution {m2}
+    {{ zone.name }} Daylighting Reference Point 1,  !- Daylighting Reference Point 1 Name
+    1.0,                                  !- Fraction of Zone Controlled by Reference Point 1
+    {{ target_illuminance|default('500') }};  !- Illuminance Setpoint at Reference Point 1 {lux}
+
+Daylighting:ReferencePoint,
+    {{ zone.name }} Daylighting Reference Point 1,  !- Name
+    {{ zone.name }},                      !- Zone Name
+    {{ zone.ref_point_x|default('0.5') }},  !- X-Coordinate of Reference Point {m}
+    {{ zone.ref_point_y|default('0.5') }},  !- Y-Coordinate of Reference Point {m}
+    {{ zone.ref_point_z|default('0.8') }};  !- Z-Coordinate of Reference Point {m}
+
+{% endif %}
+{% endfor %}

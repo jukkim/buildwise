@@ -1,0 +1,161 @@
+! ============================================================================
+! M5: DCV (Demand Controlled Ventilation) EMS Template
+! CO2 농도 기반 외기 환기량 제어로 에너지 절감
+! 적용 건물: Primary School (교실 재실 변동 큼)
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    Outdoor_Air_CO2,         !- Name
+    Environment,             !- Output:Variable or Output:Meter Index Key Name
+    Site Outdoor Air CO2 Concentration;  !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    Current_Hour,            !- Name
+    Environment,             !- Output:Variable or Output:Meter Index Key Name
+    Site Hour of Day;        !- Output:Variable or Output:Meter Name
+
+! Zone CO2 Sensors
+{% for zone in zones %}
+{% if zone.has_dcv|default(false) %}
+EnergyManagementSystem:Sensor,
+    {{ zone.name }}_CO2,
+    {{ zone.name }},
+    Zone Air CO2 Concentration;
+
+EnergyManagementSystem:Sensor,
+    {{ zone.name }}_Occupancy,
+    {{ zone.name }},
+    Zone People Occupant Count;
+{% endif %}
+{% endfor %}
+
+! --- Actuators ---
+! AHU Outdoor Air Controller
+{% for ahu in ahus %}
+EnergyManagementSystem:Actuator,
+    {{ ahu.name }}_OA_MassFlow,
+    {{ ahu.name }},
+    Outdoor Air Controller,
+    Air Mass Flow Rate;
+{% endfor %}
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    DCV_Active,                !- Erl Variable Name
+    CO2_Setpoint,              !- Erl Variable Name
+    Outdoor_CO2_Conc,          !- Erl Variable Name
+    Min_OA_Ratio,              !- Erl Variable Name
+    Max_OA_Ratio;              !- Erl Variable Name
+
+! --- Initialization Program ---
+EnergyManagementSystem:Program,
+    DCV_Init_Program,          !- Name
+    SET DCV_Active = 0,
+    SET CO2_Setpoint = {{ co2_setpoint|default('1000') }},  ! ppm (ASHRAE 62.1)
+    SET Outdoor_CO2_Conc = {{ outdoor_co2|default('400') }},  ! ppm
+    SET Min_OA_Ratio = {{ min_oa_ratio|default('0.15') }},  ! 15% 최소
+    SET Max_OA_Ratio = {{ max_oa_ratio|default('1.0') }};   ! 100% 최대
+
+! --- Main DCV Control Program ---
+EnergyManagementSystem:Program,
+    DCV_Control_Program,       !- Name
+    ! 수업 시간대 확인 (08:00~16:00, 평일)
+    IF (Current_Hour >= 8) && (Current_Hour < 16),
+        SET DCV_Active = 1,
+        !
+{% for ahu in ahus %}
+        ! {{ ahu.name }} - DCV Control
+        ! 연결된 존들의 평균 CO2 농도 계산
+        SET Avg_CO2 = 0,
+        SET Zone_Count = 0,
+{% for zone in ahu.zones %}
+{% if zone.has_dcv|default(false) %}
+        SET Avg_CO2 = Avg_CO2 + {{ zone.name }}_CO2,
+        SET Zone_Count = Zone_Count + 1,
+{% endif %}
+{% endfor %}
+        SET Avg_CO2 = Avg_CO2 / Zone_Count,
+        !
+        ! CO2 기반 비례 제어
+        IF Avg_CO2 > CO2_Setpoint,
+            ! CO2 농도 높음: 외기 증가 (비례 제어)
+            SET OA_Ratio = Min_OA_Ratio +
+                ((Max_OA_Ratio - Min_OA_Ratio) *
+                 ((Avg_CO2 - CO2_Setpoint) / (1500 - CO2_Setpoint))),
+            ! 최대값 제한
+            IF OA_Ratio > Max_OA_Ratio,
+                SET OA_Ratio = Max_OA_Ratio,
+            ENDIF,
+            SET {{ ahu.name }}_OA_MassFlow = {{ ahu.design_oa_flow|default('5.0') }} * OA_Ratio,
+        ELSEIF Avg_CO2 < (CO2_Setpoint * 0.8),
+            ! CO2 농도 낮음: 최소 외기 유지
+            SET {{ ahu.name }}_OA_MassFlow = {{ ahu.design_oa_flow|default('5.0') }} * Min_OA_Ratio,
+        ELSE,
+            ! 중간 범위: 현재 외기량 유지 (히스테리시스)
+            ! (액추에이터 값 업데이트 안함)
+        ENDIF,
+{% endfor %}
+    ELSE,
+        ! 비수업 시간대: 최소 외기 유지
+        SET DCV_Active = 0,
+{% for ahu in ahus %}
+        SET {{ ahu.name }}_OA_MassFlow = {{ ahu.design_oa_flow|default('5.0') }} * Min_OA_Ratio,
+{% endfor %}
+    ENDIF;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    DCV_Init_Manager,
+    BeginNewEnvironment,
+    DCV_Init_Program;
+
+EnergyManagementSystem:ProgramCallingManager,
+    DCV_Control_Manager,
+    InsideHVACSystemIterationLoop,
+    DCV_Control_Program;
+
+! --- Output Variables (for debugging) ---
+EnergyManagementSystem:OutputVariable,
+    DCV Active [0/1],
+    DCV_Active,
+    Averaged,
+    SystemTimeStep;
+
+{% for zone in zones %}
+{% if zone.has_dcv|default(false) %}
+Output:Variable,
+    {{ zone.name }},
+    Zone Air CO2 Concentration,
+    Timestep;
+
+Output:Variable,
+    {{ zone.name }},
+    Zone People Occupant Count,
+    Timestep;
+{% endif %}
+{% endfor %}
+
+{% for ahu in ahus %}
+Output:Variable,
+    {{ ahu.name }},
+    Air System Outdoor Air Mass Flow Rate,
+    Timestep;
+{% endfor %}
+
+! --- ZoneAirContaminantBalance (CO2 추적 필요) ---
+ZoneAirContaminantBalance,
+    Yes,                     !- Carbon Dioxide Concentration
+    ;                        !- Outdoor Carbon Dioxide Schedule Name
+
+! --- ZoneContaminantSourceAndSink:CarbonDioxide (재실자 CO2 발생) ---
+{% for zone in zones %}
+{% if zone.has_dcv|default(false) %}
+ZoneContaminantSourceAndSink:CarbonDioxide,
+    {{ zone.name }} CO2 Source,  !- Name
+    {{ zone.name }},             !- Zone Name
+    {{ zone.co2_generation_rate|default('3.82E-8') }},  !- Carbon Dioxide Generation Rate {m3/s-W}
+    {{ zone.occupancy_schedule|default('SCHOOL_CLASS_SCH') }};  !- Schedule Name
+
+{% endif %}
+{% endfor %}

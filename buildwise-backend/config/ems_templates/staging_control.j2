@@ -1,0 +1,134 @@
+! ============================================================================
+! Staging Control (대수 제어) EMS Template
+! 냉동기/보일러 운전 대수 최적화
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    Outdoor_Air_Temp,        !- Name
+    Environment,             !- Output:Variable or Output:Meter Index Key Name
+    Site Outdoor Air Drybulb Temperature;  !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    Chiller1_PLR,            !- Name
+    CoolSys1 Chiller1,       !- Output:Variable or Output:Meter Index Key Name
+    Chiller Part Load Ratio; !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    Chiller2_PLR,            !- Name
+    CoolSys1 Chiller2,       !- Output:Variable or Output:Meter Index Key Name
+    Chiller Part Load Ratio; !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    Chiller1_Power,          !- Name
+    CoolSys1 Chiller1,       !- Output:Variable or Output:Meter Index Key Name
+    Chiller Electricity Rate;  !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    Chiller2_Power,          !- Name
+    CoolSys1 Chiller2,       !- Output:Variable or Output:Meter Index Key Name
+    Chiller Electricity Rate;  !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    Chiller1_CoolingRate,    !- Name
+    CoolSys1 Chiller1,       !- Output:Variable or Output:Meter Index Key Name
+    Chiller Evaporator Cooling Rate;  !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    Chiller2_CoolingRate,    !- Name
+    CoolSys1 Chiller2,       !- Output:Variable or Output:Meter Index Key Name
+    Chiller Evaporator Cooling Rate;  !- Output:Variable or Output:Meter Name
+
+! --- Actuators ---
+! Chiller On/Off Supervisory Control
+! Supervisory: PlantEquipmentOperation과 협력하여 제어
+! PlantEquipmentOperation:Uncontrolled 사용 시 EMS가 완전 제어 가능
+EnergyManagementSystem:Actuator,
+    Chiller1_OnOff,          !- Name
+    CoolSys1 Chiller1,       !- Actuated Component Unique Name
+    Plant Component Chiller:Electric:EIR,  !- Actuated Component Type
+    On/Off Supervisory;      !- Actuated Component Control Type
+
+EnergyManagementSystem:Actuator,
+    Chiller2_OnOff,          !- Name
+    CoolSys1 Chiller2,       !- Actuated Component Unique Name
+    Plant Component Chiller:Electric:EIR,  !- Actuated Component Type
+    On/Off Supervisory;      !- Actuated Component Control Type
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    Total_Cooling_Demand,    !- Erl Variable Name
+    Staging_State,           !- Erl Variable Name
+    Deadband_Timer;          !- Erl Variable Name
+
+! --- Initialization Program ---
+EnergyManagementSystem:Program,
+    Staging_Init_Program,    !- Name
+    SET Staging_State = 1,   ! 초기: 1대 운전
+    SET Deadband_Timer = 0;  ! 타이머 초기화
+
+! --- Main Staging Control Program ---
+EnergyManagementSystem:Program,
+    Staging_Control_Program,  !- Name
+    ! 냉동기 대수 제어 로직 (히스테리시스 적용)
+    SET SingleCapacity = {{ chiller_capacity_kw }} * 1000,  ! W로 변환
+    SET TotalCapacity = SingleCapacity * 2,
+    SET Total_Cooling_Demand = Chiller1_CoolingRate + Chiller2_CoolingRate,
+    SET LoadRatio = Total_Cooling_Demand / TotalCapacity,
+    !
+    ! 현재 상태 기반 히스테리시스 제어 (60%/40% 임계값)
+    ! Staging_State: 1=1대운전, 2=2대운전
+    ! 헌팅 방지를 위한 최소 대기 시간 10분 (600초)
+    SET Deadband_Timer = Deadband_Timer + ZoneTimestep * 60,
+    !
+    IF Staging_State == 1,
+        ! 현재 1대 운전 중
+        IF (LoadRatio > 0.60) && (Deadband_Timer >= 600),
+            ! 60% 초과 시 2대로 증가 (10분 경과 확인)
+            SET Staging_State = 2,
+            SET Chiller1_OnOff = 1,
+            SET Chiller2_OnOff = 1,
+            SET Deadband_Timer = 0,  ! 타이머 리셋
+        ELSE,
+            ! 1대 유지
+            SET Chiller1_OnOff = 1,
+            SET Chiller2_OnOff = 0,
+        ENDIF,
+    ELSE,
+        ! 현재 2대 운전 중
+        IF (LoadRatio < 0.40) && (Deadband_Timer >= 600),
+            ! 40% 미만 시 1대로 감소 (10분 경과 확인)
+            SET Staging_State = 1,
+            SET Chiller1_OnOff = 1,
+            SET Chiller2_OnOff = 0,
+            SET Deadband_Timer = 0,  ! 타이머 리셋
+        ELSE,
+            ! 2대 유지
+            SET Chiller1_OnOff = 1,
+            SET Chiller2_OnOff = 1,
+        ENDIF,
+    ENDIF;
+
+! --- Program Calling Managers ---
+EnergyManagementSystem:ProgramCallingManager,
+    Staging_Init_Manager,    !- Name
+    BeginNewEnvironment,     !- EnergyPlus Model Calling Point
+    Staging_Init_Program;    !- Program Name 1
+
+EnergyManagementSystem:ProgramCallingManager,
+    Staging_Control_Manager, !- Name
+    AfterPredictorAfterHVACManagers,  !- EnergyPlus Model Calling Point
+    Staging_Control_Program; !- Program Name 1
+
+! --- Output Variables for Debugging ---
+EnergyManagementSystem:OutputVariable,
+    EMS Staging State,       !- Name
+    Staging_State,           !- EMS Variable Name
+    Averaged,                !- Type of Data in Variable
+    ZoneTimestep;            !- Update Frequency
+
+EnergyManagementSystem:OutputVariable,
+    EMS Total Cooling Demand,  !- Name
+    Total_Cooling_Demand,    !- EMS Variable Name
+    Averaged,                !- Type of Data in Variable
+    ZoneTimestep;            !- Update Frequency

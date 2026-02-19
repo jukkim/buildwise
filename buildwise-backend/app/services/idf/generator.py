@@ -35,38 +35,66 @@ def sanitize_idf_field(value: str) -> str:
     """Remove IDF metacharacters (comma, semicolon, comment, newlines) from a field value."""
     return _IDF_UNSAFE_RE.sub("", str(value)).strip()
 
-# Strategy → EMS template mapping (from docs/strategy-naming-reconciliation.md)
-STRATEGY_TEMPLATE_MAP: dict[str, list[str]] = {
-    "baseline": [],
-    "m0": ["optimal_start_stop.j2"],
-    "m1": ["occupancy_control.j2"],
-    "m2": ["m2_night_ventilation.j2"],
-    "m3": ["setpoint_adjustment.j2"],
-    "m4": ["m4_peak_limiting.j2"],
-    "m5": ["m5_daylighting.j2", "m5_dcv.j2"],
-    "m6": ["staging_control.j2"],
-    "m7": [
-        "optimal_start_stop.j2",
-        "occupancy_control.j2",
-        "setpoint_adjustment.j2",
-        "m4_peak_limiting.j2",
-    ],
-    "m8": [
-        "optimal_start_stop.j2",
-        "occupancy_control.j2",
-        "setpoint_adjustment.j2",
-        "m4_peak_limiting.j2",
-        "staging_control.j2",
-    ],
+# Strategy → EMS template mapping per building type
+# Source: docs/strategy-naming-reconciliation.md section 3.2 (APPROVED)
+STRATEGY_TEMPLATE_MAP: dict[str, dict[str, list[str]]] = {
+    "baseline": {},
+    "m0": {  # 야간 정지
+        "large_office": ["m2_night_ventilation.j2", "occupancy_control.j2"],
+        "medium_office": ["vrf_night_setback.j2"],
+        "small_office": ["occupancy_control.j2"],
+        "standalone_retail": ["occupancy_control.j2"],
+        "primary_school": ["m2_night_ventilation.j2", "occupancy_control.j2"],
+    },
+    "m1": {  # 스마트 시작
+        "large_office": ["optimal_start.j2"],
+        "medium_office": ["optimal_start_vrf_v2.j2"],
+        "small_office": ["optimal_start_stop.j2"],
+        "standalone_retail": ["optimal_start_stop.j2"],
+        "primary_school": ["optimal_start.j2"],
+    },
+    "m2": {  # 외기 냉방
+        "large_office": ["enthalpy_economizer.j2"],
+        "small_office": ["enthalpy_economizer.j2"],
+        "standalone_retail": ["enthalpy_economizer.j2"],
+        "primary_school": ["enthalpy_economizer.j2"],
+    },
+    "m3": {  # 냉동기 단계제어
+        "large_office": ["staging_control.j2"],
+        "primary_school": ["staging_control.j2"],
+    },
+    "m4": {  # 쾌적 최적화 (보통, PMV 0.5)
+        "*": ["m4_peak_limiting.j2", "setpoint_adjustment.j2"],
+    },
+    "m5": {  # 쾌적 최적화 (절약, PMV 0.7)
+        "*": ["m4_peak_limiting.j2", "setpoint_adjustment.j2"],
+    },
+    "m6": {  # 설비 통합제어 (M2+M3)
+        "large_office": ["enthalpy_economizer.j2", "staging_control.j2"],
+        "primary_school": ["enthalpy_economizer.j2", "staging_control.j2"],
+    },
+    "m7": {  # 통합+쾌적(보통) (M6+M4)
+        "large_office": ["enthalpy_economizer.j2", "staging_control.j2", "m4_peak_limiting.j2", "setpoint_adjustment.j2"],
+        "medium_office": ["vrf_full_control.j2", "setpoint_adjustment.j2"],
+        "small_office": ["optimal_start_stop.j2", "setpoint_adjustment.j2"],
+        "standalone_retail": ["optimal_start_stop.j2", "m4_peak_limiting.j2", "setpoint_adjustment.j2"],
+        "primary_school": ["enthalpy_economizer.j2", "staging_control.j2", "setpoint_adjustment.j2"],
+    },
+    "m8": {  # 통합+쾌적(절약) (M6+M5)
+        "large_office": ["enthalpy_economizer.j2", "staging_control.j2", "m4_peak_limiting.j2", "setpoint_adjustment.j2"],
+        "medium_office": ["vrf_full_control.j2", "setpoint_adjustment.j2"],
+        "small_office": ["optimal_start_stop.j2", "setpoint_adjustment.j2"],
+        "standalone_retail": ["optimal_start_stop.j2", "m4_peak_limiting.j2", "setpoint_adjustment.j2"],
+        "primary_school": ["enthalpy_economizer.j2", "staging_control.j2", "setpoint_adjustment.j2"],
+    },
 }
 
-# Building type → HVAC-specific EMS overrides
-_VRF_STRATEGY_MAP: dict[str, list[str]] = {
-    "m0": ["optimal_start_vrf_v2.j2"],
-    "m1": ["occupancy_control.j2"],
-    "m4": ["vrf_demand_limit.j2"],
-    "m7": ["vrf_full_control.j2"],
-    "m8": ["vrf_full_control.j2", "vrf_night_setback.j2"],
+# PMV parameters: M4 (normal) vs M5 (savings)
+_PMV_PARAMS: dict[str, dict[str, float]] = {
+    "m4": {"cooling_sp_adjustment": 1.0, "heating_sp_adjustment": -1.0},
+    "m5": {"cooling_sp_adjustment": 2.0, "heating_sp_adjustment": -2.0},
+    "m7": {"cooling_sp_adjustment": 1.0, "heating_sp_adjustment": -1.0},
+    "m8": {"cooling_sp_adjustment": 2.0, "heating_sp_adjustment": -2.0},
 }
 
 # Korean city design day data: (summer_db_C, summer_wb_C, winter_db_C, latitude, longitude, elevation_m)
@@ -83,6 +111,21 @@ _CITY_DESIGN_DATA: dict[str, tuple[float, float, float, float, float, float]] = 
     "Ulsan": (34.0, 26.0, -5.8, 35.55, 129.32, 35),
 }
 
+# Monthly ground temperatures (°C) for Korean cities (Jan-Dec)
+# Source: KMA ground surface measurements + ASHRAE Fundamentals correlation
+_CITY_GROUND_TEMPS: dict[str, list[float]] = {
+    "Seoul":     [1.5,  2.8,  6.5, 12.0, 17.5, 22.5, 25.5, 26.0, 22.5, 16.5, 10.0,  4.0],
+    "Busan":     [5.0,  5.5,  8.5, 13.5, 18.0, 22.0, 25.0, 26.5, 23.5, 18.5, 12.5,  7.5],
+    "Daegu":     [2.5,  3.5,  7.5, 13.0, 18.5, 23.0, 26.0, 27.0, 23.0, 17.0, 10.5,  5.0],
+    "Daejeon":   [1.0,  2.5,  6.5, 12.0, 17.5, 22.5, 25.5, 26.0, 22.0, 16.0,  9.5,  3.5],
+    "Gwangju":   [3.0,  4.0,  7.5, 13.0, 18.0, 22.5, 25.5, 26.5, 23.0, 17.0, 11.0,  5.5],
+    "Incheon":   [0.5,  1.5,  5.5, 11.0, 16.5, 21.5, 25.0, 26.0, 22.5, 16.5,  9.5,  3.5],
+    "Gangneung": [2.0,  2.5,  6.0, 11.5, 16.5, 21.0, 24.5, 26.0, 22.5, 17.0, 10.5,  5.0],
+    "Jeju":      [6.5,  6.5,  9.0, 13.5, 17.5, 21.5, 25.5, 27.0, 24.0, 19.5, 13.5,  9.0],
+    "Cheongju":  [1.0,  2.0,  6.0, 12.0, 17.5, 22.5, 25.5, 26.5, 22.5, 16.0,  9.5,  3.5],
+    "Ulsan":     [4.0,  4.5,  7.5, 12.5, 17.5, 22.0, 25.0, 26.5, 23.5, 18.0, 12.0,  6.5],
+}
+
 # Building type → internal loads defaults (W/m2 for lighting/equipment, m2/person for people)
 _BUILDING_LOADS: dict[str, dict[str, float]] = {
     "large_office": {"people_m2_per_person": 18.58, "lighting_w_m2": 10.76, "equipment_w_m2": 10.76},
@@ -96,11 +139,18 @@ _BUILDING_LOADS: dict[str, dict[str, float]] = {
 _PERIMETER_DEPTH = 4.57
 
 
-def _get_ems_templates(strategy: str, hvac_type: str) -> list[str]:
-    """Select EMS templates based on strategy and HVAC type."""
-    if hvac_type == "vrf" and strategy in _VRF_STRATEGY_MAP:
-        return _VRF_STRATEGY_MAP[strategy]
-    return STRATEGY_TEMPLATE_MAP.get(strategy, [])
+def _get_ems_templates(strategy: str, building_type: str) -> list[str]:
+    """Select EMS templates based on strategy and building type.
+
+    Looks up per-building-type mapping first, then falls back to wildcard '*'.
+    Returns empty list for unknown strategy or building type not in mapping.
+    """
+    strategy_map = STRATEGY_TEMPLATE_MAP.get(strategy, {})
+    if not strategy_map:
+        return []
+    # Check specific building type first, then wildcard
+    templates = strategy_map.get(building_type, strategy_map.get("*", []))
+    return templates
 
 
 def _render_ems_templates(
@@ -216,6 +266,23 @@ def _generate_design_days(climate_city: str) -> str:
         "  0.0;                         !- ASHRAE Clear Sky Optical Depth for Beam Irradiance",
         "",
     ]
+    return "\n".join(lines)
+
+
+def _generate_ground_temps(climate_city: str) -> str:
+    """Generate Site:GroundTemperature:BuildingSurface for the given city."""
+    temps = _CITY_GROUND_TEMPS.get(climate_city, _CITY_GROUND_TEMPS["Seoul"])
+    lines = [
+        "! === Ground Temperatures ===",
+        "",
+        "Site:GroundTemperature:BuildingSurface,",
+    ]
+    for i, t in enumerate(temps):
+        sep = ";" if i == 11 else ","
+        month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        lines.append(f"  {t:.1f}{sep}                          !- {month_names[i]} Ground Temperature {{C}}")
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -992,6 +1059,7 @@ RunPeriod,
     # Assemble IDF sections
     global_rules = _generate_global_geometry_rules()
     design_days = _generate_design_days(climate_city)
+    ground_temps = _generate_ground_temps(climate_city)
     geometry = _generate_idf_geometry(bps)
     constructions = _generate_constructions(bps)
     envelope = _generate_idf_envelope(bps)
@@ -1002,15 +1070,64 @@ RunPeriod,
     outputs = _generate_output_variables(strategy)
 
     # EMS injection
-    ems_templates = _get_ems_templates(strategy, hvac_type)
+    building_type = geom.get("building_type", "large_office")
+    ems_templates = _get_ems_templates(strategy, building_type)
+
+    # Setpoint values from BPS
+    setpoints = bps.get("setpoints", {})
+    cool_occ = setpoints.get("cooling_occupied", 24.0)
+    heat_occ = setpoints.get("heating_occupied", 20.0)
+    cool_unocc = setpoints.get("cooling_unoccupied", 29.0)
+    heat_unocc = setpoints.get("heating_unoccupied", 15.0)
+
+    # Operating hours from BPS schedules
+    op_hours = bps.get("schedules", {}).get("operating_hours", {})
+    op_start = op_hours.get("start", 9)
+    op_end = op_hours.get("end", 18)
+
+    # PMV-based adjustment parameters (M4/M5/M7/M8)
+    pmv = _PMV_PARAMS.get(strategy, {})
+
+    # Airloop / AHU context
+    ahu_name = "AHU1"
+    airloops = [{"name": f"AirLoop_{f}", "original_name": f"AirLoop_{f}", "full_name": f"AirLoop_{f}"}
+                for f in range(1, floors + 1)]
+    zones_with_occ = [{"name": z["name"], "original_name": z["name"]} for z in zones_ctx]
+
+    # Chiller capacity estimate (for staging_control.j2)
+    chiller_capacity_kw = max(50, int(area * 0.12))  # ~120 W/m2 peak cooling
+
     ems_context = {
+        # Zone info
         "zones": zones_ctx,
+        "zones_with_occupancy": zones_with_occ,
         "zone_name": zones_ctx[0]["name"] if zones_ctx else "F1_Core",
         "representative_zone": zones_ctx[0]["name"] if zones_ctx else "F1_Core",
-        "airloops": [f"AirLoop_{f}" for f in range(1, min(floors + 1, 4))],
-        "return_air_node": "AirLoop_1_Return",
+        # HVAC references
+        "airloops": airloops,
+        "ahu_name": ahu_name,
+        "return_air_node": f"{ahu_name}_Return",
+        "oa_controller_name": f"{ahu_name}_OAController",
+        # Setpoints
+        "cooling_setpoint": cool_occ,
+        "heating_setpoint": heat_occ,
+        "day_cooling_sp": cool_occ,
+        "day_heating_sp": heat_occ,
+        "night_cooling_sp": cool_unocc,
+        "night_heating_sp": heat_unocc,
+        # Schedule
+        "occupancy_start": op_start,
+        "occupancy_end": op_end,
+        "target_hour": op_start,
+        "operation_start": float(op_start),
+        "operation_end": float(op_end),
+        # PMV / peak limiting
+        "cooling_sp_adjustment": pmv.get("cooling_sp_adjustment", "2.0"),
+        # Staging
+        "chiller_capacity_kw": chiller_capacity_kw,
+        # Meta
         "hvac_type": hvac_type,
-        "building_type": geom.get("building_type", "large_office"),
+        "building_type": building_type,
         "strategy": strategy,
     }
     ems_section = _render_ems_templates(ems_templates, ems_context, ems_template_dir)
@@ -1020,6 +1137,7 @@ RunPeriod,
         header,
         global_rules,
         design_days,
+        ground_temps,
         geometry,
         constructions,
         envelope,

@@ -1,0 +1,189 @@
+! ============================================================================
+! VRF Full Control EMS Template
+! VRF 시스템 통합 제어: 최적 기동 + 수요 제한
+! 설계 원칙: 시스템 자체 제어를 최대한 활용, EMS는 예외 상황만 처리
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    Zone_Temperature,        !- Name
+    {{ zone_name | default('GF_Core') }},
+    Zone Mean Air Temperature;
+
+EnergyManagementSystem:Sensor,
+    Outdoor_Temp,            !- Name
+    Environment,
+    Site Outdoor Air Drybulb Temperature;
+
+EnergyManagementSystem:Sensor,
+    VRF_GF_Power,            !- Name
+    VRF_GF,
+    VRF Heat Pump Cooling Electricity Rate;
+
+EnergyManagementSystem:Sensor,
+    VRF_MF_Power,            !- Name
+    VRF_MF,
+    VRF Heat Pump Cooling Electricity Rate;
+
+EnergyManagementSystem:Sensor,
+    VRF_TF_Power,            !- Name
+    VRF_TF,
+    VRF Heat Pump Cooling Electricity Rate;
+
+! --- Actuators ---
+EnergyManagementSystem:Actuator,
+    VRF_GF_Mode,             !- Name
+    VRF_GF,
+    Variable Refrigerant Flow Heat Pump,
+    Operating Mode;
+
+EnergyManagementSystem:Actuator,
+    VRF_MF_Mode,             !- Name
+    VRF_MF,
+    Variable Refrigerant Flow Heat Pump,
+    Operating Mode;
+
+EnergyManagementSystem:Actuator,
+    VRF_TF_Mode,             !- Name
+    VRF_TF,
+    Variable Refrigerant Flow Heat Pump,
+    Operating Mode;
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    Optimal_Start_Time,
+    Early_Start_Active,
+    Demand_Limit_Active,
+    VRF_Shed_Level,
+    Total_VRF_Power;
+
+! --- Main Control Program ---
+EnergyManagementSystem:Program,
+    VRF_Full_Control_Program,
+    ! Configuration
+    SET TargetTime = {{ target_hour | default(9) }},
+    SET CoolingSetpoint = {{ cooling_setpoint | default(26.0) }},
+    SET HeatingSetpoint = {{ heating_setpoint | default(20.0) }},
+    SET MaxStartAdvance = {{ max_start_advance | default(2.0) }},
+    SET VRFPowerLimit = {{ vrf_power_limit_kw | default(80) }} * 1000,
+    SET PeakStartHour = {{ peak_start | default(14) }},
+    SET PeakEndHour = {{ peak_end | default(17) }},
+    SET HighTempThreshold = {{ high_temp | default(33) }},
+    SET ScheduleStartHour = 6,
+    !
+    SET CurrentHour = CurrentTime,
+    SET CurrentDay = DayOfWeek,
+    SET Total_VRF_Power = VRF_GF_Power + VRF_MF_Power + VRF_TF_Power,
+    !
+    ! Initialize outputs
+    SET Early_Start_Active = 0,
+    SET Demand_Limit_Active = 0,
+    SET VRF_Shed_Level = 0,
+    !
+    ! Weekend - do nothing (let schedule handle)
+    IF CurrentDay == 1 || CurrentDay == 7,
+        SET VRF_GF_Mode = Null,
+        SET VRF_MF_Mode = Null,
+        SET VRF_TF_Mode = Null,
+        RETURN,
+    ENDIF,
+    !
+    ! ===== OPTIMAL START LOGIC =====
+    ! Calculate optimal start time based on temperature deviation
+    IF Zone_Temperature > CoolingSetpoint + 2,
+        SET TempDiff = Zone_Temperature - CoolingSetpoint,
+        SET DesiredMode = 1,  ! Cooling
+    ELSEIF Zone_Temperature < HeatingSetpoint - 2,
+        SET TempDiff = HeatingSetpoint - Zone_Temperature,
+        SET DesiredMode = 2,  ! Heating
+    ELSE,
+        SET TempDiff = 0,
+        SET DesiredMode = 0,
+    ENDIF,
+    !
+    ! Calculate required advance time
+    SET TempChangeRate = 1.5,
+    IF TempDiff > 0,
+        SET AdvanceTime = TempDiff / TempChangeRate,
+        IF AdvanceTime > MaxStartAdvance,
+            SET AdvanceTime = MaxStartAdvance,
+        ENDIF,
+    ELSE,
+        SET AdvanceTime = 0,
+    ENDIF,
+    !
+    SET Optimal_Start_Time = TargetTime - AdvanceTime,
+    !
+    ! Early start: BEFORE schedule start but AFTER optimal start time
+    IF CurrentHour >= Optimal_Start_Time && CurrentHour < ScheduleStartHour,
+        SET Early_Start_Active = 1,
+        ! Force VRF ON in required mode
+        SET VRF_GF_Mode = DesiredMode,
+        SET VRF_MF_Mode = DesiredMode,
+        SET VRF_TF_Mode = DesiredMode,
+        RETURN,
+    ENDIF,
+    !
+    ! ===== DEMAND LIMIT LOGIC (during peak hours only) =====
+    IF CurrentHour >= PeakStartHour && CurrentHour < PeakEndHour,
+        IF Total_VRF_Power > VRFPowerLimit && Outdoor_Temp < HighTempThreshold,
+            SET Demand_Limit_Active = 1,
+            SET OverageRatio = (Total_VRF_Power - VRFPowerLimit) / VRFPowerLimit,
+            !
+            IF OverageRatio > 0.3,
+                SET VRF_Shed_Level = 2,
+                SET VRF_GF_Mode = Null,
+                SET VRF_MF_Mode = 0,
+                SET VRF_TF_Mode = 0,
+                RETURN,
+            ELSEIF OverageRatio > 0.1,
+                SET VRF_Shed_Level = 1,
+                SET VRF_GF_Mode = Null,
+                SET VRF_MF_Mode = Null,
+                SET VRF_TF_Mode = 0,
+                RETURN,
+            ENDIF,
+        ENDIF,
+    ENDIF,
+    !
+    ! Normal operation - let system control itself
+    SET VRF_GF_Mode = Null,
+    SET VRF_MF_Mode = Null,
+    SET VRF_TF_Mode = Null;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    VRF_Full_Control_Manager,
+    BeginTimestepBeforePredictor,
+    VRF_Full_Control_Program;
+
+! --- Output Variables ---
+EnergyManagementSystem:OutputVariable,
+    VRF Optimal Start Time,
+    Optimal_Start_Time,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    VRF Early Start Active,
+    Early_Start_Active,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    VRF Demand Limit Active,
+    Demand_Limit_Active,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    VRF Shed Level,
+    VRF_Shed_Level,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    Total VRF Power,
+    Total_VRF_Power,
+    Averaged,
+    ZoneTimeStep;

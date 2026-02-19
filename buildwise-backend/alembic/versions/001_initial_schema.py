@@ -115,6 +115,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.UniqueConstraint("config_id", "strategy", name="unique_strategy_per_config"),
     )
+    op.create_index("ix_simulation_runs_status", "simulation_runs", ["status"])
 
     # Energy Results
     op.create_table(
@@ -172,6 +173,7 @@ def downgrade() -> None:
     op.drop_table("zone_results")
     op.drop_table("comfort_results")
     op.drop_table("energy_results")
+    op.drop_index("ix_simulation_runs_status", table_name="simulation_runs")
     op.drop_table("simulation_runs")
     op.drop_table("simulation_configs")
     op.drop_table("buildings")

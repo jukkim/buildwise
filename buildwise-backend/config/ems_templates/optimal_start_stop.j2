@@ -1,0 +1,367 @@
+! ============================================================================
+! Optimal Start/Stop EMS Template
+! ASHRAE Guideline 36 기반 외기온도 적응형 HVAC 기동/정지 제어
+! ============================================================================
+!
+! 알고리즘 개요:
+! 1. Optimal Start: 재실 시간(09:00) 도달 시 설정온도 달성을 위한 동적 기동 시간 결정
+!    - 외기 온도 기반 건물 열손실/열획득 속도 추정
+!    - 현재 실내 온도와 목표 온도의 차이 계산
+!    - 경험식 기반 필요 시간 계산 (학습 가능)
+!
+! 2. Optimal Stop: 퇴근 전 HVAC 정지로 건물 관성 활용
+!    - 재실 종료 30분 전 정지 (열관성 활용)
+!
+! 참고: ASHRAE Guideline 36-2021, Section 5.16 (Optimal Start)
+! ============================================================================
+
+! --- Sensors: 온도 센서 ---
+EnergyManagementSystem:Sensor,
+    OAT_Sensor,              !- Name
+    Environment,             !- Output:Variable or Output:Meter Index Key Name
+    Site Outdoor Air Drybulb Temperature;  !- Output:Variable or Output:Meter Name
+
+{% for zone in zones %}
+EnergyManagementSystem:Sensor,
+    {{ zone.name }}_Temp_Sensor,
+    {{ zone.name }},
+    Zone Mean Air Temperature;
+{% endfor %}
+
+! --- Sensors: 시간 센서 ---
+EnergyManagementSystem:Sensor,
+    Current_Hour_Sensor,
+    Environment,
+    Current Hour;
+
+EnergyManagementSystem:Sensor,
+    Current_Minute_Sensor,
+    Environment,
+    Current Minute;
+
+EnergyManagementSystem:Sensor,
+    Current_DayOfWeek_Sensor,
+    Environment,
+    Current Day Of Week;
+
+! --- Actuators: HVAC 가용성 제어 ---
+{% for airloop in airloops %}
+EnergyManagementSystem:Actuator,
+    {{ airloop.name }}_Availability_Act,
+    {{ airloop.full_name }},
+    AirLoopHVAC,
+    Availability Status;
+{% endfor %}
+
+{% if plant_loops %}
+! --- Actuators: Plant Loop 가용성 제어 (선택적) ---
+{% for plant in plant_loops %}
+EnergyManagementSystem:Actuator,
+    {{ plant.name }}_Availability_Act,
+    {{ plant.full_name }},
+    PlantLoop Overall,
+    On/Off Supervisory;
+{% endfor %}
+{% endif %}
+
+! --- Global Variables: 알고리즘 상태 ---
+EnergyManagementSystem:GlobalVariable,
+    Optimal_Start_Hour,      !- 계산된 기동 시간 (시)
+    Optimal_Stop_Hour,       !- 계산된 정지 시간 (시)
+    Required_Preheat_Time,   !- 필요 예열 시간 (시간)
+    Required_Precool_Time,   !- 필요 예냉 시간 (시간)
+    Avg_Zone_Temp,           !- 평균 존 온도
+    Temp_Error_Yesterday,    !- 전일 온도 오차 (학습용)
+    Heating_Rate_Constant,   !- 난방 속도 상수 (시간/°C)
+    Cooling_Rate_Constant,   !- 냉방 속도 상수 (시간/°C)
+    Last_Calc_Hour;          !- 마지막 계산 시간 (중복 방지)
+
+! --- Internal Variables: 파라미터 ---
+EnergyManagementSystem:InternalVariable,
+    Timestep_Duration,
+    System,
+    Zone Time Step;
+
+! --- Trend Variables: 온도 추세 (선택적, 학습 알고리즘용) ---
+EnergyManagementSystem:TrendVariable,
+    Avg_Zone_Temp_Trend,
+    Avg_Zone_Temp,
+    96;  !- 24시간 (15분 간격)
+
+EnergyManagementSystem:TrendVariable,
+    OAT_Trend,
+    OAT_Sensor,
+    96;
+
+! ============================================================================
+! Program 1: 초기화 (시뮬레이션 시작 시)
+! ============================================================================
+EnergyManagementSystem:Program,
+    Optimal_Start_Stop_Init,
+    ! === 초기 상수 설정 ===
+    ! 난방 속도 상수 (시간/°C): 외기 온도별 난방 시간
+    ! 예: 5°C 차이를 0.5시간(30분)에 달성 → k_heating = 0.1
+    SET Heating_Rate_Constant = {{ heating_rate_constant | default(0.15) }},  ! 0.15 hr/°C
+    !
+    ! 냉방 속도 상수 (시간/°C)
+    SET Cooling_Rate_Constant = {{ cooling_rate_constant | default(0.12) }},  ! 0.12 hr/°C
+    !
+    ! 초기값
+    SET Optimal_Start_Hour = {{ occupancy_start | default(9) }} - 1,  ! 기본 1시간 전
+    SET Optimal_Stop_Hour = {{ occupancy_end | default(18) }} - 0.5,  ! 기본 30분 전
+    SET Temp_Error_Yesterday = 0,
+    SET Last_Calc_Hour = -1;  ! 초기화
+
+! ============================================================================
+! Program 2: HVAC 제어 및 Optimal Start/Stop 계산 (매 타임스텝 실행)
+! ============================================================================
+EnergyManagementSystem:Program,
+    Optimal_Start_Stop_Control,
+    ! === 현재 시간 계산 ===
+    SET Current_Hour = Current_Hour_Sensor,
+    SET Current_Minute = Current_Minute_Sensor,
+    SET Current_Time = Current_Hour + (Current_Minute / 60.0),
+    SET Day_Of_Week = Current_DayOfWeek_Sensor,
+    !
+    ! === 매일 자정(00:00~00:59)에 한번만 Optimal Start/Stop 재계산 ===
+    IF Current_Hour == 0 && Last_Calc_Hour != 0,
+        ! === 파라미터 ===
+        SET Occupancy_Start_Hour = {{ occupancy_start | default(9) }},   ! 09:00
+        SET Occupancy_End_Hour = {{ occupancy_end | default(18) }},       ! 18:00
+        SET Max_Start_Advance = {{ max_start_advance | default(3.0) }},   ! 최대 3시간 전 기동
+        SET Max_Stop_Advance = {{ max_stop_advance | default(1.0) }},     ! 최대 1시간 전 정지
+        SET Min_Start_Advance = {{ min_start_advance | default(0.25) }},  ! 최소 15분 전 기동
+        !
+        ! 설정온도
+        SET Heating_Setpoint = {{ heating_setpoint | default(20.0) }},
+        SET Cooling_Setpoint = {{ cooling_setpoint | default(24.0) }},
+        !
+        ! === 평균 존 온도 계산 ===
+        SET Zone_Count = {{ zones | length }},
+        SET Avg_Zone_Temp = 0,
+        {% for zone in zones %}
+        SET Avg_Zone_Temp = Avg_Zone_Temp + {{ zone.name }}_Temp_Sensor,
+        {% endfor %}
+        SET Avg_Zone_Temp = Avg_Zone_Temp / Zone_Count,
+        !
+        ! === 계절 판단 (외기 온도 기반) ===
+        ! 난방 시즌: OAT < 15°C
+        ! 냉방 시즌: OAT > 20°C
+        ! 중간기: 15~20°C (가장 가까운 설정온도 사용)
+        SET OAT = OAT_Sensor,
+        !
+        IF OAT < 15.0,
+            SET Season_Mode = 1,  ! 난방
+        ELSEIF OAT > 20.0,
+            SET Season_Mode = 2,  ! 냉방
+        ELSE,
+            ! 중간기: 현재 존 온도와 설정온도 비교
+            SET Heating_Gap = @ABS (Avg_Zone_Temp - Heating_Setpoint),
+            SET Cooling_Gap = @ABS (Avg_Zone_Temp - Cooling_Setpoint),
+            IF Heating_Gap < Cooling_Gap,
+                SET Season_Mode = 1,  ! 난방
+            ELSE,
+                SET Season_Mode = 2,  ! 냉방
+            ENDIF,
+        ENDIF,
+        !
+        ! === Optimal Start 계산 ===
+        IF Season_Mode == 1,
+            ! --- 난방 모드 ---
+            SET Target_Temp = Heating_Setpoint,
+            SET Temp_Diff = Target_Temp - Avg_Zone_Temp,
+            !
+            ! 온도 차이가 양수(가열 필요)일 때만 계산
+            IF Temp_Diff > 0.0,
+                ! 기본 필요 시간 = ΔT × k_heating
+                SET Required_Preheat_Time = Temp_Diff * Heating_Rate_Constant,
+                !
+                ! 외기 온도 보정: 추울수록 가열 시간 증가
+                IF OAT < 0.0,
+                    SET OAT_Factor = 1.5,  ! -10°C 이하: 1.5배
+                ELSEIF OAT < 5.0,
+                    SET OAT_Factor = 1.3,  ! 0~5°C: 1.3배
+                ELSEIF OAT < 10.0,
+                    SET OAT_Factor = 1.15, ! 5~10°C: 1.15배
+                ELSE,
+                    SET OAT_Factor = 1.0,  ! 10°C 이상: 보정 없음
+                ENDIF,
+                SET Required_Preheat_Time = Required_Preheat_Time * OAT_Factor,
+                !
+                ! 최대/최소 제한
+                IF Required_Preheat_Time > Max_Start_Advance,
+                    SET Required_Preheat_Time = Max_Start_Advance,
+                ELSEIF Required_Preheat_Time < Min_Start_Advance,
+                    SET Required_Preheat_Time = Min_Start_Advance,
+                ENDIF,
+                !
+                ! 기동 시간 결정
+                SET Optimal_Start_Hour = Occupancy_Start_Hour - Required_Preheat_Time,
+            ELSE,
+                ! 이미 설정온도 이상: 최소 기동 시간
+                SET Optimal_Start_Hour = Occupancy_Start_Hour - Min_Start_Advance,
+            ENDIF,
+            !
+        ELSEIF Season_Mode == 2,
+            ! --- 냉방 모드 ---
+            SET Target_Temp = Cooling_Setpoint,
+            SET Temp_Diff = Avg_Zone_Temp - Target_Temp,
+            !
+            ! 온도 차이가 양수(냉각 필요)일 때만 계산
+            IF Temp_Diff > 0.0,
+                ! 기본 필요 시간 = ΔT × k_cooling
+                SET Required_Precool_Time = Temp_Diff * Cooling_Rate_Constant,
+                !
+                ! 외기 온도 보정: 더울수록 냉각 시간 증가
+                IF OAT > 35.0,
+                    SET OAT_Factor = 1.5,  ! 35°C 이상: 1.5배
+                ELSEIF OAT > 30.0,
+                    SET OAT_Factor = 1.3,  ! 30~35°C: 1.3배
+                ELSEIF OAT > 25.0,
+                    SET OAT_Factor = 1.15, ! 25~30°C: 1.15배
+                ELSE,
+                    SET OAT_Factor = 1.0,  ! 25°C 이하: 보정 없음
+                ENDIF,
+                SET Required_Precool_Time = Required_Precool_Time * OAT_Factor,
+                !
+                ! 최대/최소 제한
+                IF Required_Precool_Time > Max_Start_Advance,
+                    SET Required_Precool_Time = Max_Start_Advance,
+                ELSEIF Required_Precool_Time < Min_Start_Advance,
+                    SET Required_Precool_Time = Min_Start_Advance,
+                ENDIF,
+                !
+                ! 기동 시간 결정
+                SET Optimal_Start_Hour = Occupancy_Start_Hour - Required_Precool_Time,
+            ELSE,
+                ! 이미 설정온도 이하: 최소 기동 시간
+                SET Optimal_Start_Hour = Occupancy_Start_Hour - Min_Start_Advance,
+            ENDIF,
+        ENDIF,
+        !
+        ! === Optimal Stop 계산 ===
+        ! 건물 열관성 활용: 재실 종료 30분 전 정지
+        SET Optimal_Stop_Hour = Occupancy_End_Hour - 0.5,  ! 30분 = 0.5시간
+        !
+        ! === 최소 기동 시간 보장 (새벽 5시 이전 기동 방지) ===
+        SET Earliest_Start = 5.0,  ! 05:00
+        IF Optimal_Start_Hour < Earliest_Start,
+            SET Optimal_Start_Hour = Earliest_Start,
+        ENDIF,
+        !
+        ! 계산 완료 플래그
+        SET Last_Calc_Hour = 0,
+    ENDIF,
+    !
+    ! === 자정 이후 플래그 리셋 ===
+    IF Current_Hour != 0,
+        SET Last_Calc_Hour = Current_Hour,
+    ENDIF,
+    !
+    ! === 주말 체크 (일요일=1, 토요일=7) ===
+    SET Is_Weekend = 0,
+    IF Day_Of_Week == 1 || Day_Of_Week == 7,
+        SET Is_Weekend = 1,
+    ENDIF,
+    !
+    ! === HVAC 가용성 결정 ===
+    IF Is_Weekend == 1,
+        ! 주말: HVAC OFF
+        SET HVAC_Status = 0,
+    ELSE,
+        ! 평일: Optimal Start/Stop 기반 제어
+        IF Current_Time >= Optimal_Start_Hour && Current_Time < Optimal_Stop_Hour,
+            SET HVAC_Status = 1,  ! ON
+        ELSE,
+            SET HVAC_Status = 0,  ! OFF
+        ENDIF,
+    ENDIF,
+    !
+    ! === Actuator 적용 ===
+    {% for airloop in airloops %}
+    IF HVAC_Status == 1,
+        SET {{ airloop.name }}_Availability_Act = 1,  ! ForceOn
+    ELSE,
+        SET {{ airloop.name }}_Availability_Act = 0,  ! ForceOff
+    ENDIF,
+    {% endfor %}
+    !
+    {% if plant_loops %}
+    ! Plant Loop 제어 (선택적)
+    {% for plant in plant_loops %}
+    IF HVAC_Status == 1,
+        SET {{ plant.name }}_Availability_Act = 1,
+    ELSE,
+        SET {{ plant.name }}_Availability_Act = 0,
+    ENDIF,
+    {% endfor %}
+    {% endif %}
+    !
+    ! (선택적) 학습 알고리즘: 09:00 도달 시 온도 오차 기록
+    ! 실제 구현 시 Temp_Error_Yesterday를 사용하여
+    ! Heating/Cooling_Rate_Constant를 조정 가능
+    ;
+
+! ============================================================================
+! Program Calling Managers
+! ============================================================================
+EnergyManagementSystem:ProgramCallingManager,
+    Optimal_Start_Stop_Init_Manager,
+    BeginNewEnvironment,     !- EnergyPlus Model Calling Point
+    Optimal_Start_Stop_Init; !- Program Name 1
+
+EnergyManagementSystem:ProgramCallingManager,
+    Optimal_Start_Stop_Control_Manager,
+    BeginTimestepBeforePredictor,  !- EnergyPlus Model Calling Point
+    Optimal_Start_Stop_Control;    !- Program Name 1
+
+! ============================================================================
+! Output Variables: 디버깅 및 분석용
+! ============================================================================
+EnergyManagementSystem:OutputVariable,
+    EMS Optimal Start Hour,  !- Name
+    Optimal_Start_Hour,      !- EMS Variable Name
+    Averaged,                !- Type of Data in Variable
+    ZoneTimeStep;            !- Update Frequency
+
+EnergyManagementSystem:OutputVariable,
+    EMS Optimal Stop Hour,
+    Optimal_Stop_Hour,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    EMS Required Preheat Time,
+    Required_Preheat_Time,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    EMS Required Precool Time,
+    Required_Precool_Time,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    EMS Average Zone Temperature,
+    Avg_Zone_Temp,
+    Averaged,
+    ZoneTimeStep;
+
+! ============================================================================
+! 사용 예시:
+!
+! Jinja2 템플릿 렌더링 시 필요한 변수:
+! - zones: [{'name': 'Core_bottom'}, {'name': 'Perimeter_bot_ZN_1'}, ...]
+! - airloops: [{'name': 'VAV_bot', 'full_name': 'VAV_bot WITH REHEAT'}, ...]
+! - plant_loops (선택): [{'name': 'Hot_Water_Loop', 'full_name': 'Hot Water Loop'}, ...]
+! - heating_rate_constant (선택): 0.15 (기본값)
+! - cooling_rate_constant (선택): 0.12 (기본값)
+! - occupancy_start (선택): 9 (기본값)
+! - occupancy_end (선택): 18 (기본값)
+! - max_start_advance (선택): 3.0 (기본값)
+! - max_stop_advance (선택): 1.0 (기본값)
+! - min_start_advance (선택): 0.25 (기본값)
+! - heating_setpoint (선택): 20.0 (기본값)
+! - cooling_setpoint (선택): 24.0 (기본값)
+! ============================================================================

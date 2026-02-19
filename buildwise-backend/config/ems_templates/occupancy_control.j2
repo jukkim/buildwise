@@ -1,0 +1,92 @@
+! ============================================================================
+! Occupancy-Based Control EMS Template
+! 재실 기반 HVAC 제어 (비재실 시 OFF)
+! ============================================================================
+
+! --- Sensors ---
+{% for zone in zones_with_occupancy %}
+EnergyManagementSystem:Sensor,
+    {{ zone.name }}_Occupancy,   !- Name
+    {{ zone.original_name }},    !- Output:Variable or Output:Meter Index Key Name (IDF 참조)
+    Zone People Occupant Count;  !- Output:Variable or Output:Meter Name
+
+{% endfor %}
+
+! --- Actuators ---
+{% for airloop in airloops %}
+EnergyManagementSystem:Actuator,
+    {{ airloop.name }}_Availability,  !- Name
+    {{ airloop.original_name }},      !- Actuated Component Unique Name (IDF 참조)
+    AirLoopHVAC,                 !- Actuated Component Type
+    Availability Status;         !- Actuated Component Control Type
+
+{% endfor %}
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    Total_Occupancy,             !- Name
+    Current_Hour,                !- Name
+    Current_Day;                 !- Name
+
+! --- Program ---
+EnergyManagementSystem:Program,
+    Occupancy_Control_Program,   !- Name
+    ! 현재 시간 정보
+    SET Current_Hour = CurrentTime,
+    SET Current_Day = DayOfWeek,
+    !
+    ! 주말 체크 (1=일요일, 7=토요일)
+    IF Current_Day == 1 || Current_Day == 7,
+        ! 주말: 모든 시스템 OFF
+{% for airloop in airloops %}
+        SET {{ airloop.name }}_Availability = 0,
+{% endfor %}
+        RETURN,
+    ENDIF,
+    !
+    ! 운영 시간 체크 (평일 06:00-18:00)
+    IF Current_Hour < {{ operation_start | default(6.0) }},
+        ! 운영 시간 전: 모든 시스템 OFF
+{% for airloop in airloops %}
+        SET {{ airloop.name }}_Availability = 0,
+{% endfor %}
+        RETURN,
+    ELSEIF Current_Hour >= {{ operation_end | default(18.0) }},
+        ! 운영 시간 후: 모든 시스템 OFF
+{% for airloop in airloops %}
+        SET {{ airloop.name }}_Availability = 0,
+{% endfor %}
+        RETURN,
+    ENDIF,
+    !
+    ! 운영 시간 중: 재실 여부로 판단
+    SET Total_Occupancy = 0,
+{% for zone in zones_with_occupancy %}
+    SET Total_Occupancy = Total_Occupancy + {{ zone.name }}_Occupancy,
+{% endfor %}
+    !
+    ! 최소 재실 임계값 (1명 이상)
+    IF Total_Occupancy >= {{ min_occupancy_threshold | default(1.0) }},
+        ! 재실: 모든 시스템 ON
+{% for airloop in airloops %}
+        SET {{ airloop.name }}_Availability = 1,
+{% endfor %}
+    ELSE,
+        ! 비재실: 모든 시스템 OFF
+{% for airloop in airloops %}
+        SET {{ airloop.name }}_Availability = 0,
+{% endfor %}
+    ENDIF;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    Occupancy_Control_Manager,   !- Name
+    BeginTimestepBeforePredictor,  !- EnergyPlus Model Calling Point
+    Occupancy_Control_Program;   !- Program Name 1
+
+! --- Output Variables ---
+EnergyManagementSystem:OutputVariable,
+    Total Building Occupancy,    !- Name
+    Total_Occupancy,             !- EMS Variable Name
+    Averaged,                    !- Type of Data in Variable
+    ZoneTimeStep;                !- Update Frequency

@@ -1,0 +1,118 @@
+! ============================================================================
+! M2: Night Ventilation (야간 외기 축냉) EMS Template
+! 야간 시간대(22:00~06:00)에 외기 온도가 실내보다 낮을 때 외기 도입 증가
+! 적용 건물: Large Office (중앙 AHU 필요)
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    Outdoor_Air_Temp,        !- Name
+    Environment,             !- Output:Variable or Output:Meter Index Key Name
+    Site Outdoor Air Drybulb Temperature;  !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    Current_Hour,            !- Name
+    Environment,             !- Output:Variable or Output:Meter Index Key Name
+    Site Hour of Day;        !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    Current_DayOfWeek,       !- Name
+    Environment,             !- Output:Variable or Output:Meter Index Key Name
+    Site Day of Week;        !- Output:Variable or Output:Meter Name
+
+{% for zone in zones %}
+EnergyManagementSystem:Sensor,
+    {{ zone.name }}_Temp,
+    {{ zone.name }},
+    Zone Mean Air Temperature;
+{% endfor %}
+
+! --- Actuators ---
+! Outdoor Air Controller - Air Mass Flow Rate
+EnergyManagementSystem:Actuator,
+    AHU_OA_MassFlow,         !- Name
+    {{ ahu_name|default('AHU1') }},  !- Actuated Component Unique Name
+    Outdoor Air Controller,   !- Actuated Component Type
+    Air Mass Flow Rate;      !- Actuated Component Control Type
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    Night_Ventilation_Active,  !- Erl Variable Name
+    Avg_Zone_Temp,             !- Erl Variable Name
+    OA_Flow_Target;            !- Erl Variable Name
+
+! --- Initialization Program ---
+EnergyManagementSystem:Program,
+    Night_Vent_Init_Program,   !- Name
+    SET Night_Ventilation_Active = 0,
+    SET OA_Flow_Target = 0;
+
+! --- Main Night Ventilation Control Program ---
+EnergyManagementSystem:Program,
+    Night_Vent_Control_Program,  !- Name
+    ! 평균 존 온도 계산
+    SET Avg_Zone_Temp = 0,
+{% for zone in zones %}
+    SET Avg_Zone_Temp = Avg_Zone_Temp + {{ zone.name }}_Temp,
+{% endfor %}
+    SET Avg_Zone_Temp = Avg_Zone_Temp / {{ zones|length }},
+    !
+    ! 야간 시간대 확인 (22:00~06:00)
+    IF (Current_Hour >= 22) || (Current_Hour < 6),
+        ! 평일 확인 (월~금: 2~6)
+        IF (Current_DayOfWeek >= 2) && (Current_DayOfWeek <= 6),
+            ! 외기 온도가 실내보다 낮고 외기가 적정 범위 (15~25°C)
+            IF (Outdoor_Air_Temp < Avg_Zone_Temp) && (Outdoor_Air_Temp > 15) && (Outdoor_Air_Temp < 25),
+                ! 야간 환기 활성화
+                SET Night_Ventilation_Active = 1,
+                ! 최대 외기 도입 (100% OA, kg/s)
+                SET OA_Flow_Target = {{ max_oa_flow|default('10.0') }},
+                SET AHU_OA_MassFlow = OA_Flow_Target,
+            ELSE,
+                ! 조건 불만족 시 최소 외기 유지
+                SET Night_Ventilation_Active = 0,
+                SET OA_Flow_Target = {{ min_oa_flow|default('2.0') }},
+                SET AHU_OA_MassFlow = OA_Flow_Target,
+            ENDIF,
+        ELSE,
+            ! 주말에는 야간 환기 비활성화
+            SET Night_Ventilation_Active = 0,
+            SET OA_Flow_Target = {{ min_oa_flow|default('2.0') }},
+            SET AHU_OA_MassFlow = OA_Flow_Target,
+        ENDIF,
+    ELSE,
+        ! 주간 시간대에는 최소 외기 유지
+        SET Night_Ventilation_Active = 0,
+        SET OA_Flow_Target = {{ min_oa_flow|default('2.0') }},
+        SET AHU_OA_MassFlow = OA_Flow_Target,
+    ENDIF;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    Night_Vent_Init_Manager,
+    BeginNewEnvironment,
+    Night_Vent_Init_Program;
+
+EnergyManagementSystem:ProgramCallingManager,
+    Night_Vent_Control_Manager,
+    InsideHVACSystemIterationLoop,
+    Night_Vent_Control_Program;
+
+! --- Output Variables (for debugging) ---
+EnergyManagementSystem:OutputVariable,
+    Night Ventilation Active [0/1],
+    Night_Ventilation_Active,
+    Averaged,
+    SystemTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    Average Zone Temperature [C],
+    Avg_Zone_Temp,
+    Averaged,
+    SystemTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    OA Flow Target [kg/s],
+    OA_Flow_Target,
+    Averaged,
+    SystemTimeStep;

@@ -1,0 +1,97 @@
+! ============================================================================
+! VRF Night Setback EMS Template (Schedule-based)
+! VRF 시스템용 야간 설정온도 완화 제어
+!
+! 전략:
+! 1. 비점유 시간대(18:00~09:00)에 설정온도 완화
+! 2. 냉방: 26°C → 30°C (야간에 냉방 감소)
+! 3. 난방: 20°C → 16°C (야간에 난방 감소)
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    Outdoor_Temp,            !- Name
+    Environment,
+    Site Outdoor Air Drybulb Temperature;
+
+! --- Actuators for Setpoint Schedules ---
+EnergyManagementSystem:Actuator,
+    Cooling_SP_Actuator,     !- Name
+    CoolingSPSch,            !- Actuated Component Unique Name
+    Schedule:Compact,        !- Actuated Component Type
+    Schedule Value;          !- Actuated Component Control Type
+
+EnergyManagementSystem:Actuator,
+    Heating_SP_Actuator,     !- Name
+    HeatingSPSch,            !- Actuated Component Unique Name
+    Schedule:Compact,        !- Actuated Component Type
+    Schedule Value;          !- Actuated Component Control Type
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    Night_Mode_Active,
+    Current_Cool_SP,
+    Current_Heat_SP;
+
+! --- Main Program ---
+EnergyManagementSystem:Program,
+    VRF_Night_Setback_Program,
+    ! Configuration
+    SET OccupancyStart = {{ occupancy_start | default(9) }},
+    SET OccupancyEnd = {{ occupancy_end | default(18) }},
+    SET DayCoolSP = {{ day_cooling_sp | default(26.0) }},
+    SET DayHeatSP = {{ day_heating_sp | default(20.0) }},
+    SET NightCoolSP = {{ night_cooling_sp | default(30.0) }},
+    SET NightHeatSP = {{ night_heating_sp | default(16.0) }},
+    !
+    SET CurrentHour = CurrentTime,
+    SET CurrentDay = DayOfWeek,
+    !
+    ! Weekend - Night setback all day
+    IF CurrentDay == 1 || CurrentDay == 7,
+        SET Night_Mode_Active = 1,
+        SET Current_Cool_SP = NightCoolSP,
+        SET Current_Heat_SP = NightHeatSP,
+    ELSE,
+        ! Weekday logic
+        IF CurrentHour >= OccupancyStart && CurrentHour < OccupancyEnd,
+            ! Occupied hours - normal setpoints
+            SET Night_Mode_Active = 0,
+            SET Current_Cool_SP = DayCoolSP,
+            SET Current_Heat_SP = DayHeatSP,
+        ELSE,
+            ! Unoccupied hours - setback
+            SET Night_Mode_Active = 1,
+            SET Current_Cool_SP = NightCoolSP,
+            SET Current_Heat_SP = NightHeatSP,
+        ENDIF,
+    ENDIF,
+    !
+    ! Apply setpoints via schedule actuators
+    SET Cooling_SP_Actuator = Current_Cool_SP,
+    SET Heating_SP_Actuator = Current_Heat_SP;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    VRF_Night_Setback_Manager,
+    BeginTimestepBeforePredictor,
+    VRF_Night_Setback_Program;
+
+! --- Output Variables ---
+EnergyManagementSystem:OutputVariable,
+    Night Mode Active,
+    Night_Mode_Active,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    Current Cooling Setpoint,
+    Current_Cool_SP,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    Current Heating Setpoint,
+    Current_Heat_SP,
+    Averaged,
+    ZoneTimeStep;

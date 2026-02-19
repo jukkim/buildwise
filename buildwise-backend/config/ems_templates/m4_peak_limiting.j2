@@ -1,0 +1,120 @@
+! ============================================================================
+! M4: Peak Limiting (피크 전력 제한) EMS Template
+! 피크 시간대(14:00~17:00)에 냉방 설정온도 상향 조정으로 전력 제한
+! 적용 건물: Large Office, Medium Office, Standalone Retail
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    Outdoor_Air_Temp,        !- Name
+    Environment,             !- Output:Variable or Output:Meter Index Key Name
+    Site Outdoor Air Drybulb Temperature;  !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    Current_Hour,            !- Name
+    Environment,             !- Output:Variable or Output:Meter Index Key Name
+    Site Hour of Day;        !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    Current_DayOfWeek,       !- Name
+    Environment,             !- Output:Variable or Output:Meter Index Key Name
+    Site Day of Week;        !- Output:Variable or Output:Meter Name
+
+EnergyManagementSystem:Sensor,
+    Total_Facility_Power,    !- Name
+    Electricity:Facility,    !- Output:Variable or Output:Meter Index Key Name
+    Facility Total Electricity Demand Rate;  !- Output:Variable or Output:Meter Name
+
+{% for zone in zones %}
+EnergyManagementSystem:Sensor,
+    {{ zone.name }}_Temp,
+    {{ zone.name }},
+    Zone Mean Air Temperature;
+{% endfor %}
+
+! --- Actuators ---
+! Zone Temperature Setpoint Control
+{% for zone in zones %}
+EnergyManagementSystem:Actuator,
+    {{ zone.name }}_Cooling_SP,
+    {{ zone.name }},
+    Zone Temperature Control,
+    Cooling Setpoint;
+{% endfor %}
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    Peak_Limiting_Active,      !- Erl Variable Name
+    Peak_Hour_Start,           !- Erl Variable Name
+    Peak_Hour_End,             !- Erl Variable Name
+    Cooling_SP_Adjustment,     !- Erl Variable Name
+    Override_Temp_Threshold;   !- Erl Variable Name
+
+! --- Initialization Program ---
+EnergyManagementSystem:Program,
+    Peak_Limit_Init_Program,   !- Name
+    SET Peak_Limiting_Active = 0,
+    SET Peak_Hour_Start = {{ peak_start_hour|default('14') }},
+    SET Peak_Hour_End = {{ peak_end_hour|default('17') }},
+    SET Cooling_SP_Adjustment = {{ cooling_sp_adjustment|default('2.0') }},  ! 2°C 상향
+    SET Override_Temp_Threshold = {{ override_temp_threshold|default('27') }};  ! 27°C 초과 시 해제
+
+! --- Main Peak Limiting Control Program ---
+EnergyManagementSystem:Program,
+    Peak_Limit_Control_Program,  !- Name
+    ! 피크 시간대 확인 (14:00~17:00)
+    IF (Current_Hour >= Peak_Hour_Start) && (Current_Hour < Peak_Hour_End),
+        ! 평일 확인 (월~금: 2~6)
+        IF (Current_DayOfWeek >= 2) && (Current_DayOfWeek <= 6),
+            ! 피크 제한 활성화
+            SET Peak_Limiting_Active = 1,
+            !
+            ! 각 존별 냉방 설정온도 조정
+{% for zone in zones %}
+            ! {{ zone.name }}
+            IF {{ zone.name }}_Temp < Override_Temp_Threshold,
+                ! 온도가 임계값 이하: 설정온도 상향 (전력 절감)
+                SET {{ zone.name }}_Cooling_SP = {{ zone.setpoint_cooling|default('24') }} + Cooling_SP_Adjustment,
+            ELSE,
+                ! 온도가 임계값 초과: 원래 설정온도 유지 (불쾌감 방지)
+                SET {{ zone.name }}_Cooling_SP = {{ zone.setpoint_cooling|default('24') }},
+            ENDIF,
+{% endfor %}
+        ELSE,
+            ! 주말: 피크 제한 비활성화
+            SET Peak_Limiting_Active = 0,
+{% for zone in zones %}
+            SET {{ zone.name }}_Cooling_SP = {{ zone.setpoint_cooling|default('24') }},
+{% endfor %}
+        ENDIF,
+    ELSE,
+        ! 비피크 시간대: 원래 설정온도 유지
+        SET Peak_Limiting_Active = 0,
+{% for zone in zones %}
+        SET {{ zone.name }}_Cooling_SP = {{ zone.setpoint_cooling|default('24') }},
+{% endfor %}
+    ENDIF;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    Peak_Limit_Init_Manager,
+    BeginNewEnvironment,
+    Peak_Limit_Init_Program;
+
+EnergyManagementSystem:ProgramCallingManager,
+    Peak_Limit_Control_Manager,
+    BeginTimestepBeforePredictor,
+    Peak_Limit_Control_Program;
+
+! --- Output Variables (for debugging) ---
+EnergyManagementSystem:OutputVariable,
+    Peak Limiting Active [0/1],
+    Peak_Limiting_Active,
+    Averaged,
+    SystemTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    Cooling Setpoint Adjustment [C],
+    Cooling_SP_Adjustment,
+    Averaged,
+    SystemTimeStep;
