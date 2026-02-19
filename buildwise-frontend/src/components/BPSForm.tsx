@@ -111,13 +111,15 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
     }));
   };
 
-  const isDirty = Object.keys(draft).some((key) => {
-    const original = bps[key] ?? {};
-    const current = draft[key as SectionKey];
+  const isSectionDirty = useCallback((section: SectionKey) => {
+    const original = bps[section] ?? {};
+    const current = draft[section];
     return Object.keys(current).some(
       (f) => JSON.stringify(current[f]) !== JSON.stringify(original[f]),
     );
-  });
+  }, [bps, draft]);
+
+  const isDirty = Object.keys(draft).some((key) => isSectionDirty(key as SectionKey));
 
   const handleDiscard = () => {
     setDraft({
@@ -205,9 +207,11 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
             )}
           >
             {s.label}
-            {sectionHasErrors(s.key) && (
+            {sectionHasErrors(s.key) ? (
               <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-red-500" />
-            )}
+            ) : isSectionDirty(s.key) ? (
+              <span className="ml-1 inline-block h-1.5 w-1.5 rounded-full bg-blue-500" />
+            ) : null}
           </button>
         ))}
         <button

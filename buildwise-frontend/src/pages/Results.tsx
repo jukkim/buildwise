@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   BarChart,
   Bar,
@@ -34,6 +34,7 @@ const PERIOD_LABELS: Record<string, string> = {
 
 export default function Results() {
   const { configId } = useParams<{ configId: string }>();
+  const navigate = useNavigate();
   const [sortKey, setSortKey] = useState<SortKey>("strategy");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
@@ -44,6 +45,20 @@ export default function Results() {
   });
 
   useDocumentTitle(comparison ? `Results: ${comparison.building_name}` : "Results");
+
+  const rerunMutation = useMutation({
+    mutationFn: () =>
+      simulationsApi.start(
+        comparison!.building_id,
+        comparison!.climate_city,
+        comparison!.period_type ?? "1year",
+      ),
+    onSuccess: (res) => {
+      showToast("Simulation started", "success");
+      navigate(`/simulations/${res.data.config_id}/progress`);
+    },
+    onError: () => showToast("Failed to start simulation"),
+  });
 
   if (isError) return (
     <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center">
@@ -231,6 +246,13 @@ export default function Results() {
             className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:px-4 sm:py-2"
           >
             <span className="hidden sm:inline">Download </span>CSV
+          </button>
+          <button
+            onClick={() => rerunMutation.mutate()}
+            disabled={rerunMutation.isPending}
+            className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 sm:px-4 sm:py-2"
+          >
+            {rerunMutation.isPending ? "Starting..." : "Re-run"}
           </button>
         </div>
       </div>

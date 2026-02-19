@@ -38,6 +38,7 @@ export default function ProjectDetail() {
   const [buildingSearch, setBuildingSearch] = useState("");
   const [editingDesc, setEditingDesc] = useState(false);
   const [descValue, setDescValue] = useState("");
+  const [cloningBuildingId, setCloningBuildingId] = useState<string | null>(null);
 
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ["project", projectId],
@@ -390,6 +391,49 @@ export default function ProjectDetail() {
         />
       )}
 
+      {/* Clone building confirmation */}
+      {cloningBuildingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900">Clone Building</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              Enter a name for the cloned building.
+            </p>
+            <input
+              type="text"
+              placeholder="Building name (leave empty for default)"
+              className="mt-3 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  cloneBuilding.mutate(cloningBuildingId);
+                  setCloningBuildingId(null);
+                }
+                if (e.key === "Escape") setCloningBuildingId(null);
+              }}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => setCloningBuildingId(null)}
+                className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  cloneBuilding.mutate(cloningBuildingId);
+                  setCloningBuildingId(null);
+                }}
+                disabled={cloneBuilding.isPending}
+                className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                {cloneBuilding.isPending ? "Cloning..." : "Clone"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Building list */}
       {buildingsLoading ? (
         <ListSkeleton rows={2} />
@@ -460,9 +504,8 @@ export default function ProjectDetail() {
                       Edit
                     </Link>
                     <button
-                      onClick={() => cloneBuilding.mutate(b.id)}
-                      disabled={cloneBuilding.isPending}
-                      className="rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                      onClick={() => setCloningBuildingId(b.id)}
+                      className="rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
                       title="Duplicate building"
                     >
                       Clone

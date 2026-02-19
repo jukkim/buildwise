@@ -244,7 +244,7 @@ export default function Dashboard() {
               }`}
             >
               {/* Action buttons */}
-              <div className={`${viewMode === "list" ? "flex" : "absolute right-3 top-3 hidden group-hover:flex"} gap-1 ${viewMode === "grid" ? "" : "shrink-0 ml-3"}`}>
+              <div className={`${viewMode === "list" ? "flex" : "absolute right-3 top-3 hidden group-hover:flex group-focus-within:flex"} gap-1 ${viewMode === "grid" ? "" : "shrink-0 ml-3"}`}>
                 <button
                   onClick={(e) => {
                     e.preventDefault();
@@ -306,7 +306,7 @@ export default function Dashboard() {
                   </div>
                 </div>
               ) : (
-                <Link to={`/projects/${p.id}`} className={viewMode === "list" ? "flex-1 flex items-center gap-4 min-w-0" : ""}>
+                <Link to={`/projects/${p.id}`} className={`rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${viewMode === "list" ? "flex-1 flex items-center gap-4 min-w-0" : ""}`}>
                   <h3 className={`font-semibold text-gray-900 ${viewMode === "list" ? "truncate" : ""}`}>{p.name}</h3>
                   {p.description && (
                     <p className={`text-sm text-gray-500 ${viewMode === "grid" ? "mt-1 line-clamp-2" : "hidden sm:block truncate max-w-xs"}`}>
