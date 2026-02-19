@@ -382,6 +382,10 @@ export default function BuildingEditor() {
                 <SummaryRow label="Heating" value={`${(bps.setpoints?.heating_occupied as number) ?? 20}°C`} />
                 <SummaryRow label="Lighting" value={bps.internal_loads?.lighting_power_density != null ? `${bps.internal_loads.lighting_power_density} W/m2` : "-"} />
                 <SummaryRow label="BPS Version" value={`v${building.bps_version}`} />
+                <SummaryRow
+                  label="BPS Fields"
+                  value={`${Object.values(bps).reduce((sum, sec) => sum + (sec ? Object.keys(sec).length : 0), 0)} parameters`}
+                />
               </dl>
             )}
           </div>

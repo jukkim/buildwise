@@ -206,9 +206,11 @@ export default function Results() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `buildwise-results-${configId}.csv`;
+    const filename = `buildwise-results-${configId}.csv`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+    showToast(`Downloaded ${filename}`, "success");
   };
 
   const copyTable = () => {

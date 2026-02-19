@@ -256,6 +256,37 @@ export default function Settings() {
         </div>
       </section>
 
+      {/* Security */}
+      <section className="rounded-lg border border-gray-200 bg-white p-6 mt-6">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Security</h2>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-700">Password</p>
+              <p className="text-xs text-gray-400">Change your account password</p>
+            </div>
+            <button
+              disabled
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-400 cursor-not-allowed"
+            >
+              Coming Soon
+            </button>
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-700">Two-Factor Authentication</p>
+              <p className="text-xs text-gray-400">Add an extra layer of security</p>
+            </div>
+            <button
+              disabled
+              className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-400 cursor-not-allowed"
+            >
+              Coming Soon
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* Keyboard Shortcuts */}
       <section className="rounded-lg border border-gray-200 bg-white p-6 mt-6">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Keyboard Shortcuts</h2>

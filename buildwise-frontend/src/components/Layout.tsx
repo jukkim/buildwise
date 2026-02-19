@@ -86,10 +86,14 @@ export default function Layout() {
               </div>
             </div>
 
-            {/* Mobile hamburger */}
+            {/* Mobile current page + hamburger */}
+            <div className="flex sm:hidden items-center gap-2">
+              <span className="text-sm font-medium text-gray-600">
+                {navLinks.find((l) => pathname.startsWith(l.to))?.label ?? ""}
+              </span>
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
-              className="sm:hidden rounded p-2 text-gray-500 hover:bg-gray-100"
+              className="rounded p-2 text-gray-500 hover:bg-gray-100"
               aria-label={mobileOpen ? "Close menu" : "Open menu"}
               aria-expanded={mobileOpen}
             >
@@ -103,6 +107,7 @@ export default function Layout() {
                 </svg>
               )}
             </button>
+            </div>
           </div>
         </div>
 
