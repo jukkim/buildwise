@@ -489,6 +489,10 @@ export default function Results() {
               return sortedStrategies.map((s) => {
               const isRecommended = s.strategy === comparison.recommended_strategy;
               const isWorst = s.strategy === worstStrategy && s.strategy !== comparison.recommended_strategy;
+              const baselineEui = comparison.baseline?.eui_kwh_m2;
+              const euiDelta = baselineEui && s.strategy !== "baseline"
+                ? s.eui_kwh_m2 - baselineEui
+                : null;
               return (
                 <tr
                   key={s.strategy}
@@ -509,6 +513,11 @@ export default function Results() {
                   </td>
                   <td className="px-4 py-3 text-right text-gray-600">
                     {s.eui_kwh_m2.toFixed(1)}
+                    {euiDelta != null && (
+                      <span className={`ml-1 text-xs ${euiDelta < 0 ? "text-green-500" : euiDelta > 0 ? "text-red-400" : "text-gray-400"}`}>
+                        ({euiDelta > 0 ? "+" : ""}{euiDelta.toFixed(1)})
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-600">
                     {s.total_energy_kwh.toLocaleString()}

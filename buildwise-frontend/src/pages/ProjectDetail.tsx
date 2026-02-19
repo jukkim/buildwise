@@ -485,13 +485,29 @@ export default function ProjectDetail() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
           </svg>
           <h3 className="mt-3 text-sm font-medium text-gray-900">No buildings yet</h3>
-          <p className="mt-1 text-sm text-gray-500">Get started by adding a building from a template.</p>
-          <button
-            onClick={() => setShowTemplates(true)}
-            className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            Add Building
-          </button>
+          <p className="mt-1 text-sm text-gray-500">Get started in 3 easy steps:</p>
+          <ol className="mt-3 inline-block text-left text-sm text-gray-500 space-y-1">
+            <li className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-700">1</span>
+              Choose a building template
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-700">2</span>
+              Customize BPS parameters
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-700">3</span>
+              Run simulation &amp; compare strategies
+            </li>
+          </ol>
+          <div className="mt-4">
+            <button
+              onClick={() => setShowTemplates(true)}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              Add Building
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-3">

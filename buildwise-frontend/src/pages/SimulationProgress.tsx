@@ -172,6 +172,7 @@ export default function SimulationProgress() {
         {progress.estimated_remaining_seconds && !allDone && (
           <span className="text-gray-500">
             ~{Math.ceil(progress.estimated_remaining_seconds / 60)} min remaining
+            {" "}(ETA {new Date(Date.now() + progress.estimated_remaining_seconds * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})
           </span>
         )}
       </div>

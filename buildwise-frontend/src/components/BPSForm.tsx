@@ -207,10 +207,29 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
         </div>
       )}
       {/* Section tabs */}
-      <div className="flex border-b border-gray-200 overflow-x-auto">
+      <div
+        className="flex border-b border-gray-200 overflow-x-auto"
+        role="tablist"
+        onKeyDown={(e) => {
+          if (jsonView) return;
+          const idx = sections.findIndex((s) => s.key === activeSection);
+          if (e.key === "ArrowRight" && idx < sections.length - 1) {
+            e.preventDefault();
+            setActiveSection(sections[idx + 1].key);
+            (e.currentTarget.children[idx + 1] as HTMLElement)?.focus();
+          } else if (e.key === "ArrowLeft" && idx > 0) {
+            e.preventDefault();
+            setActiveSection(sections[idx - 1].key);
+            (e.currentTarget.children[idx - 1] as HTMLElement)?.focus();
+          }
+        }}
+      >
         {sections.map((s) => (
           <button
             key={s.key}
+            role="tab"
+            aria-selected={!jsonView && activeSection === s.key}
+            tabIndex={!jsonView && activeSection === s.key ? 0 : -1}
             onClick={() => { setActiveSection(s.key); setJsonView(false); }}
             className={clsx(
               "whitespace-nowrap px-3 py-3 text-sm font-medium transition-colors",
