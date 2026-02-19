@@ -481,18 +481,29 @@ export default function Results() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 bg-white">
-            {sortedStrategies.map((s) => {
+            {(() => {
+              const nonBaseline = allStrategies.filter((s) => s.strategy !== "baseline");
+              const worstStrategy = nonBaseline.length > 1
+                ? nonBaseline.reduce((worst, s) => s.eui_kwh_m2 > worst.eui_kwh_m2 ? s : worst).strategy
+                : null;
+              return sortedStrategies.map((s) => {
               const isRecommended = s.strategy === comparison.recommended_strategy;
+              const isWorst = s.strategy === worstStrategy && s.strategy !== comparison.recommended_strategy;
               return (
                 <tr
                   key={s.strategy}
-                  className={`${isRecommended ? "bg-green-50" : "hover:bg-gray-50"} transition-colors`}
+                  className={`${isRecommended ? "bg-green-50" : isWorst ? "bg-red-50/50" : "hover:bg-gray-50"} transition-colors`}
                 >
-                  <td className={`sticky left-0 px-4 py-3 font-medium text-gray-900 ${isRecommended ? "bg-green-50" : "bg-white group-hover:bg-gray-50"}`}>
+                  <td className={`sticky left-0 px-4 py-3 font-medium text-gray-900 ${isRecommended ? "bg-green-50" : isWorst ? "bg-red-50/50" : "bg-white group-hover:bg-gray-50"}`}>
                     {STRATEGY_LABELS[s.strategy] ?? s.strategy}
                     {isRecommended && (
                       <span className="ml-2 rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-700">
                         Best
+                      </span>
+                    )}
+                    {isWorst && (
+                      <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-600">
+                        Highest
                       </span>
                     )}
                   </td>
@@ -532,7 +543,8 @@ export default function Results() {
                   </td>
                 </tr>
               );
-            })}
+            });
+            })()}
           </tbody>
         </table>
       </div>

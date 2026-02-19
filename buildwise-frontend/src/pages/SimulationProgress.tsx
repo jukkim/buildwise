@@ -220,9 +220,12 @@ export default function SimulationProgress() {
         )}
       </div>
 
-      {/* Run list */}
+      {/* Run list — grouped by status */}
       <div className="space-y-2">
-        {progress.runs.map((run: SimulationRun) => (
+        {[...progress.runs].sort((a, b) => {
+          const order: Record<string, number> = { running: 0, queued: 1, pending: 2, completed: 3, failed: 4, cancelled: 5 };
+          return (order[a.status] ?? 9) - (order[b.status] ?? 9);
+        }).map((run: SimulationRun) => (
           <div
             key={run.id}
             className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3"

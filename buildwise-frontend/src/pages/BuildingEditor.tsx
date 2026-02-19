@@ -42,6 +42,7 @@ export default function BuildingEditor() {
   const [simPeriod, setSimPeriod] = useState("1year");
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [viewer3dFullscreen, setViewer3dFullscreen] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const simDialogRef = useRef<HTMLDivElement>(null);
 
@@ -67,6 +68,7 @@ export default function BuildingEditor() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["building", buildingId] });
       setSaveError(null);
+      setLastSavedAt(new Date());
       showToast("BPS saved", "success");
     },
     onError: (err: unknown) => {
@@ -294,12 +296,19 @@ export default function BuildingEditor() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         {/* BPS Edit Form */}
-        <BPSForm
-          bps={bps}
-          onSave={(patch) => patchMutation.mutate(patch)}
-          saving={patchMutation.isPending}
-          error={saveError}
-        />
+        <div>
+          <BPSForm
+            bps={bps}
+            onSave={(patch) => patchMutation.mutate(patch)}
+            saving={patchMutation.isPending}
+            error={saveError}
+          />
+          {lastSavedAt && (
+            <p className="mt-2 text-xs text-gray-400 text-right">
+              Last saved {lastSavedAt.toLocaleTimeString()}
+            </p>
+          )}
+        </div>
 
         {/* Right column */}
         <div className="space-y-6">
