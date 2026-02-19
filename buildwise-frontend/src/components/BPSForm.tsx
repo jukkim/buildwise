@@ -310,9 +310,11 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
             <SelectField label="Window Type" value={draft.envelope.window_type as string} options={WINDOW_TYPES}
               onChange={(v) => update("envelope", "window_type", v)} />
             <NumField label="Window SHGC" value={draft.envelope.window_shgc as number} min={0.1} max={0.9} step={0.01}
-              onChange={(v) => update("envelope", "window_shgc", v)} error={getFieldError("envelope", "window_shgc")} />
+              onChange={(v) => update("envelope", "window_shgc", v)} error={getFieldError("envelope", "window_shgc")}
+              hint="Solar Heat Gain Coefficient (lower = less solar heat)" />
             <NumField label="Infiltration (ACH)" value={draft.envelope.infiltration_ach as number} min={0} max={2} step={0.1}
-              onChange={(v) => update("envelope", "infiltration_ach", v)} />
+              onChange={(v) => update("envelope", "infiltration_ach", v)}
+              hint="Air changes per hour through envelope leaks" />
           </>
         )}
 

@@ -40,6 +40,7 @@ export default function Results() {
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [selectedRow, setSelectedRow] = useState<string | null>(null);
 
   useEffect(() => {
     const handler = () => setShowScrollTop(window.scrollY > 400);
@@ -516,10 +517,12 @@ export default function Results() {
               const euiDelta = baselineEui && s.strategy !== "baseline"
                 ? s.eui_kwh_m2 - baselineEui
                 : null;
+              const isSelected = selectedRow === s.strategy;
               return (
                 <tr
                   key={s.strategy}
-                  className={`${isRecommended ? "bg-green-50" : isWorst ? "bg-red-50/50" : "hover:bg-gray-50"} transition-colors`}
+                  onClick={() => setSelectedRow(isSelected ? null : s.strategy)}
+                  className={`cursor-pointer transition-colors ${isSelected ? "ring-2 ring-blue-400 ring-inset" : ""} ${isRecommended ? "bg-green-50" : isWorst ? "bg-red-50/50" : "hover:bg-gray-50"}`}
                 >
                   <td className={`sticky left-0 px-4 py-3 font-medium text-gray-900 ${isRecommended ? "bg-green-50" : isWorst ? "bg-red-50/50" : "bg-white group-hover:bg-gray-50"}`}>
                     <span className="mr-2 text-xs text-gray-400">#{rowIdx + 1}</span>

@@ -541,6 +541,9 @@ export default function ProjectDetail() {
                       )}
                       <span>v{b.bps_version}</span>
                       <span title={new Date(b.updated_at).toLocaleString()}>{timeAgo(b.updated_at)}</span>
+                      {Date.now() - new Date(b.created_at).getTime() < 86400000 && (
+                        <span className="rounded bg-blue-100 px-1.5 py-0.5 text-blue-700 font-medium">New</span>
+                      )}
                     </div>
                   </div>
 

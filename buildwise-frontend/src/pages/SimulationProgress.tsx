@@ -178,11 +178,27 @@ export default function SimulationProgress() {
         )}
       </div>
 
+      {/* Completion banner */}
+      {allDone && progress.failed === 0 && (
+        <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-5 py-4 text-center animate-slide-up">
+          <svg className="mx-auto h-8 w-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="mt-2 text-sm font-medium text-green-800">All {progress.total_strategies} strategies completed successfully!</p>
+          <p className="text-xs text-green-600">Redirecting to results...</p>
+        </div>
+      )}
+      {allDone && progress.failed > 0 && (
+        <div className="mb-4 rounded-lg border border-yellow-200 bg-yellow-50 px-5 py-3">
+          <p className="text-sm text-yellow-800">
+            Completed with {progress.failed} failed strateg{progress.failed === 1 ? "y" : "ies"}.
+            {progress.completed > 0 && ` ${progress.completed} succeeded.`}
+          </p>
+        </div>
+      )}
+
       {/* Action buttons */}
       <div className="mb-6 flex items-center gap-3">
-        {allDone && progress.failed === 0 && (
-          <span className="text-sm text-green-600 animate-pulse">Redirecting to results...</span>
-        )}
         {allDone && (
           <Link
             to={`/simulations/${configId}/results`}
