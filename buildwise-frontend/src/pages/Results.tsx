@@ -171,6 +171,7 @@ export default function Results() {
 
   const euiChartData = allStrategies.map((s) => ({
     strategy: STRATEGY_LABELS[s.strategy] ?? s.strategy,
+    strategyKey: s.strategy,
     "EUI (kWh/m2)": Number(s.eui_kwh_m2.toFixed(1)),
     fill: s.strategy === comparison.recommended_strategy
       ? "#059669"
@@ -423,7 +424,18 @@ export default function Results() {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="strategy" tick={{ fontSize: 11 }} />
                 <YAxis unit=" kWh/m2" tick={{ fontSize: 11 }} />
-                <Tooltip />
+                <Tooltip content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const d = payload[0].payload;
+                  const desc = STRATEGY_DESCRIPTIONS[d.strategyKey];
+                  return (
+                    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-lg text-xs">
+                      <p className="font-medium text-gray-900">{d.strategy}</p>
+                      <p className="text-gray-600">{d["EUI (kWh/m2)"]} kWh/m²</p>
+                      {desc && <p className="mt-1 text-gray-400 max-w-[200px]">{desc}</p>}
+                    </div>
+                  );
+                }} />
                 <Legend />
                 <Bar dataKey="EUI (kWh/m2)" radius={[4, 4, 0, 0]}>
                   {euiChartData.map((entry, index) => (

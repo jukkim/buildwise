@@ -510,7 +510,12 @@ export default function ProjectDetail() {
               Run simulation &amp; compare strategies
             </li>
           </ol>
-          <div className="mt-4">
+          <div className="mt-3 flex justify-center gap-2 text-xs text-gray-400">
+            {["Office", "School", "Hospital", "Retail", "Hotel"].map((t) => (
+              <span key={t} className="rounded bg-gray-100 px-2 py-0.5">{t}</span>
+            ))}
+          </div>
+          <div className="mt-3">
             <button
               onClick={() => setShowTemplates(true)}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"

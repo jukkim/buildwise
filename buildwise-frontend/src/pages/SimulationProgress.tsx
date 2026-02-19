@@ -260,7 +260,10 @@ export default function SimulationProgress() {
             className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3"
           >
             <div>
-              <span className="font-medium text-gray-900" title={STRATEGY_DESCRIPTIONS[run.strategy] ?? ""}>
+              <span
+                className={`font-medium ${run.status === "cancelled" ? "text-gray-400 line-through" : "text-gray-900"}`}
+                title={STRATEGY_DESCRIPTIONS[run.strategy] ?? ""}
+              >
                 {STRATEGY_LABELS[run.strategy] ?? run.strategy}
               </span>
               {run.completed_at && (
