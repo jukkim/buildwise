@@ -58,8 +58,19 @@ export default function ConfirmDialog({
       onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
     >
       <div ref={dialogRef} className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-        <h3 id="confirm-title" className="text-lg font-semibold text-gray-900">{title}</h3>
-        <p className="mt-2 text-sm text-gray-500">{message}</p>
+        <div className="flex gap-3">
+          {destructive && (
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100">
+              <svg className="h-5 w-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+          )}
+          <div>
+            <h3 id="confirm-title" className="text-lg font-semibold text-gray-900">{title}</h3>
+            <p className="mt-1 text-sm text-gray-500">{message}</p>
+          </div>
+        </div>
         <div className="mt-4 flex justify-end gap-2">
           <button
             ref={cancelRef}

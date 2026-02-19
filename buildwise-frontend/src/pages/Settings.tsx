@@ -181,6 +181,42 @@ export default function Settings() {
           </div>
         </section>
       )}
+      {/* Data Management */}
+      <section className="rounded-lg border border-gray-200 bg-white p-6 mt-6">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Data</h2>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => {
+              const data = {
+                exportedAt: new Date().toISOString(),
+                user: user ?? null,
+                usage: usage ?? null,
+              };
+              const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `buildwise-account-${new Date().toISOString().slice(0, 10)}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Export Account Data
+          </button>
+          <button
+            onClick={() => {
+              localStorage.removeItem("buildwise_banner_dismissed");
+              localStorage.removeItem("buildwise_last_email");
+              window.location.reload();
+            }}
+            className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+          >
+            Clear Local Preferences
+          </button>
+        </div>
+      </section>
+
       {/* Keyboard Shortcuts */}
       <section className="rounded-lg border border-gray-200 bg-white p-6 mt-6">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Keyboard Shortcuts</h2>

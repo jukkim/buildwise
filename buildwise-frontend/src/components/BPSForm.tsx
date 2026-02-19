@@ -192,6 +192,20 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white">
+      {/* Unsaved changes banner */}
+      {isDirty && (
+        <div className="flex items-center justify-between bg-amber-50 border-b border-amber-200 px-4 py-2 text-sm">
+          <span className="text-amber-700">Unsaved changes</span>
+          <div className="flex gap-2">
+            <button onClick={handleDiscard} className="text-xs text-amber-600 hover:text-amber-800">
+              Discard
+            </button>
+            <button onClick={handleSave} className="text-xs font-medium text-amber-800 hover:text-amber-900">
+              Save
+            </button>
+          </div>
+        </div>
+      )}
       {/* Section tabs */}
       <div className="flex border-b border-gray-200 overflow-x-auto">
         {sections.map((s) => (
