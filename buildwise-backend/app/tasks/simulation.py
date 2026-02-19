@@ -35,7 +35,15 @@ def _run_async(coro):
         loop.close()
 
 
-@celery_app.task(bind=True, name="app.tasks.simulation.run_single_strategy")
+@celery_app.task(
+    bind=True,
+    name="app.tasks.simulation.run_single_strategy",
+    max_retries=2,
+    autoretry_for=(ConnectionError, OSError, TimeoutError),
+    retry_backoff=True,
+    retry_backoff_max=120,
+    retry_jitter=True,
+)
 def run_single_strategy(self, run_id: str) -> dict:
     """Execute a single EnergyPlus simulation for one strategy.
 
@@ -45,6 +53,8 @@ def run_single_strategy(self, run_id: str) -> dict:
     3. Execute EnergyPlus
     4. Parse results -> EnergyResult
     5. Update run status
+
+    Retries up to 2 times on transient failures (network, Docker, timeout).
     """
     return _run_async(_execute_strategy(run_id, self))
 
@@ -79,6 +89,18 @@ async def _execute_strategy(run_id: str, task) -> dict:
             config = config_result.scalar_one()
             building = config.building
 
+            # 2b. Validate BPS before simulation
+            if building.bps_json:
+                from app.schemas.bps import BPS
+                from app.services.bps.validator import validate_bps
+                try:
+                    bps_obj = BPS(**building.bps_json)
+                    bps_errors = validate_bps(bps_obj)
+                    if bps_errors:
+                        raise ValueError(f"BPS validation failed: {'; '.join(bps_errors)}")
+                except (TypeError, KeyError) as exc:
+                    raise ValueError(f"BPS schema error: {exc}") from exc
+
             # 3. Demo mode or real E+ execution
             use_mock = settings.debug or not bool(settings.energyplus_image)
 
@@ -108,6 +130,9 @@ async def _execute_strategy(run_id: str, task) -> dict:
                     climate_city=config.climate_city,
                     epw_file=config.epw_file,
                     bps=building.bps_json,
+                    period_type=config.period_type,
+                    period_start=config.period_start,
+                    period_end=config.period_end,
                 )
                 ep_result = await run_energyplus(
                     idf_content=idf_content,
@@ -188,21 +213,21 @@ async def _dispatch(config_id: str) -> dict:
         )
         runs = result.scalars().all()
 
+        # Sort: baseline first so savings can be computed against it
+        runs.sort(key=lambda r: (0 if r.strategy.value == "baseline" else 1, r.strategy.value))
+
         dispatched = []
-        run_objects = []
         for run in runs:
             run.status = SimulationStatus.QUEUED
             run.queued_at = datetime.now(timezone.utc)
             dispatched.append(str(run.id))
-            run_objects.append(run)
 
         await db.commit()
 
     # Dispatch individual strategy tasks and store task IDs
     async with async_session_factory() as db:
-        for i, rid in enumerate(dispatched):
+        for rid in dispatched:
             async_result = run_single_strategy.delay(rid)
-            # Store Celery task ID in runner_id for later revocation
             run_obj = await db.execute(
                 select(SimulationRun).where(SimulationRun.id == uuid.UUID(rid))
             )

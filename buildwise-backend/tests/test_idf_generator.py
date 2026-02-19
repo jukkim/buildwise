@@ -8,6 +8,7 @@ from app.services.idf.generator import (
     _generate_constructions,
     _generate_design_days,
     _generate_global_geometry_rules,
+    _resolve_run_period,
     _generate_hvac,
     _generate_idf_envelope,
     _generate_idf_geometry,
@@ -295,6 +296,44 @@ class TestGeometryWithSurfaces:
         assert "Roof," in result
 
 
+class TestResolveRunPeriod:
+    """Test RunPeriod resolution from period_type."""
+
+    def test_default_annual(self):
+        name, sm, sd, em, ed = _resolve_run_period("1year")
+        assert name == "AnnualRun"
+        assert (sm, sd, em, ed) == (1, 1, 12, 31)
+
+    def test_summer_month(self):
+        name, sm, sd, em, ed = _resolve_run_period("1month_summer")
+        assert name == "SummerMonth"
+        assert (sm, sd, em, ed) == (7, 1, 7, 31)
+
+    def test_winter_month(self):
+        name, sm, sd, em, ed = _resolve_run_period("1month_winter")
+        assert name == "WinterMonth"
+        assert (sm, sd, em, ed) == (1, 1, 1, 31)
+
+    def test_custom_period(self):
+        name, sm, sd, em, ed = _resolve_run_period("custom", "3/15", "9/30")
+        assert name == "CustomPeriod"
+        assert (sm, sd, em, ed) == (3, 15, 9, 30)
+
+    def test_custom_missing_dates_falls_back_to_annual(self):
+        name, sm, sd, em, ed = _resolve_run_period("custom")
+        assert name == "AnnualRun"
+        assert (sm, sd, em, ed) == (1, 1, 12, 31)
+
+    def test_custom_invalid_format_falls_back(self):
+        name, sm, sd, em, ed = _resolve_run_period("custom", "bad", "data")
+        assert name == "AnnualRun"
+
+    def test_unknown_period_type_falls_back(self):
+        name, sm, sd, em, ed = _resolve_run_period("unknown_type")
+        assert name == "AnnualRun"
+        assert (sm, sd, em, ed) == (1, 1, 12, 31)
+
+
 class TestGenerateIdf:
     """Test the main generate_idf entry point."""
 
@@ -364,3 +403,19 @@ class TestGenerateIdf:
         assert "F2_Core" in idf
         assert "F3_Core" in idf
         assert "F4_Core" not in idf
+
+    def test_summer_period_in_idf(self):
+        bps = _sample_bps()
+        idf = generate_idf("b1", "c1", "baseline", "Seoul", "test.epw", bps=bps,
+                           period_type="1month_summer")
+        assert "SummerMonth" in idf
+        assert "7, 1," in idf  # Start July 1
+        assert "7, 31," in idf  # End July 31
+
+    def test_custom_period_in_idf(self):
+        bps = _sample_bps()
+        idf = generate_idf("b1", "c1", "baseline", "Seoul", "test.epw", bps=bps,
+                           period_type="custom", period_start="4/1", period_end="10/31")
+        assert "CustomPeriod" in idf
+        assert "4, 1," in idf
+        assert "10, 31," in idf

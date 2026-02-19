@@ -873,6 +873,30 @@ def _generate_output_variables(strategy: str) -> str:
     return "\n".join(lines)
 
 
+def _resolve_run_period(
+    period_type: str,
+    period_start: str | None = None,
+    period_end: str | None = None,
+) -> tuple[str, int, int, int, int]:
+    """Resolve RunPeriod name and dates from period_type.
+
+    Returns (name, start_month, start_day, end_month, end_day).
+    """
+    if period_type == "1month_summer":
+        return ("SummerMonth", 7, 1, 7, 31)
+    elif period_type == "1month_winter":
+        return ("WinterMonth", 1, 1, 1, 31)
+    elif period_type == "custom" and period_start and period_end:
+        try:
+            sm, sd = (int(x) for x in period_start.split("/"))
+            em, ed = (int(x) for x in period_end.split("/"))
+            return ("CustomPeriod", sm, sd, em, ed)
+        except (ValueError, AttributeError):
+            pass
+    # Default: full year
+    return ("AnnualRun", 1, 1, 12, 31)
+
+
 def generate_idf(
     building_id: str,
     config_id: str,
@@ -881,6 +905,9 @@ def generate_idf(
     epw_file: str,
     bps: dict | None = None,
     ems_template_dir: Path | None = None,
+    period_type: str = "1year",
+    period_start: str | None = None,
+    period_end: str | None = None,
 ) -> str:
     """Generate a complete IDF file from BPS + strategy.
 
@@ -892,6 +919,9 @@ def generate_idf(
         epw_file: EPW weather filename.
         bps: Building Parameter Schema dict. If None, loads from DB.
         ems_template_dir: Override path to EMS .j2 templates.
+        period_type: Simulation period type ('1year', '1month_summer', '1month_winter', 'custom').
+        period_start: Custom period start (MM/DD format).
+        period_end: Custom period end (MM/DD format).
 
     Returns:
         Complete IDF file content as string.
@@ -922,6 +952,11 @@ def generate_idf(
     safe_epw = sanitize_idf_field(epw_file)
     safe_strategy = sanitize_idf_field(strategy)
 
+    # Resolve run period from period_type
+    rp_name, rp_sm, rp_sd, rp_em, rp_ed = _resolve_run_period(
+        period_type, period_start, period_end
+    )
+
     header = f"""\
 ! BuildWise Generated IDF
 ! Building: {building_id}
@@ -942,9 +977,9 @@ SimulationControl,
   Yes;  !- Run Simulation for Weather File Run Periods
 
 RunPeriod,
-  AnnualRun,               !- Name
-  1, 1,                    !- Start Month, Day
-  12, 31,                  !- End Month, Day
+  {rp_name},               !- Name
+  {rp_sm}, {rp_sd},        !- Start Month, Day
+  {rp_em}, {rp_ed},        !- End Month, Day
   UseWeatherFile,          !- Day of Week for Start Day
   Yes,                     !- Use Weather File Holidays and Special Days
   Yes,                     !- Use Weather File Daylight Saving Period
