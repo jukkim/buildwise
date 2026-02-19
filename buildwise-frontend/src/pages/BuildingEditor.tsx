@@ -380,6 +380,7 @@ export default function BuildingEditor() {
                 <SummaryRow label="Cooling" value={`${(bps.setpoints?.cooling_occupied as number) ?? 24}°C`} />
                 <SummaryRow label="Heating" value={`${(bps.setpoints?.heating_occupied as number) ?? 20}°C`} />
                 <SummaryRow label="Lighting" value={bps.internal_loads?.lighting_power_density != null ? `${bps.internal_loads.lighting_power_density} W/m2` : "-"} />
+                <SummaryRow label="BPS Version" value={`v${building.bps_version}`} />
               </dl>
             )}
           </div>

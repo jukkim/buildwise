@@ -291,7 +291,11 @@ export default function ProjectDetail() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-gray-800">
-          Buildings {buildings && `(${buildings.length})`}
+          Buildings {buildings && (
+            debouncedBuildingSearch
+              ? <span className="text-sm font-normal text-gray-400">({filteredBuildings.length} of {buildings.length})</span>
+              : <span className="text-sm font-normal text-gray-400">({buildings.length})</span>
+          )}
         </h2>
         <button
           onClick={() => setShowTemplates(!showTemplates)}
