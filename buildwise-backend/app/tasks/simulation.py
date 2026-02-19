@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -162,10 +163,14 @@ async def _execute_strategy(run_id: str, task) -> dict:
         except Exception as exc:
             run.status = SimulationStatus.FAILED
             run.completed_at = datetime.now(timezone.utc)
-            run.error_log = str(exc)[:2000]
+            # Sanitize error log: strip filesystem paths to prevent info disclosure
+            error_msg = str(exc)[:2000]
+            error_msg = re.sub(r"[A-Za-z]:\\[^\s:]+", "<path>", error_msg)
+            error_msg = re.sub(r"/(?:usr|app|tmp|home|var)[^\s:]*", "<path>", error_msg)
+            run.error_log = error_msg
             await db.commit()
             logger.error("Run %s failed: %s", run_id, exc)
-            return {"status": "failed", "error": str(exc)}
+            return {"status": "failed", "error": error_msg}
 
 
 @celery_app.task(name="app.tasks.simulation.dispatch_simulation")

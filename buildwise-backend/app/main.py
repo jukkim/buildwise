@@ -27,12 +27,25 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+from app.config import settings
+
+# CORS configuration: restrict methods/headers, load origins from settings
+_cors_origins = (
+    settings.cors_origins.split(",")
+    if hasattr(settings, "cors_origins") and settings.cors_origins
+    else ["http://localhost:5173", "http://localhost:3000"]
+)
+
+# Production guard: reject wildcard origins in non-debug mode
+if not settings.debug and "*" in _cors_origins:
+    raise ValueError("Wildcard CORS origins are not allowed in production (debug=False)")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-User-Id"],
 )
 
 

@@ -94,10 +94,20 @@ async def get_simulation_progress(
 
 
 async def cancel_simulation_runs(config: SimulationConfig) -> int:
-    """Cancel pending/queued/running runs. Returns count cancelled."""
+    """Cancel pending/queued/running runs and revoke Celery tasks. Returns count cancelled."""
+    import logging
+
+    logger = logging.getLogger(__name__)
     cancelled = 0
     for run in config.runs:
         if run.status in (SimulationStatus.PENDING, SimulationStatus.QUEUED, SimulationStatus.RUNNING):
             run.status = SimulationStatus.CANCELLED
             cancelled += 1
+            # Revoke Celery task if we have the task ID
+            if run.runner_id:
+                try:
+                    from app.worker import celery_app
+                    celery_app.control.revoke(run.runner_id, terminate=True, signal="SIGTERM")
+                except Exception:
+                    logger.warning("Failed to revoke Celery task %s", run.runner_id)
     return cancelled

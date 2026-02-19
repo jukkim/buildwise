@@ -90,7 +90,7 @@ class SimulationRun(UUIDPrimaryKeyMixin, Base):
     )
     strategy: Mapped[SimulationStrategy] = mapped_column(Enum(SimulationStrategy), nullable=False)
     status: Mapped[SimulationStatus] = mapped_column(
-        Enum(SimulationStatus), nullable=False, default=SimulationStatus.PENDING
+        Enum(SimulationStatus), nullable=False, default=SimulationStatus.PENDING, index=True
     )
 
     # File references (GCS)

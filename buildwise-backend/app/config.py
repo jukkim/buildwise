@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # Database
+    # Database — override via DATABASE_URL env var or .env file for production
     database_url: str = "postgresql+asyncpg://buildwise:buildwise_dev@localhost:5432/buildwise"
 
     # Redis
@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     # App
     debug: bool = False
     log_level: str = "INFO"
+
+    # CORS
+    cors_origins: str = ""
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

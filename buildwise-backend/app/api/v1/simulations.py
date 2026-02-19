@@ -12,9 +12,15 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import get_current_user
 from app.db import get_db
 from app.models.project import Building
-from app.models.simulation import SimulationConfig, SimulationRun, SimulationStatus, SimulationStrategy
+from app.models.simulation import SimulationConfig, SimulationStatus
 from app.models.user import User, UserPlan
 from app.schemas.api import SimulationProgressResponse, SimulationRunResponse, SimulationStart
+from app.services.simulation.service import (
+    CITY_EPW_MAP,
+    cancel_simulation_runs,
+    create_simulation,
+    get_simulation_progress,
+)
 
 # Plan-based simulation limits (configs per month)
 _PLAN_LIMITS: dict[str, int] = {
@@ -24,20 +30,6 @@ _PLAN_LIMITS: dict[str, int] = {
 }
 
 router = APIRouter()
-
-# City → EPW file mapping
-_CITY_EPW: dict[str, str] = {
-    "Seoul": "KOR_Seoul.Ws.108.epw",
-    "Busan": "KOR_Busan.159.epw",
-    "Daegu": "KOR_Daegu.143.epw",
-    "Daejeon": "KOR_Daejeon.133.epw",
-    "Gwangju": "KOR_Gwangju.156.epw",
-    "Incheon": "KOR_Incheon.112.epw",
-    "Gangneung": "KOR_Gangneung.105.epw",
-    "Jeju": "KOR_Jeju.184.epw",
-    "Cheongju": "KOR_Cheongju.131.epw",
-    "Ulsan": "KOR_Ulsan.152.epw",
-}
 
 
 @router.post("", response_model=SimulationProgressResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -66,34 +58,21 @@ async def start_simulation(
     if building is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Building not found")
 
-    # Determine strategies
-    strategies = body.strategies or [s.value for s in SimulationStrategy]
-
-    # Determine EPW file
-    epw_file = _CITY_EPW.get(body.climate_city, "KOR_Seoul.Ws.108.epw")
-
-    # Create config
-    config = SimulationConfig(
-        building_id=body.building_id,
-        climate_city=body.climate_city,
-        epw_file=epw_file,
-        period_type=body.period_type,
-        strategies=strategies,
-    )
-    db.add(config)
-    await db.flush()
-
-    # Create runs for each strategy
-    runs = []
-    for strategy_str in strategies:
-        run = SimulationRun(
-            config_id=config.id,
-            strategy=SimulationStrategy(strategy_str),
-            status=SimulationStatus.PENDING,
+    # Validate climate city
+    if body.climate_city not in CITY_EPW_MAP:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unsupported climate city: {body.climate_city}. Supported: {list(CITY_EPW_MAP.keys())}",
         )
-        db.add(run)
-        runs.append(run)
-    await db.flush()
+
+    # Delegate to service layer (handles strategy filtering via BPS validator)
+    config = await create_simulation(
+        db=db,
+        building=building,
+        climate_city=body.climate_city,
+        period_type=body.period_type,
+        requested_strategies=body.strategies,
+    )
 
     # Increment monthly simulation counter
     user.simulation_count_monthly += 1
@@ -104,14 +83,14 @@ async def start_simulation(
 
     return {
         "config_id": config.id,
-        "total_strategies": len(strategies),
+        "total_strategies": len(config.runs),
         "completed": 0,
         "running": 0,
         "failed": 0,
         "runs": [
-            SimulationRunResponse.model_validate(r) for r in runs
+            SimulationRunResponse.model_validate(r) for r in config.runs
         ],
-        "estimated_remaining_seconds": len(strategies) * 300,  # rough estimate
+        "estimated_remaining_seconds": len(config.runs) * 300,
     }
 
 
@@ -179,18 +158,8 @@ async def cancel_simulation(
     if config is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Simulation not found")
 
-    cancelled = 0
-    for run in config.runs:
-        if run.status in (SimulationStatus.PENDING, SimulationStatus.QUEUED, SimulationStatus.RUNNING):
-            run.status = SimulationStatus.CANCELLED
-            cancelled += 1
-            # Revoke Celery task if we have the task ID
-            if run.runner_id:
-                try:
-                    from app.worker import celery_app
-                    celery_app.control.revoke(run.runner_id, terminate=True, signal="SIGTERM")
-                except Exception:
-                    pass  # Best-effort revocation
-
+    # Delegate to service layer (handles status update + Celery revocation)
+    cancelled = await cancel_simulation_runs(config)
     await db.flush()
+
     return {"message": f"Cancelled {cancelled} runs"}
