@@ -143,10 +143,18 @@ export default function Results() {
     );
   };
 
+  const STRATEGY_COLORS: Record<string, string> = {
+    baseline: "#6B7280",
+    M0: "#3B82F6", M1: "#10B981", M2: "#F59E0B", M3: "#EF4444",
+    M4: "#8B5CF6", M5: "#EC4899", M6: "#14B8A6", M7: "#F97316", M8: "#6366F1",
+  };
+
   const euiChartData = allStrategies.map((s) => ({
     strategy: STRATEGY_LABELS[s.strategy] ?? s.strategy,
     "EUI (kWh/m2)": Number(s.eui_kwh_m2.toFixed(1)),
-    fill: s.strategy === comparison.recommended_strategy ? "#059669" : "#3B82F6",
+    fill: s.strategy === comparison.recommended_strategy
+      ? "#059669"
+      : STRATEGY_COLORS[s.strategy] ?? "#3B82F6",
   }));
 
   const breakdownChartData = allStrategies
@@ -462,18 +470,18 @@ export default function Results() {
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
               {([
-                ["strategy", "Strategy", "text-left"],
-                ["eui", "EUI (kWh/m\u00B2)", "text-right"],
-                ["total", "Total (kWh)", "text-right"],
-                ["hvac", "HVAC (kWh)", "text-right"],
-                ["savings", "Savings (%)", "text-right"],
-                ["cost", "Cost (KRW)", "text-right"],
-                ["cost_savings", "Savings (KRW)", "text-right"],
-              ] as [SortKey, string, string][]).map(([key, label, align]) => (
+                ["strategy", "Strategy", "text-left", ""],
+                ["eui", "EUI (kWh/m\u00B2)", "text-right", ""],
+                ["total", "Total (kWh)", "text-right", "hidden sm:table-cell"],
+                ["hvac", "HVAC (kWh)", "text-right", "hidden md:table-cell"],
+                ["savings", "Savings (%)", "text-right", ""],
+                ["cost", "Cost (KRW)", "text-right", "hidden lg:table-cell"],
+                ["cost_savings", "Savings (KRW)", "text-right", "hidden sm:table-cell"],
+              ] as [SortKey, string, string, string][]).map(([key, label, align, responsive]) => (
                 <th
                   key={key}
                   onClick={() => toggleSort(key)}
-                  className={`${key === "strategy" ? "sticky left-0 bg-gray-50 " : ""}px-4 py-3 ${align} font-medium text-gray-600 cursor-pointer select-none hover:text-gray-900`}
+                  className={`${key === "strategy" ? "sticky left-0 bg-gray-50 " : ""}${responsive ? responsive + " " : ""}px-4 py-3 ${align} font-medium text-gray-600 cursor-pointer select-none hover:text-gray-900`}
                 >
                   {label}<SortIcon col={key} />
                 </th>
@@ -519,10 +527,10 @@ export default function Results() {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-right text-gray-600">
+                  <td className="hidden sm:table-cell px-4 py-3 text-right text-gray-600">
                     {s.total_energy_kwh.toLocaleString()}
                   </td>
-                  <td className="px-4 py-3 text-right text-gray-600">
+                  <td className="hidden md:table-cell px-4 py-3 text-right text-gray-600">
                     {s.hvac_energy_kwh != null ? s.hvac_energy_kwh.toLocaleString() : "-"}
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -540,10 +548,10 @@ export default function Results() {
                       </div>
                     ) : "-"}
                   </td>
-                  <td className="px-4 py-3 text-right text-gray-600">
+                  <td className="hidden lg:table-cell px-4 py-3 text-right text-gray-600">
                     {s.annual_cost_krw != null ? `${s.annual_cost_krw.toLocaleString()}` : "-"}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="hidden sm:table-cell px-4 py-3 text-right">
                     {s.annual_savings_krw != null && s.annual_savings_krw > 0 ? (
                       <span className="text-green-600 font-medium">
                         {s.annual_savings_krw.toLocaleString()}

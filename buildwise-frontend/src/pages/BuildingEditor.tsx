@@ -348,7 +348,18 @@ export default function BuildingEditor() {
           <div className="rounded-lg border border-gray-200 bg-white p-5">
             <h3 className="mb-3 font-semibold text-gray-800">Simulation History</h3>
             {!history || history.length === 0 ? (
-              <p className="text-sm text-gray-400">No simulations yet.</p>
+              <div className="text-center py-4">
+                <svg className="mx-auto h-8 w-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <p className="mt-2 text-sm text-gray-400">No simulations yet</p>
+                <button
+                  onClick={() => { setSimCity(locationCity); setShowSimDialog(true); }}
+                  className="mt-2 rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                >
+                  Run First Simulation
+                </button>
+              </div>
             ) : (
               <div className="space-y-2">
                 {history.map((item: SimulationHistoryItem) => {
