@@ -22,6 +22,7 @@ export default function SimulationProgress() {
   const queryClient = useQueryClient();
   const hasAutoNavigated = useRef(false);
   const [elapsed, setElapsed] = useState(0);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const { data: progress, isLoading, isError, refetch } = useQuery({
     queryKey: ["simulation-progress", configId],
@@ -193,14 +194,34 @@ export default function SimulationProgress() {
             View Results
           </Link>
         )}
-        {hasRunning && !allDone && (
+        {hasRunning && !allDone && !showCancelConfirm && (
           <button
-            onClick={() => cancelMutation.mutate()}
-            disabled={cancelMutation.isPending}
-            className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+            onClick={() => setShowCancelConfirm(true)}
+            className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
           >
-            {cancelMutation.isPending ? "Cancelling..." : "Cancel Simulation"}
+            Cancel Simulation
           </button>
+        )}
+        {showCancelConfirm && (
+          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2">
+            <span className="text-sm text-red-600">Cancel all running strategies?</span>
+            <button
+              onClick={() => {
+                cancelMutation.mutate();
+                setShowCancelConfirm(false);
+              }}
+              disabled={cancelMutation.isPending}
+              className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {cancelMutation.isPending ? "Cancelling..." : "Yes, Cancel"}
+            </button>
+            <button
+              onClick={() => setShowCancelConfirm(false)}
+              className="rounded border border-gray-300 px-3 py-1 text-xs text-gray-600 hover:bg-white"
+            >
+              No
+            </button>
+          </div>
         )}
       </div>
 

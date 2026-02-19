@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
@@ -38,6 +38,13 @@ export default function Results() {
   const [sortKey, setSortKey] = useState<SortKey>("strategy");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setShowScrollTop(window.scrollY > 400);
+    window.addEventListener("scroll", handler, { passive: true });
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
 
   const { data: comparison, isLoading, isError, refetch } = useQuery({
     queryKey: ["results", configId],
@@ -511,6 +518,19 @@ export default function Results() {
           </tbody>
         </table>
       </div>
+
+      {/* Scroll to top */}
+      {showScrollTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="fixed bottom-6 right-6 z-40 rounded-full bg-blue-600 p-3 text-white shadow-lg hover:bg-blue-700 print:hidden transition-opacity"
+          title="Scroll to top"
+        >
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }

@@ -40,6 +40,7 @@ export default function BuildingEditor() {
   const [simCity, setSimCity] = useState("Seoul");
   const [simPeriod, setSimPeriod] = useState("1year");
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
+  const [viewer3dFullscreen, setViewer3dFullscreen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const simDialogRef = useRef<HTMLDivElement>(null);
 
@@ -359,6 +360,9 @@ export default function BuildingEditor() {
                         <span className="font-medium text-gray-800">
                           {item.climate_city}
                         </span>
+                        <span className="text-xs text-gray-400">
+                          {PERIODS.find((p) => p.value === item.period_type)?.label ?? item.period_type}
+                        </span>
                         <span className="text-gray-400">
                           {item.completed}/{item.total}
                         </span>
@@ -386,12 +390,32 @@ export default function BuildingEditor() {
           </div>
 
           {/* 3D Building Viewer */}
-          <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+          <div className={viewer3dFullscreen
+            ? "fixed inset-0 z-50 bg-white flex flex-col"
+            : "rounded-lg border border-gray-200 bg-white overflow-hidden"
+          }>
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
               <h3 className="font-semibold text-gray-800">3D Preview</h3>
-              <span className="text-xs text-gray-400">Drag to rotate</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">Drag to rotate</span>
+                <button
+                  onClick={() => setViewer3dFullscreen((v) => !v)}
+                  className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                  title={viewer3dFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                >
+                  {viewer3dFullscreen ? (
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  ) : (
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             </div>
-            <div className="h-[320px]">
+            <div className={viewer3dFullscreen ? "flex-1" : "h-[320px]"}>
               <Suspense fallback={<div className="flex h-full items-center justify-center text-gray-400">Loading 3D...</div>}>
                 <BuildingViewer3D
                   geometry={bps.geometry as BuildingViewerProps["geometry"]}
