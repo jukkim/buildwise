@@ -252,6 +252,11 @@ export default function SimulationProgress() {
               <span className="font-medium text-gray-900">
                 {STRATEGY_LABELS[run.strategy] ?? run.strategy}
               </span>
+              {run.completed_at && (
+                <span className="ml-2 text-xs text-gray-300" title={new Date(run.completed_at).toLocaleString()}>
+                  {new Date(run.completed_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              )}
               {run.duration_seconds != null && (
                 <span className="ml-3 text-xs text-gray-400">
                   {run.duration_seconds >= 60

@@ -134,7 +134,8 @@ export default function BuildingEditor() {
               <input
                 type="text"
                 value={nameValue}
-                onChange={(e) => setNameValue(e.target.value)}
+                onChange={(e) => setNameValue(e.target.value.slice(0, 50))}
+                maxLength={50}
                 className="rounded border border-blue-300 px-2 py-1 text-2xl font-bold"
                 autoFocus
                 onKeyDown={(e) => {
@@ -142,6 +143,7 @@ export default function BuildingEditor() {
                   if (e.key === "Escape") setEditingName(false);
                 }}
               />
+              <span className="text-xs text-gray-400">{nameValue.length}/50</span>
               <button
                 onClick={() => renameMutation.mutate(nameValue)}
                 disabled={!nameValue.trim() || renameMutation.isPending}

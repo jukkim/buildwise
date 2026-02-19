@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { projectsApi, type Project } from "@/api/client";
@@ -22,6 +22,19 @@ export default function Dashboard() {
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "name">("newest");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [bannerDismissed, setBannerDismissed] = useState(() => localStorage.getItem("buildwise_banner_dismissed") === "1");
+  const showCreateRef = useRef(setShowCreate);
+  showCreateRef.current = setShowCreate;
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "n" && !e.ctrlKey && !e.metaKey && !e.altKey
+        && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
+        showCreateRef.current(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ["projects"],
@@ -122,8 +135,10 @@ export default function Dashboard() {
         <button
           onClick={() => setShowCreate(true)}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          title="Press N to quick-create"
         >
           New Project
+          <kbd className="ml-2 hidden sm:inline rounded bg-blue-500 px-1 py-0.5 text-xs font-mono">N</kbd>
         </button>
       </div>
 
