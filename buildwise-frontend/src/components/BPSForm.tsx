@@ -268,15 +268,20 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
         {activeSection === "geometry" && (
           <>
             <NumField label="Floors Above" value={draft.geometry.num_floors_above as number} min={1} max={100}
-              onChange={(v) => update("geometry", "num_floors_above", v)} error={getFieldError("geometry", "num_floors_above")} />
+              onChange={(v) => update("geometry", "num_floors_above", v)} error={getFieldError("geometry", "num_floors_above")}
+              hint="Number of above-ground floors" />
             <NumField label="Total Floor Area (m2)" value={draft.geometry.total_floor_area_m2 as number} min={100} max={500000}
-              onChange={(v) => update("geometry", "total_floor_area_m2", v)} error={getFieldError("geometry", "total_floor_area_m2")} />
+              onChange={(v) => update("geometry", "total_floor_area_m2", v)} error={getFieldError("geometry", "total_floor_area_m2")}
+              hint="Gross floor area including all floors" />
             <NumField label="Floor-to-Floor Height (m)" value={draft.geometry.floor_to_floor_height_m as number} min={2.5} max={10} step={0.1}
-              onChange={(v) => update("geometry", "floor_to_floor_height_m", v)} />
+              onChange={(v) => update("geometry", "floor_to_floor_height_m", v)}
+              hint="Typical: 3.5-4.0m for offices" />
             <NumField label="Aspect Ratio" value={draft.geometry.aspect_ratio as number} min={0.5} max={5} step={0.1}
-              onChange={(v) => update("geometry", "aspect_ratio", v)} />
+              onChange={(v) => update("geometry", "aspect_ratio", v)}
+              hint="Length/width ratio of building footprint" />
             <NumField label="WWR" value={draft.geometry.wwr as number} min={0} max={0.95} step={0.01}
-              onChange={(v) => update("geometry", "wwr", v)} error={getFieldError("geometry", "wwr")} />
+              onChange={(v) => update("geometry", "wwr", v)} error={getFieldError("geometry", "wwr")}
+              hint="Window-to-Wall Ratio (0.0-0.95)" />
             <NumField label="Orientation (deg)" value={draft.geometry.orientation_deg as number} min={0} max={360}
               onChange={(v) => update("geometry", "orientation_deg", v)} />
           </>
@@ -448,15 +453,19 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
 // --- Field components ---
 
 function NumField({
-  label, value, min, max, step = 1, unit, onChange, error,
+  label, value, min, max, step = 1, unit, onChange, error, hint,
 }: {
   label: string; value: number; min: number; max: number; step?: number; unit?: string;
-  onChange: (v: number) => void; error?: string;
+  onChange: (v: number) => void; error?: string; hint?: string;
 }) {
   return (
     <div>
       <div className="flex items-center justify-between gap-4">
-        <label className="text-sm text-gray-600 min-w-[160px]">{label}</label>
+        <label className="text-sm text-gray-600 min-w-[160px]" title={hint}>{label}
+          {hint && (
+            <span className="ml-1 inline-block text-gray-300 cursor-help" title={hint}>?</span>
+          )}
+        </label>
         <div className="flex items-center gap-2">
           <input
             type="number"
