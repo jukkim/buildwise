@@ -21,7 +21,7 @@ import { simulationsApi, type EnergyResult } from "@/api/client";
 import { Skeleton } from "@/components/Skeleton";
 import { showToast } from "@/components/Toast";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
-import { STRATEGY_LABELS } from "@/constants/strategies";
+import { STRATEGY_LABELS, STRATEGY_DESCRIPTIONS } from "@/constants/strategies";
 import Breadcrumb from "@/components/Breadcrumb";
 
 type SortKey = "strategy" | "eui" | "total" | "hvac" | "savings" | "cost" | "cost_savings";
@@ -591,7 +591,7 @@ export default function Results() {
                 >
                   <td className={`sticky left-0 px-4 py-3 font-medium text-gray-900 ${isRecommended ? "bg-green-50" : isWorst ? "bg-red-50/50" : "bg-white group-hover:bg-gray-50"}`}>
                     <span className="mr-2 text-xs text-gray-400">#{rowIdx + 1}</span>
-                    {STRATEGY_LABELS[s.strategy] ?? s.strategy}
+                    <span title={STRATEGY_DESCRIPTIONS[s.strategy] ?? ""}>{STRATEGY_LABELS[s.strategy] ?? s.strategy}</span>
                     {isRecommended && (
                       <span className="ml-2 rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-700">
                         Best

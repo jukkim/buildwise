@@ -526,6 +526,7 @@ export default function ProjectDetail() {
             const area = bps?.geometry?.total_floor_area_m2;
             const floors = bps?.geometry?.num_floors_above;
             const hvac = bps?.hvac?.system_type as string;
+            const city = bps?.location?.city as string | undefined;
 
             return (
               <div
@@ -548,6 +549,15 @@ export default function ProjectDetail() {
                       {area != null && <span>{Number(area).toLocaleString()} m2</span>}
                       {hvac && (
                         <span>{HVAC_LABELS[hvac] ?? hvac}</span>
+                      )}
+                      {city && (
+                        <span className="flex items-center gap-0.5">
+                          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          {city}
+                        </span>
                       )}
                       <span>v{b.bps_version}</span>
                       <span title={new Date(b.updated_at).toLocaleString()}>{timeAgo(b.updated_at)}</span>

@@ -229,11 +229,20 @@ export default function Settings() {
               a.download = `buildwise-account-${new Date().toISOString().slice(0, 10)}.json`;
               a.click();
               URL.revokeObjectURL(url);
+              localStorage.setItem("buildwise_last_export", new Date().toISOString());
             }}
             className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
             Export Account Data
           </button>
+          {(() => {
+            const lastExport = localStorage.getItem("buildwise_last_export");
+            return lastExport ? (
+              <span className="text-xs text-gray-400 self-center">
+                Last export: {new Date(lastExport).toLocaleDateString()}
+              </span>
+            ) : null;
+          })()}
           <button
             onClick={() => {
               localStorage.removeItem("buildwise_banner_dismissed");

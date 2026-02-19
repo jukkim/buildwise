@@ -272,8 +272,9 @@ export default function BuildingEditor() {
                 </select>
               </div>
 
-              <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-500">
-                All available strategies (baseline + M0~M8) will be simulated in parallel.
+              <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-500 space-y-1">
+                <p>All available strategies (baseline + M0~M8) will be simulated in parallel.</p>
+                <p className="text-gray-400">Estimated time: ~2-5 minutes depending on building complexity.</p>
               </div>
             </div>
 
