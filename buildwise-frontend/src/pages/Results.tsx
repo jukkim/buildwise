@@ -585,6 +585,19 @@ export default function Results() {
         </table>
       </div>
 
+      {/* Table summary */}
+      {comparison.baseline && comparison.recommended_strategy && (() => {
+        const best = allStrategies.find((s) => s.strategy === comparison.recommended_strategy);
+        if (!best || !best.savings_pct) return null;
+        return (
+          <p className="mt-3 text-sm text-gray-500 text-center">
+            <span className="font-medium text-green-600">{STRATEGY_LABELS[best.strategy] ?? best.strategy}</span>
+            {" "}saves {best.savings_pct.toFixed(1)}% energy vs baseline
+            {best.annual_savings_krw ? ` (${(best.annual_savings_krw / 10000).toFixed(0)}만원/yr)` : ""}
+          </p>
+        );
+      })()}
+
       {/* Scroll to top */}
       {showScrollTop && (
         <button

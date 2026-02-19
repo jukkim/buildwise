@@ -279,7 +279,7 @@ export default function Dashboard() {
           {projects.map((p: Project) => (
             <div
               key={p.id}
-              className={`group relative rounded-lg border border-gray-200 bg-white hover:shadow-md transition-shadow ${
+              className={`group relative rounded-lg border border-gray-200 bg-white hover:shadow-md hover:border-blue-300 transition-all ${
                 viewMode === "list" ? "flex items-center justify-between px-5 py-3" : "p-5"
               }`}
             >

@@ -381,7 +381,7 @@ export default function BuildingEditor() {
               </div>
             ) : (
               <div className="space-y-2">
-                {history.map((item: SimulationHistoryItem) => {
+                {[...history].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5).map((item: SimulationHistoryItem) => {
                   const done = item.completed + item.failed >= item.total;
                   const hasFailed = item.failed > 0;
                   const isRunning = !done;
@@ -424,6 +424,11 @@ export default function BuildingEditor() {
                     </div>
                   );
                 })}
+                {history.length > 5 && (
+                  <p className="text-center text-xs text-gray-400 pt-1">
+                    Showing latest 5 of {history.length} simulations
+                  </p>
+                )}
               </div>
             )}
           </div>
