@@ -381,7 +381,14 @@ export default function Results() {
           onClick={() => setCollapsed((c) => ({ ...c, eui: !c.eui }))}
           className="flex w-full items-center justify-between p-5 text-left"
         >
-          <h3 className="font-semibold text-gray-800">Energy Use Intensity (EUI)</h3>
+          <h3 className="font-semibold text-gray-800">
+            Energy Use Intensity (EUI)
+            {comparison.recommended_strategy && (
+              <span className="ml-2 text-xs font-normal text-green-600">
+                ★ {STRATEGY_LABELS[comparison.recommended_strategy] ?? comparison.recommended_strategy} recommended
+              </span>
+            )}
+          </h3>
           <svg className={`h-5 w-5 text-gray-400 transition-transform ${collapsed.eui ? "" : "rotate-180"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>

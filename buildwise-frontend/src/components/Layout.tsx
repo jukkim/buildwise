@@ -114,7 +114,7 @@ export default function Layout() {
                 key={link.to}
                 to={link.to}
                 onClick={() => setMobileOpen(false)}
-                className={`flex items-center gap-2 rounded px-3 py-2 text-sm ${pathname.startsWith(link.to) ? "bg-blue-50 font-semibold text-blue-600" : "text-gray-700 hover:bg-gray-100"}`}
+                className={`flex items-center gap-2 rounded px-3 py-2 text-sm transition-colors ${pathname.startsWith(link.to) ? "bg-blue-50 font-semibold text-blue-600" : "text-gray-700 hover:bg-gray-100"}`}
               >
                 {link.icon}
                 {link.label}

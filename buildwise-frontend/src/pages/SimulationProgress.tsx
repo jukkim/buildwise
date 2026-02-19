@@ -170,6 +170,17 @@ export default function SimulationProgress() {
             Elapsed: {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}
           </span>
         )}
+        {allDone && (() => {
+          const starts = progress.runs.filter((r) => r.started_at).map((r) => new Date(r.started_at!).getTime());
+          const ends = progress.runs.filter((r) => r.completed_at).map((r) => new Date(r.completed_at!).getTime());
+          if (starts.length === 0 || ends.length === 0) return null;
+          const totalSec = Math.round((Math.max(...ends) - Math.min(...starts)) / 1000);
+          return (
+            <span className="text-gray-500">
+              Total time: {totalSec >= 60 ? `${Math.floor(totalSec / 60)}m ${totalSec % 60}s` : `${totalSec}s`}
+            </span>
+          );
+        })()}
         {progress.estimated_remaining_seconds && !allDone && (
           <span className="text-gray-500">
             ~{Math.ceil(progress.estimated_remaining_seconds / 60)} min remaining
