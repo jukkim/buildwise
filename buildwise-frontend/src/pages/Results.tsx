@@ -234,6 +234,15 @@ export default function Results() {
         { label: "Results" },
       ]} />
 
+      {/* Print-only header */}
+      <div className="hidden print:block mb-4 border-b border-gray-300 pb-3">
+        <h1 className="text-xl font-bold">BuildWise Energy Report</h1>
+        <p className="text-sm text-gray-600">
+          {comparison.building_name} &middot; {comparison.building_type.replace(/_/g, " ")} &middot; {comparison.climate_city}
+          &middot; Generated {new Date().toLocaleDateString()}
+        </p>
+      </div>
+
       <div className="mt-2 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">

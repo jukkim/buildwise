@@ -68,6 +68,12 @@ export default function Settings() {
             <dd className="text-sm font-medium text-gray-900">{user?.email}</dd>
           </div>
           <div className="flex justify-between">
+            <dt className="text-sm text-gray-500">User ID</dt>
+            <dd className="text-sm font-mono text-gray-400">
+              {user?.id ? `${user.id.slice(0, 8)}...${user.id.slice(-4)}` : "-"}
+            </dd>
+          </div>
+          <div className="flex justify-between">
             <dt className="text-sm text-gray-500">Member Since</dt>
             <dd className="text-sm font-medium text-gray-900">
               {user?.created_at ? new Date(user.created_at).toLocaleDateString() : "-"}

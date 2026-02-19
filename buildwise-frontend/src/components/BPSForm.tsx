@@ -372,13 +372,17 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
         {activeSection === "setpoints" && (
           <>
             <NumField label="Cooling (Occupied)" value={draft.setpoints.cooling_occupied as number} min={18} max={30} step={0.5}
-              onChange={(v) => update("setpoints", "cooling_occupied", v)} unit="°C" error={getFieldError("setpoints", "cooling_occupied")} />
+              onChange={(v) => update("setpoints", "cooling_occupied", v)} unit="°C" error={getFieldError("setpoints", "cooling_occupied")}
+              hint="Typical office: 24-26°C" />
             <NumField label="Heating (Occupied)" value={draft.setpoints.heating_occupied as number} min={15} max={25} step={0.5}
-              onChange={(v) => update("setpoints", "heating_occupied", v)} unit="°C" />
+              onChange={(v) => update("setpoints", "heating_occupied", v)} unit="°C"
+              hint="Typical office: 20-22°C" />
             <NumField label="Cooling (Unoccupied)" value={draft.setpoints.cooling_unoccupied as number} min={25} max={35} step={0.5}
-              onChange={(v) => update("setpoints", "cooling_unoccupied", v)} unit="°C" error={getFieldError("setpoints", "cooling_unoccupied")} />
+              onChange={(v) => update("setpoints", "cooling_unoccupied", v)} unit="°C" error={getFieldError("setpoints", "cooling_unoccupied")}
+              hint="Setback during unoccupied hours" />
             <NumField label="Heating (Unoccupied)" value={draft.setpoints.heating_unoccupied as number} min={10} max={20} step={0.5}
-              onChange={(v) => update("setpoints", "heating_unoccupied", v)} unit="°C" />
+              onChange={(v) => update("setpoints", "heating_unoccupied", v)} unit="°C"
+              hint="Setback during unoccupied hours" />
           </>
         )}
         </>

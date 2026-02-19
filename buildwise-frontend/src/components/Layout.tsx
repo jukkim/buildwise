@@ -60,6 +60,7 @@ export default function Layout() {
           <div className="flex h-16 items-center justify-between">
             <Link to="/projects" className="flex items-center gap-2">
               <span className="text-xl font-bold text-blue-600">BuildWise</span>
+              <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 uppercase tracking-wider">Beta</span>
             </Link>
 
             {/* Desktop nav */}
