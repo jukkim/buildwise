@@ -41,6 +41,7 @@ export default function Results() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [selectedRow, setSelectedRow] = useState<string | null>(null);
+  const [allExpanded, setAllExpanded] = useState(true);
 
   useEffect(() => {
     const handler = () => setShowScrollTop(window.scrollY > 400);
@@ -360,8 +361,22 @@ export default function Results() {
         </div>
       )}
 
+      {/* Expand/Collapse All */}
+      <div className="mt-6 flex justify-end print:hidden">
+        <button
+          onClick={() => {
+            const next = !allExpanded;
+            setAllExpanded(next);
+            setCollapsed(next ? {} : { eui: true, radar: true, breakdown: true });
+          }}
+          className="text-xs text-gray-400 hover:text-gray-600"
+        >
+          {allExpanded ? "Collapse All Charts" : "Expand All Charts"}
+        </button>
+      </div>
+
       {/* EUI Chart */}
-      <div className="mt-6 rounded-lg border border-gray-200 bg-white">
+      <div className="mt-2 rounded-lg border border-gray-200 bg-white">
         <button
           onClick={() => setCollapsed((c) => ({ ...c, eui: !c.eui }))}
           className="flex w-full items-center justify-between p-5 text-left"

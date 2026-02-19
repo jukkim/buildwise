@@ -249,6 +249,106 @@ export default function Dashboard() {
           <CardSkeleton />
           <CardSkeleton />
         </div>
+      ) : debouncedSearch && projects.length > 0 ? (
+        <>
+          <p className="mb-3 text-xs text-gray-400">
+            Showing {projects.length} of {allProjects.length} project{allProjects.length !== 1 ? "s" : ""}
+          </p>
+          <div className={viewMode === "grid" ? "grid gap-4 sm:grid-cols-2 lg:grid-cols-3" : "space-y-2"}>
+            {projects.map((p: Project) => (
+              <div
+                key={p.id}
+                className={`group relative rounded-lg border border-gray-200 bg-white hover:shadow-md hover:border-blue-300 transition-all ${
+                  viewMode === "list" ? "flex items-center justify-between px-5 py-3" : "p-5"
+                }`}
+              >
+                {/* Action buttons */}
+                <div className={`${viewMode === "list" ? "flex" : "absolute right-3 top-3 hidden group-hover:flex group-focus-within:flex"} gap-1 ${viewMode === "grid" ? "" : "shrink-0 ml-3"}`}>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setEditingId(p.id);
+                      setEditName(p.name);
+                    }}
+                    className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                    title="Rename"
+                    aria-label={`Rename ${p.name}`}
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setDeletingId(p.id);
+                    }}
+                    className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                    title="Delete"
+                    aria-label={`Delete ${p.name}`}
+                  >
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+
+                {editingId === p.id ? (
+                  <div className={viewMode === "list" ? "flex-1" : ""}>
+                    <input
+                      type="text"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="w-full rounded border border-blue-300 px-2 py-1 text-sm font-semibold"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && editName.trim()) {
+                          updateMutation.mutate({ id: p.id, name: editName });
+                        }
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                    />
+                    <div className="mt-2 flex gap-1">
+                      <button
+                        onClick={() => updateMutation.mutate({ id: p.id, name: editName })}
+                        disabled={!editName.trim() || updateMutation.isPending}
+                        className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setEditingId(null)}
+                        className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <Link to={`/projects/${p.id}`} className={`rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${viewMode === "list" ? "flex-1 flex items-center gap-4 min-w-0" : ""}`}>
+                    <h3 className={`font-semibold text-gray-900 ${viewMode === "list" ? "truncate" : ""}`}>{p.name}</h3>
+                    {p.description && (
+                      <p className={`text-sm text-gray-500 ${viewMode === "grid" ? "mt-1 line-clamp-2" : "hidden sm:block truncate max-w-xs"}`}>
+                        {p.description}
+                      </p>
+                    )}
+                    <div className={`flex items-center gap-3 text-xs text-gray-400 ${viewMode === "grid" ? "mt-3" : ""}`}>
+                      <span className="flex items-center gap-1">
+                        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                        {p.buildings_count} building{p.buildings_count !== 1 ? "s" : ""}
+                      </span>
+                      <span title={new Date(p.updated_at).toLocaleString()}>
+                        Updated {timeAgo(p.updated_at)}
+                      </span>
+                    </div>
+                  </Link>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
       ) : projects.length === 0 && debouncedSearch ? (
         <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
           <p className="text-sm text-gray-500">No projects matching "{debouncedSearch}"</p>

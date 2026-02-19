@@ -205,6 +205,7 @@ export default function Settings() {
                 exportedAt: new Date().toISOString(),
                 user: user ?? null,
                 usage: usage ?? null,
+                plans: plans ?? null,
               };
               const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
               const url = URL.createObjectURL(blob);
