@@ -57,7 +57,7 @@ export default function ConfirmDialog({
       aria-labelledby="confirm-title"
       onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
     >
-      <div ref={dialogRef} className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+      <div ref={dialogRef} className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl animate-fade-in-scale">
         <div className="flex gap-3">
           {destructive && (
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
@@ -584,8 +584,8 @@ export default function Results() {
                 : null;
               const isSelected = selectedRow === s.strategy;
               return (
+                <Fragment key={s.strategy}>
                 <tr
-                  key={s.strategy}
                   onClick={() => setSelectedRow(isSelected ? null : s.strategy)}
                   className={`cursor-pointer transition-colors ${isSelected ? "ring-2 ring-blue-400 ring-inset" : ""} ${isRecommended ? "bg-green-50" : isWorst ? "bg-red-50/50" : "hover:bg-gray-50"}`}
                 >
@@ -659,6 +659,45 @@ export default function Results() {
                     ) : "-"}
                   </td>
                 </tr>
+                {isSelected && (
+                  <tr className="bg-blue-50/50">
+                    <td colSpan={7} className="px-6 py-3">
+                      <div className="flex flex-wrap gap-6 text-xs text-gray-600">
+                        {s.cooling_energy_kwh != null && (
+                          <div>
+                            <span className="text-gray-400">Cooling</span>
+                            <p className="font-medium">{(s.cooling_energy_kwh / 1000).toFixed(1)} MWh</p>
+                          </div>
+                        )}
+                        {s.heating_energy_kwh != null && (
+                          <div>
+                            <span className="text-gray-400">Heating</span>
+                            <p className="font-medium">{(s.heating_energy_kwh / 1000).toFixed(1)} MWh</p>
+                          </div>
+                        )}
+                        {s.fan_energy_kwh != null && (
+                          <div>
+                            <span className="text-gray-400">Fan</span>
+                            <p className="font-medium">{(s.fan_energy_kwh / 1000).toFixed(1)} MWh</p>
+                          </div>
+                        )}
+                        {s.peak_demand_kw != null && (
+                          <div>
+                            <span className="text-gray-400">Peak Demand</span>
+                            <p className="font-medium">{s.peak_demand_kw.toFixed(1)} kW</p>
+                          </div>
+                        )}
+                        {s.total_energy_kwh != null && (
+                          <div>
+                            <span className="text-gray-400">Total</span>
+                            <p className="font-medium">{(s.total_energy_kwh / 1000).toFixed(1)} MWh</p>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               );
             });
             })()}

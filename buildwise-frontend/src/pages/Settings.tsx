@@ -76,7 +76,14 @@ export default function Settings() {
           <div className="flex justify-between">
             <dt className="text-sm text-gray-500">Member Since</dt>
             <dd className="text-sm font-medium text-gray-900">
-              {user?.created_at ? new Date(user.created_at).toLocaleDateString() : "-"}
+              {user?.created_at ? (
+                <>
+                  {new Date(user.created_at).toLocaleDateString()}
+                  <span className="ml-1 text-gray-400 font-normal">
+                    ({Math.floor((Date.now() - new Date(user.created_at).getTime()) / 86400000)}d ago)
+                  </span>
+                </>
+              ) : "-"}
             </dd>
           </div>
         </dl>
