@@ -109,7 +109,16 @@ export default function Dashboard() {
 
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-800">Projects</h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-semibold text-gray-800">Projects</h2>
+          {bannerDismissed && allProjects.length > 0 && (
+            <div className="flex items-center gap-3 text-sm text-gray-500">
+              <span>{allProjects.length} project{allProjects.length !== 1 ? "s" : ""}</span>
+              <span className="text-gray-300">|</span>
+              <span>{totalBuildings} building{totalBuildings !== 1 ? "s" : ""}</span>
+            </div>
+          )}
+        </div>
         <button
           onClick={() => setShowCreate(true)}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"

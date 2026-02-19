@@ -198,6 +198,25 @@ export default function Results() {
     showToast("Table copied to clipboard", "success");
   };
 
+  const copySummary = () => {
+    const best = comparison.recommended_strategy
+      ? allStrategies.find((s) => s.strategy === comparison.recommended_strategy)
+      : null;
+    const lines = [
+      `BuildWise Results: ${comparison.building_name}`,
+      `Building: ${comparison.building_type.replace(/_/g, " ")} | City: ${comparison.climate_city}`,
+      `Strategies compared: ${allStrategies.length}`,
+      best
+        ? `Recommended: ${STRATEGY_LABELS[best.strategy] ?? best.strategy} (EUI ${best.eui_kwh_m2.toFixed(1)} kWh/m², ${best.savings_pct?.toFixed(1) ?? 0}% savings)`
+        : "",
+      comparison.baseline
+        ? `Baseline EUI: ${comparison.baseline.eui_kwh_m2.toFixed(1)} kWh/m²`
+        : "",
+    ].filter(Boolean);
+    navigator.clipboard.writeText(lines.join("\n"));
+    showToast("Summary copied", "success");
+  };
+
   return (
     <div>
       <Breadcrumb items={[
@@ -226,6 +245,13 @@ export default function Results() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
+          <button
+            onClick={copySummary}
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:px-4 sm:py-2"
+            title="Copy text summary of results"
+          >
+            Summary
+          </button>
           <button
             onClick={() => {
               navigator.clipboard.writeText(window.location.href);

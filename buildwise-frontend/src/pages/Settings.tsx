@@ -181,6 +181,23 @@ export default function Settings() {
           </div>
         </section>
       )}
+      {/* Keyboard Shortcuts */}
+      <section className="rounded-lg border border-gray-200 bg-white p-6 mt-6">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Keyboard Shortcuts</h2>
+        <div className="space-y-2 text-sm">
+          {([
+            ["Ctrl + S", "Save BPS changes (in Building Editor)"],
+            ["Enter", "Submit forms / confirm actions"],
+            ["Escape", "Close dialogs / cancel editing"],
+            ["Tab", "Navigate between interactive elements"],
+          ] as [string, string][]).map(([key, desc]) => (
+            <div key={key} className="flex items-center justify-between">
+              <span className="text-gray-600">{desc}</span>
+              <kbd className="rounded bg-gray-100 px-2 py-0.5 text-xs font-mono text-gray-700 border border-gray-200">{key}</kbd>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

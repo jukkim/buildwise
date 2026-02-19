@@ -15,6 +15,7 @@ import { showToast } from "@/components/Toast";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import useDebounce from "@/hooks/useDebounce";
 import timeAgo from "@/utils/timeAgo";
+import Breadcrumb from "@/components/Breadcrumb";
 
 const HVAC_LABELS: Record<string, string> = {
   vav_chiller_boiler: "VAV + Chiller/Boiler",
@@ -164,9 +165,10 @@ export default function ProjectDetail() {
   return (
     <div>
       <div className="mb-6">
-        <Link to="/projects" className="text-sm text-blue-600 hover:underline">
-          &larr; Projects
-        </Link>
+        <Breadcrumb items={[
+          { label: "Projects", to: "/projects" },
+          { label: project.name },
+        ]} />
 
         <div className="mt-2 flex items-center gap-3">
           {editingName ? (
