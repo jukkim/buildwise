@@ -316,7 +316,6 @@ export default function Results() {
               <p className="mt-1 text-lg font-bold text-green-800">
                 {STRATEGY_LABELS[comparison.recommended_strategy] ?? comparison.recommended_strategy}
               </p>
-              <p className="text-xs text-green-500">{comparison.recommendation_reason}</p>
             </div>
             <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
               <p className="text-xs text-gray-500">Energy Savings</p>
@@ -340,6 +339,16 @@ export default function Results() {
           </div>
         );
       })()}
+
+      {/* Recommendation reason */}
+      {comparison.recommendation_reason && (
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-green-100 bg-green-50/50 px-4 py-3">
+          <svg className="mt-0.5 h-4 w-4 shrink-0 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-sm text-green-700">{comparison.recommendation_reason}</p>
+        </div>
+      )}
 
       {/* EUI Chart */}
       <div className="mt-6 rounded-lg border border-gray-200 bg-white">

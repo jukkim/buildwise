@@ -260,9 +260,20 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
 
       <div className="p-5 space-y-4">
         {jsonView ? (
-          <pre className="max-h-96 overflow-auto rounded bg-gray-50 p-3 text-xs text-gray-700 font-mono leading-relaxed">
-            {JSON.stringify(draft, null, 2)}
-          </pre>
+          <div className="relative">
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(JSON.stringify(draft, null, 2));
+              }}
+              className="absolute right-2 top-2 rounded bg-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-300"
+              title="Copy JSON to clipboard"
+            >
+              Copy
+            </button>
+            <pre className="max-h-96 overflow-auto rounded bg-gray-50 p-3 text-xs text-gray-700 font-mono leading-relaxed">
+              {JSON.stringify(draft, null, 2)}
+            </pre>
+          </div>
         ) : (
         <>
         {activeSection === "geometry" && (

@@ -146,8 +146,9 @@ export default function SimulationProgress() {
       <div className="mb-4">
         <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
           <span>
-            {progress.completed} completed, {progress.failed > 0 ? `${progress.failed} failed, ` : ""}
-            {progress.total_strategies} total
+            {progress.completed} of {progress.total_strategies} strategies completed
+            {progress.failed > 0 && <span className="text-red-500"> ({progress.failed} failed)</span>}
+            {progress.running > 0 && <span className="text-blue-500"> &middot; {progress.running} running</span>}
           </span>
           <span>{pct}%</span>
         </div>
