@@ -269,10 +269,19 @@ export default function SimulationProgress() {
                 </span>
               )}
               {run.duration_seconds != null && (
-                <span className="ml-3 text-xs text-gray-400">
+                <span className="ml-3 inline-flex items-center gap-1 text-xs text-gray-400">
                   {run.duration_seconds >= 60
                     ? `${Math.floor(run.duration_seconds / 60)}m ${run.duration_seconds % 60}s`
                     : `${run.duration_seconds}s`}
+                  {(() => {
+                    const maxDur = Math.max(...progress.runs.filter((r) => r.duration_seconds != null).map((r) => r.duration_seconds!));
+                    const pct = maxDur > 0 ? (run.duration_seconds! / maxDur) * 100 : 0;
+                    return (
+                      <span className="hidden sm:inline-block w-10 h-1 rounded-full bg-gray-200 overflow-hidden">
+                        <span className="block h-full rounded-full bg-gray-400" style={{ width: `${pct}%` }} />
+                      </span>
+                    );
+                  })()}
                 </span>
               )}
             </div>

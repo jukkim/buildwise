@@ -645,6 +645,25 @@ export default function Results() {
             });
             })()}
           </tbody>
+          <tfoot className="bg-gray-50 border-t border-gray-200">
+            {(() => {
+              const nonBaseline = allStrategies.filter((s) => s.strategy !== "baseline");
+              if (nonBaseline.length === 0) return null;
+              const avgEui = nonBaseline.reduce((sum, s) => sum + s.eui_kwh_m2, 0) / nonBaseline.length;
+              const avgSavings = nonBaseline.filter((s) => s.savings_pct != null).reduce((sum, s) => sum + (s.savings_pct ?? 0), 0) / (nonBaseline.filter((s) => s.savings_pct != null).length || 1);
+              return (
+                <tr className="text-xs text-gray-500">
+                  <td className="sticky left-0 bg-gray-50 px-4 py-2 font-medium">Average (strategies)</td>
+                  <td className="px-4 py-2 text-right">{avgEui.toFixed(1)}</td>
+                  <td className="hidden sm:table-cell px-4 py-2 text-right">-</td>
+                  <td className="hidden md:table-cell px-4 py-2 text-right">-</td>
+                  <td className="px-4 py-2 text-right">{avgSavings > 0 ? `-${avgSavings.toFixed(1)}%` : `${avgSavings.toFixed(1)}%`}</td>
+                  <td className="hidden lg:table-cell px-4 py-2 text-right">-</td>
+                  <td className="hidden sm:table-cell px-4 py-2 text-right">-</td>
+                </tr>
+              );
+            })()}
+          </tfoot>
         </table>
       </div>
 
