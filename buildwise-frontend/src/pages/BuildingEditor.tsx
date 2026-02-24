@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   buildingsApi,
+  projectsApi,
   simulationsApi,
   type SimulationHistoryItem,
 } from "@/api/client";
@@ -13,13 +14,9 @@ import { type BuildingViewerProps } from "@/components/BuildingViewer3D";
 import { Skeleton } from "@/components/Skeleton";
 import timeAgo from "@/utils/timeAgo";
 import Breadcrumb from "@/components/Breadcrumb";
+import { CITIES } from "@/constants/cities";
 
 const BuildingViewer3D = lazy(() => import("@/components/BuildingViewer3D"));
-
-const CITIES = [
-  "Seoul", "Busan", "Daegu", "Daejeon", "Gwangju",
-  "Incheon", "Gangneung", "Jeju", "Cheongju", "Ulsan",
-];
 
 const PERIODS = [
   { value: "1year", label: "Full Year" },
@@ -40,6 +37,10 @@ export default function BuildingEditor() {
   const [showSimDialog, setShowSimDialog] = useState(false);
   const [simCity, setSimCity] = useState("Seoul");
   const [simPeriod, setSimPeriod] = useState("1year");
+  const [multiCityMode, setMultiCityMode] = useState(false);
+  const [selectedCities, setSelectedCities] = useState<Set<string>>(new Set());
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareSelected, setCompareSelected] = useState<Set<string>>(new Set());
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [viewer3dFullscreen, setViewer3dFullscreen] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
@@ -55,6 +56,12 @@ export default function BuildingEditor() {
   });
 
   useDocumentTitle(building?.name ?? "Building");
+
+  const { data: project } = useQuery({
+    queryKey: ["project", projectId],
+    queryFn: () => projectsApi.get(projectId!).then((r) => r.data),
+    enabled: !!projectId,
+  });
 
   const { data: history } = useQuery({
     queryKey: ["building-simulations", buildingId],
@@ -101,6 +108,18 @@ export default function BuildingEditor() {
       navigate(`/simulations/${res.data.config_id}/progress`);
     },
     onError: () => showToast("Failed to start simulation"),
+  });
+
+  const batchMutation = useMutation({
+    mutationFn: () =>
+      simulationsApi.startBatch(buildingId!, [...selectedCities], simPeriod),
+    onSuccess: (res) => {
+      setShowSimDialog(false);
+      showToast(`${res.data.total_configs} simulations started`, "success");
+      const ids = res.data.config_ids.join(",");
+      navigate(`/compare/progress?configs=${ids}`);
+    },
+    onError: () => showToast("Failed to start batch simulation"),
   });
 
   if (isLoading || !building) return (
@@ -156,7 +175,7 @@ export default function BuildingEditor() {
       )}
       <Breadcrumb items={[
         { label: "Projects", to: "/projects" },
-        { label: "Project", to: `/projects/${projectId}` },
+        { label: project?.name ?? "Project", to: `/projects/${projectId}` },
         { label: building.name },
       ]} />
 
@@ -193,7 +212,7 @@ export default function BuildingEditor() {
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-gray-900">{building.name}</h1>
+              <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">{building.name}</h1>
               <button
                 onClick={() => { setEditingName(true); setNameValue(building.name); }}
                 className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
@@ -259,7 +278,7 @@ export default function BuildingEditor() {
               setSimCity(locationCity);
               setShowSimDialog(true);
             }}
-            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 sm:px-5 sm:py-2.5"
+            className="rounded-lg bg-gradient-to-r from-green-600 to-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30 hover:from-green-500 hover:to-emerald-400 active:scale-[0.98] sm:px-6 sm:py-3"
           >
             <span className="hidden sm:inline">Run </span>Simulate
           </button>
@@ -279,18 +298,85 @@ export default function BuildingEditor() {
             </p>
 
             <div className="mt-4 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Climate City</label>
-                <select
-                  value={simCity}
-                  onChange={(e) => setSimCity(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              {/* Multi-city toggle */}
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-gray-700">Multi-City Compare</label>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={multiCityMode}
+                  onClick={() => {
+                    setMultiCityMode((v) => !v);
+                    if (!multiCityMode) setSelectedCities(new Set([locationCity]));
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${multiCityMode ? "bg-green-600" : "bg-gray-300"}`}
                 >
-                  {CITIES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${multiCityMode ? "translate-x-6" : "translate-x-1"}`} />
+                </button>
               </div>
+
+              {multiCityMode ? (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-gray-700">
+                      Select Cities ({selectedCities.size}/10)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedCities(
+                          selectedCities.size === CITIES.length
+                            ? new Set([locationCity])
+                            : new Set(CITIES),
+                        )
+                      }
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      {selectedCities.size === CITIES.length ? "Deselect All" : "Select All"}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {CITIES.map((c) => (
+                      <label
+                        key={c}
+                        className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors ${
+                          selectedCities.has(c)
+                            ? "border-green-300 bg-green-50 text-green-800"
+                            : "border-gray-200 hover:bg-gray-50 text-gray-700"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedCities.has(c)}
+                          onChange={() => {
+                            setSelectedCities((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(c)) next.delete(c);
+                              else next.add(c);
+                              return next;
+                            });
+                          }}
+                          className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                        />
+                        {c}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Climate City</label>
+                  <select
+                    value={simCity}
+                    onChange={(e) => setSimCity(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  >
+                    {CITIES.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Simulation Period</label>
@@ -307,7 +393,11 @@ export default function BuildingEditor() {
 
               <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-500 space-y-1">
                 <p>All available strategies (baseline + M0~M8) will be simulated in parallel.</p>
-                <p className="text-gray-400">Estimated time: ~2-5 minutes depending on building complexity.</p>
+                <p className="text-gray-400">
+                  {multiCityMode
+                    ? `${selectedCities.size} cities × all strategies. Uses ${selectedCities.size} simulation credits.`
+                    : "Estimated time: ~2-5 minutes depending on building complexity."}
+                </p>
               </div>
             </div>
 
@@ -318,13 +408,25 @@ export default function BuildingEditor() {
               >
                 Cancel
               </button>
-              <button
-                onClick={() => simMutation.mutate()}
-                disabled={simMutation.isPending}
-                className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-              >
-                {simMutation.isPending ? "Starting..." : "Start Simulation"}
-              </button>
+              {multiCityMode ? (
+                <button
+                  onClick={() => batchMutation.mutate()}
+                  disabled={batchMutation.isPending || selectedCities.size < 2}
+                  className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  {batchMutation.isPending
+                    ? "Starting..."
+                    : `Start ${selectedCities.size} Simulations`}
+                </button>
+              ) : (
+                <button
+                  onClick={() => simMutation.mutate()}
+                  disabled={simMutation.isPending}
+                  className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  {simMutation.isPending ? "Starting..." : "Start Simulation"}
+                </button>
+              )}
             </div>
           </div>
         </SimDialogPortal>
@@ -368,7 +470,7 @@ export default function BuildingEditor() {
         {/* Right column */}
         <div className="space-y-6">
           {/* Quick summary */}
-          <div className="rounded-lg border border-gray-200 bg-white">
+          <div className="rounded-xl bg-white shadow-sm">
             <button
               onClick={() => setSummaryCollapsed((v) => !v)}
               className="flex w-full items-center justify-between p-5 text-left"
@@ -424,8 +526,36 @@ export default function BuildingEditor() {
           </div>
 
           {/* Simulation history */}
-          <div className="rounded-lg border border-gray-200 bg-white p-5">
-            <h3 className="mb-3 font-semibold text-gray-800">Simulation History</h3>
+          <div className="rounded-xl bg-white shadow-sm p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-800">Simulation History</h3>
+              {history && history.filter((h) => h.completed + h.failed >= h.total && h.completed > 0).length >= 2 && (
+                <button
+                  onClick={() => setCompareMode((v) => { if (!v) setCompareSelected(new Set()); return !v; })}
+                  className={`text-xs font-medium px-2.5 py-1 rounded-lg transition-colors ${
+                    compareMode
+                      ? "bg-blue-100 text-blue-700"
+                      : "text-blue-600 hover:bg-blue-50"
+                  }`}
+                >
+                  {compareMode ? "Cancel" : "Compare Cities"}
+                </button>
+              )}
+            </div>
+            {compareMode && compareSelected.size >= 2 && (
+              <div className="mb-3 flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const ids = [...compareSelected].join(",");
+                    navigate(`/compare?configs=${ids}`);
+                  }}
+                  className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                >
+                  Compare {compareSelected.size} Cities
+                </button>
+                <span className="text-xs text-gray-400">Select 2+ completed simulations</span>
+              </div>
+            )}
             {!history || history.length === 0 ? (
               <div className="text-center py-4">
                 <svg className="mx-auto h-8 w-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -445,17 +575,34 @@ export default function BuildingEditor() {
                   const done = item.completed + item.failed >= item.total;
                   const hasFailed = item.failed > 0;
                   const isRunning = !done;
+                  const isCompletedOk = done && item.completed > 0;
                   return (
                     <div
                       key={item.config_id}
                       className="flex items-center justify-between rounded border border-gray-100 px-3 py-2"
                     >
                       <div className="text-sm flex items-center gap-2">
-                        <span className={`inline-block h-2 w-2 rounded-full shrink-0 ${
-                          hasFailed && done ? "bg-yellow-400" :
-                          done ? "bg-green-400" :
-                          "bg-blue-400 animate-pulse"
-                        }`} />
+                        {compareMode && isCompletedOk ? (
+                          <input
+                            type="checkbox"
+                            checked={compareSelected.has(item.config_id)}
+                            onChange={() => {
+                              setCompareSelected((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(item.config_id)) next.delete(item.config_id);
+                                else next.add(item.config_id);
+                                return next;
+                              });
+                            }}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                        ) : (
+                          <span className={`inline-block h-2 w-2 rounded-full shrink-0 ${
+                            hasFailed && done ? "bg-yellow-400" :
+                            done ? "bg-green-400" :
+                            "bg-blue-400 animate-pulse"
+                          }`} />
+                        )}
                         <span className="font-medium text-gray-800">
                           {item.climate_city}
                         </span>
@@ -503,7 +650,7 @@ export default function BuildingEditor() {
           {/* 3D Building Viewer */}
           <div className={viewer3dFullscreen
             ? "fixed inset-0 z-50 bg-white flex flex-col"
-            : "rounded-lg border border-gray-200 bg-white overflow-hidden"
+            : "rounded-xl bg-white shadow-sm overflow-hidden"
           }>
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
               <h3 className="font-semibold text-gray-800">3D Preview</h3>

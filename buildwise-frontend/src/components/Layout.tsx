@@ -1,12 +1,19 @@
-import { useState, useEffect } from "react";
-import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import useScrollToTop from "@/hooks/useScrollToTop";
+import useAuth from "@/auth/useAuth";
 
 export default function Layout() {
   useScrollToTop();
-  const navigate = useNavigate();
   const { pathname } = useLocation();
-  const userName = localStorage.getItem("buildwise_user_name") ?? "User";
+  const mainRef = useRef<HTMLElement>(null);
+
+  // Move focus to main content after route change for screen readers
+  useEffect(() => {
+    mainRef.current?.focus({ preventScroll: true });
+  }, [pathname]);
+  const { user, logout } = useAuth();
+  const userName = user?.name || localStorage.getItem("buildwise_user_name") || "User";
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -16,11 +23,7 @@ export default function Layout() {
     return () => window.removeEventListener("scroll", handler);
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("buildwise_user_id");
-    localStorage.removeItem("buildwise_user_name");
-    navigate("/login");
-  };
+  const handleLogout = () => logout();
 
   const navLinks = [
     {
@@ -45,7 +48,7 @@ export default function Layout() {
   ];
 
   return (
-    <div className="flex min-h-screen flex-col bg-gray-50">
+    <div className="flex min-h-screen flex-col">
       {/* Skip to content (keyboard accessibility) */}
       <a
         href="#main-content"
@@ -54,32 +57,42 @@ export default function Layout() {
         Skip to content
       </a>
 
-      {/* Navbar */}
-      <nav className={`sticky top-0 z-30 bg-white border-b border-gray-200 transition-shadow ${scrolled ? "shadow-sm" : ""}`}>
+      {/* Navbar — dark branded header */}
+      <nav className={`sticky top-0 z-30 bg-gradient-to-r from-gray-900 to-slate-800 transition-shadow ${scrolled ? "shadow-lg shadow-black/10" : ""}`}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            <Link to="/projects" className="flex items-center gap-2">
-              <span className="text-xl font-bold text-blue-600">BuildWise</span>
-              <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 uppercase tracking-wider">Beta</span>
+          <div className="flex h-14 items-center justify-between">
+            <Link to="/projects" className="flex items-center gap-2.5">
+              {/* Logo mark */}
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500">
+                <svg className="h-4.5 w-4.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <span className="text-lg font-bold text-white tracking-tight">BuildWise</span>
+              <span className="rounded-full bg-blue-500/20 px-2 py-0.5 text-[10px] font-medium text-blue-300 uppercase tracking-wider">Beta</span>
             </Link>
 
             {/* Desktop nav */}
-            <div className="hidden sm:flex items-center gap-4">
+            <div className="hidden sm:flex items-center gap-1">
               {navLinks.map((link) => (
                 <Link
                   key={link.to}
                   to={link.to}
-                  className={`flex items-center gap-1.5 text-sm py-1 border-b-2 ${pathname.startsWith(link.to) ? "font-semibold text-blue-600 border-blue-600" : "text-gray-600 hover:text-gray-900 border-transparent"}`}
+                  className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm transition-colors ${
+                    pathname.startsWith(link.to)
+                      ? "bg-white/10 font-medium text-white"
+                      : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+                  }`}
                 >
                   {link.icon}
                   {link.label}
                 </Link>
               ))}
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <span>{userName}</span>
+              <div className="ml-4 flex items-center gap-3 border-l border-white/10 pl-4">
+                <span className="text-sm text-gray-400">{userName}</span>
                 <button
                   onClick={handleLogout}
-                  className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                  className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
                 >
                   Sign Out
                 </button>
@@ -88,48 +101,52 @@ export default function Layout() {
 
             {/* Mobile current page + hamburger */}
             <div className="flex sm:hidden items-center gap-2">
-              <span className="text-sm font-medium text-gray-600">
+              <span className="text-sm font-medium text-gray-300">
                 {navLinks.find((l) => pathname.startsWith(l.to))?.label ?? ""}
               </span>
-            <button
-              onClick={() => setMobileOpen(!mobileOpen)}
-              className="rounded p-2 text-gray-500 hover:bg-gray-100"
-              aria-label={mobileOpen ? "Close menu" : "Open menu"}
-              aria-expanded={mobileOpen}
-            >
-              {mobileOpen ? (
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              ) : (
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              )}
-            </button>
+              <button
+                onClick={() => setMobileOpen(!mobileOpen)}
+                className="rounded-lg p-2 text-gray-400 hover:bg-white/10 hover:text-white"
+                aria-label={mobileOpen ? "Close menu" : "Open menu"}
+                aria-expanded={mobileOpen}
+              >
+                {mobileOpen ? (
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                ) : (
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                )}
+              </button>
             </div>
           </div>
         </div>
 
         {/* Mobile menu */}
         {mobileOpen && (
-          <div className="sm:hidden border-t border-gray-200 bg-white px-4 py-3 space-y-2">
+          <div className="sm:hidden border-t border-white/10 bg-gray-900/95 backdrop-blur px-4 py-3 space-y-1">
             {navLinks.map((link) => (
               <Link
                 key={link.to}
                 to={link.to}
                 onClick={() => setMobileOpen(false)}
-                className={`flex items-center gap-2 rounded px-3 py-2 text-sm transition-colors ${pathname.startsWith(link.to) ? "bg-blue-50 font-semibold text-blue-600" : "text-gray-700 hover:bg-gray-100"}`}
+                className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                  pathname.startsWith(link.to)
+                    ? "bg-white/10 font-medium text-white"
+                    : "text-gray-400 hover:bg-white/5 hover:text-white"
+                }`}
               >
                 {link.icon}
                 {link.label}
               </Link>
             ))}
-            <div className="flex items-center justify-between border-t border-gray-100 pt-2 mt-2">
-              <span className="text-sm text-gray-500">{userName}</span>
+            <div className="flex items-center justify-between border-t border-white/10 pt-3 mt-2">
+              <span className="text-sm text-gray-400">{userName}</span>
               <button
                 onClick={handleLogout}
-                className="rounded border border-gray-300 px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50"
+                className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-400 hover:bg-white/10 hover:text-white"
               >
                 Sign Out
               </button>
@@ -139,7 +156,7 @@ export default function Layout() {
       </nav>
 
       {/* Content */}
-      <main id="main-content" className="mx-auto max-w-7xl flex-1 px-4 py-6 sm:py-8 sm:px-6 lg:px-8 w-full">
+      <main ref={mainRef} id="main-content" tabIndex={-1} className="mx-auto max-w-7xl flex-1 px-4 py-6 sm:py-8 sm:px-6 lg:px-8 w-full animate-fade-in outline-none">
         <Outlet />
       </main>
 

@@ -1,0 +1,150 @@
+! ============================================================================
+! M2: Free Cooling / Night Pre-Cooling (외기 냉방 + 야간 축냉)
+! IdealLoadsAirSystem compatible — Zone Temperature Control actuators only
+!
+! Strategy:
+! 1. Night pre-cooling: When OAT is favorable (15-25C, below zone temp),
+!    lower cooling setpoint to pre-cool building mass
+! 2. Daytime OAT optimization: When OAT is in economizer range (15-26C),
+!    allow slightly lower cooling setpoint to leverage cool outdoor air
+! 3. This approximates the energy savings of a real economizer/night vent
+!    system using IdealLoads setpoint control
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    M2_OAT_Sensor,
+    Environment,
+    Site Outdoor Air Drybulb Temperature;
+
+{% for zone in zones %}
+EnergyManagementSystem:Sensor,
+    M2_{{ zone.name }}_Temp,
+    {{ zone.name }},
+    Zone Mean Air Temperature;
+
+{% endfor %}
+
+! --- Actuators ---
+{% for zone in zones %}
+EnergyManagementSystem:Actuator,
+    M2_{{ zone.name }}_Cool_SP,
+    {{ zone.name }},
+    Zone Temperature Control,
+    Cooling Setpoint;
+
+EnergyManagementSystem:Actuator,
+    M2_{{ zone.name }}_Heat_SP,
+    {{ zone.name }},
+    Zone Temperature Control,
+    Heating Setpoint;
+
+{% endfor %}
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    M2_Night_Precool_Active,
+    M2_Day_Economizer_Active,
+    M2_Avg_Zone_Temp;
+
+! --- Program ---
+EnergyManagementSystem:Program,
+    M2_Free_Cooling_Program,
+    ! Configuration
+    SET CoolSP = {{ cooling_setpoint | default(24.0) }},
+    SET HeatSP = {{ heating_setpoint | default(20.0) }},
+    SET OccStart = {{ occupancy_start | default(9) }},
+    SET OccEnd = {{ occupancy_end | default(18) }},
+    SET NightCoolTarget = {{ night_cool_target | default(21.0) }},
+    SET MinOAT = 15.0,
+    SET MaxOAT = 26.0,
+    !
+    SET CurrentHour = Hour,
+    SET CurrentDay = DayOfWeek,
+    SET M2_Night_Precool_Active = 0,
+    SET M2_Day_Economizer_Active = 0,
+    !
+    ! Weekend: schedule values
+    IF CurrentDay == 1 || CurrentDay == 7,
+{% for zone in zones %}
+        SET M2_{{ zone.name }}_Cool_SP = NULL,
+        SET M2_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+        RETURN,
+    ENDIF,
+    !
+    ! Calculate average zone temperature
+    SET M2_Avg_Zone_Temp = 0,
+{% for zone in zones %}
+    SET M2_Avg_Zone_Temp = M2_Avg_Zone_Temp + M2_{{ zone.name }}_Temp,
+{% endfor %}
+    SET M2_Avg_Zone_Temp = M2_Avg_Zone_Temp / {{ zones | length }},
+    !
+    ! === Night Pre-Cooling (22:00-06:00) ===
+    IF (CurrentHour >= 22) || (CurrentHour < 6),
+        ! Check OAT is in favorable range and below zone temp
+        IF M2_OAT_Sensor >= MinOAT && M2_OAT_Sensor <= 25.0,
+            IF M2_OAT_Sensor < M2_Avg_Zone_Temp,
+                ! Night pre-cooling active: lower cooling setpoint
+                SET M2_Night_Precool_Active = 1,
+{% for zone in zones %}
+                SET M2_{{ zone.name }}_Cool_SP = NightCoolTarget,
+                SET M2_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+                RETURN,
+            ENDIF,
+        ENDIF,
+        ! OAT not favorable: schedule values
+{% for zone in zones %}
+        SET M2_{{ zone.name }}_Cool_SP = NULL,
+        SET M2_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+        RETURN,
+    ENDIF,
+    !
+    ! === Daytime OAT Optimization (during occupied hours) ===
+    IF CurrentHour >= OccStart && CurrentHour < OccEnd,
+        ! When OAT is in economizer range, allow slightly lower setpoint
+        IF M2_OAT_Sensor >= MinOAT && M2_OAT_Sensor <= MaxOAT,
+            IF M2_OAT_Sensor < M2_Avg_Zone_Temp,
+                SET M2_Day_Economizer_Active = 1,
+{% for zone in zones %}
+                SET M2_{{ zone.name }}_Cool_SP = CoolSP - 1.0,
+                SET M2_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+                RETURN,
+            ENDIF,
+        ENDIF,
+    ENDIF,
+    !
+    ! Default: schedule values
+{% for zone in zones %}
+    SET M2_{{ zone.name }}_Cool_SP = NULL,
+    SET M2_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+    ;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    M2_Free_Cooling_Manager,
+    BeginTimestepBeforePredictor,
+    M2_Free_Cooling_Program;
+
+! --- Output Variables ---
+EnergyManagementSystem:OutputVariable,
+    M2 Night Precool Active,
+    M2_Night_Precool_Active,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    M2 Day Economizer Active,
+    M2_Day_Economizer_Active,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    M2 Avg Zone Temp,
+    M2_Avg_Zone_Temp,
+    Averaged,
+    ZoneTimeStep;

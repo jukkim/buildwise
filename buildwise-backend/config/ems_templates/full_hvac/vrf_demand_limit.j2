@@ -59,7 +59,7 @@ EnergyManagementSystem:Program,
     SET HighTempThreshold = {{ high_temp | default(33) }},
     !
     ! Current time
-    SET CurrentHour = CurrentTime,
+    SET CurrentHour = Hour,
     !
     ! Calculate total VRF power
     SET Total_VRF_Power = VRF_GF_Power + VRF_MF_Power + VRF_TF_Power,

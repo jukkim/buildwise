@@ -55,7 +55,7 @@ EnergyManagementSystem:Program,
     SET MaxStartAdvance = {{ max_start_advance | default(2.0) }},
     !
     ! Current time and day
-    SET CurrentHour = CurrentTime,
+    SET CurrentHour = Hour,
     SET CurrentDay = DayOfWeek,
     !
     ! Weekend check (1=Sunday, 7=Saturday)

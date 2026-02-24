@@ -12,13 +12,13 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 
-class ProjectStatus(str, enum.Enum):
+class ProjectStatus(enum.StrEnum):
     ACTIVE = "active"
     ARCHIVED = "archived"
     DELETED = "deleted"
 
 
-class BuildingType(str, enum.Enum):
+class BuildingType(enum.StrEnum):
     LARGE_OFFICE = "large_office"
     MEDIUM_OFFICE = "medium_office"
     SMALL_OFFICE = "small_office"
@@ -36,12 +36,14 @@ class Project(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     status: Mapped[ProjectStatus] = mapped_column(
-        Enum(ProjectStatus), nullable=False, default=ProjectStatus.ACTIVE
+        Enum(ProjectStatus, values_callable=lambda obj: [e.value for e in obj]),
+        nullable=False,
+        default=ProjectStatus.ACTIVE,
     )
 
     # Relationships
-    user: Mapped["User"] = relationship(back_populates="projects")
-    buildings: Mapped[list["Building"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    user: Mapped[User] = relationship(back_populates="projects")
+    buildings: Mapped[list[Building]] = relationship(back_populates="project", cascade="all, delete-orphan")
 
 
 class Building(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -51,15 +53,17 @@ class Building(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    building_type: Mapped[BuildingType] = mapped_column(Enum(BuildingType), nullable=False)
+    building_type: Mapped[BuildingType] = mapped_column(
+        Enum(BuildingType, values_callable=lambda obj: [e.value for e in obj]), nullable=False
+    )
     bps_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
     bps_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     model_3d_url: Mapped[str | None] = mapped_column(Text)
     thumbnail_url: Mapped[str | None] = mapped_column(Text)
 
     # Relationships
-    project: Mapped["Project"] = relationship(back_populates="buildings")
-    simulation_configs: Mapped[list["SimulationConfig"]] = relationship(
+    project: Mapped[Project] = relationship(back_populates="buildings")
+    simulation_configs: Mapped[list[SimulationConfig]] = relationship(
         back_populates="building", cascade="all, delete-orphan"
     )
 

@@ -14,7 +14,6 @@ from app.models.base import Base  # noqa: E402
 from app.models.project import Building, BuildingType, Project  # noqa: E402
 from app.models.user import User, UserPlan  # noqa: E402
 
-
 # --- Demo BPS data (from templates) ---
 
 DEMO_BUILDINGS = [
@@ -48,7 +47,11 @@ DEMO_BUILDINGS = [
                 "ahu": {"count": 3, "has_economizer": True},
                 "vav_terminals": {"reheat_type": "hot_water", "min_airflow_ratio": 0.30},
             },
-            "internal_loads": {"people_density": 0.0565, "lighting_power_density": 10.76, "equipment_power_density": 10.76},
+            "internal_loads": {
+                "people_density": 0.0565,
+                "lighting_power_density": 10.76,
+                "equipment_power_density": 10.76,
+            },
             "schedules": {"occupancy_type": "office_standard"},
             "setpoints": {"cooling_occupied": 24.0, "heating_occupied": 20.0},
             "simulation": {"period": "1year", "timestep": 4},
@@ -81,7 +84,11 @@ DEMO_BUILDINGS = [
                 "autosize": True,
                 "vrf_outdoor_units": {"count": 3, "cop_cooling": 4.0, "cop_heating": 3.5, "heat_recovery": True},
             },
-            "internal_loads": {"people_density": 0.0565, "lighting_power_density": 10.76, "equipment_power_density": 10.76},
+            "internal_loads": {
+                "people_density": 0.0565,
+                "lighting_power_density": 10.76,
+                "equipment_power_density": 10.76,
+            },
             "schedules": {"occupancy_type": "office_standard"},
             "setpoints": {"cooling_occupied": 24.0, "heating_occupied": 20.0},
             "simulation": {"period": "1year", "timestep": 4},
@@ -114,7 +121,11 @@ DEMO_BUILDINGS = [
                 "autosize": True,
                 "psz_units": {"count": 4, "cop_cooling": 3.67, "cop_heating": 3.2, "has_economizer": True},
             },
-            "internal_loads": {"people_density": 0.15, "lighting_power_density": 15.07, "equipment_power_density": 3.23},
+            "internal_loads": {
+                "people_density": 0.15,
+                "lighting_power_density": 15.07,
+                "equipment_power_density": 3.23,
+            },
             "schedules": {"occupancy_type": "retail"},
             "setpoints": {"cooling_occupied": 24.0, "heating_occupied": 21.0},
             "simulation": {"period": "1year", "timestep": 4},

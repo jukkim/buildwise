@@ -6,8 +6,28 @@ const api = axios.create({
   timeout: 30_000,
 });
 
-// MVP: inject user ID header for dev auth
-api.interceptors.request.use((config) => {
+// Auth interceptor: inject Bearer token (Auth0) or X-User-Id (dev mode)
+// The access token getter is set by AuthProvider when Auth0 is active
+let _getAccessToken: (() => Promise<string | null>) | null = null;
+
+export function setAccessTokenGetter(fn: () => Promise<string | null>) {
+  _getAccessToken = fn;
+}
+
+api.interceptors.request.use(async (config) => {
+  // Skip auth for /auth/config endpoint
+  if (config.url?.endsWith("/auth/config")) return config;
+
+  // Try Auth0 Bearer token first
+  if (_getAccessToken) {
+    const token = await _getAccessToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+      return config;
+    }
+  }
+
+  // Fallback: dev mode X-User-Id
   const userId = localStorage.getItem("buildwise_user_id");
   if (userId) {
     config.headers["X-User-Id"] = userId;
@@ -15,11 +35,28 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response error interceptor
+// Response error interceptor — retry token refresh once on 401
+let _isRefreshing = false;
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  async (error) => {
+    if (error.response?.status === 401 && !_isRefreshing) {
+      // Try silent token refresh before redirecting
+      if (_getAccessToken) {
+        _isRefreshing = true;
+        try {
+          const newToken = await _getAccessToken();
+          if (newToken && error.config) {
+            error.config.headers.Authorization = `Bearer ${newToken}`;
+            return api.request(error.config);
+          }
+        } catch {
+          // refresh failed — fall through to redirect
+        } finally {
+          _isRefreshing = false;
+        }
+      }
       localStorage.removeItem("buildwise_user_id");
       localStorage.removeItem("buildwise_user_name");
       window.location.href = "/login";
@@ -105,6 +142,17 @@ export interface SimulationRun {
   duration_seconds: number | null;
 }
 
+export interface MonthlyEnergyPoint {
+  month: string;
+  cooling: number;
+  heating: number;
+  fan: number;
+  pump: number;
+  lighting: number;
+  equipment: number;
+  total: number;
+}
+
 export interface EnergyResult {
   strategy: string;
   total_energy_kwh: number;
@@ -112,11 +160,16 @@ export interface EnergyResult {
   cooling_energy_kwh: number | null;
   heating_energy_kwh: number | null;
   fan_energy_kwh: number | null;
+  pump_energy_kwh: number | null;
+  lighting_energy_kwh: number | null;
+  equipment_energy_kwh: number | null;
   eui_kwh_m2: number;
   peak_demand_kw: number | null;
   savings_pct: number | null;
   annual_cost_krw: number | null;
   annual_savings_krw: number | null;
+  monthly_profile: MonthlyEnergyPoint[] | null;
+  is_mock?: boolean;
 }
 
 export interface StrategyComparison {
@@ -227,11 +280,39 @@ export const authApi = {
   me: () => api.get<UserInfo>("/auth/me"),
 };
 
+export interface SimulationBatchResponse {
+  config_ids: string[];
+  total_configs: number;
+}
+
+// ---- AI types ----
+
+export interface NLParseResponse {
+  name: string;
+  building_type: string;
+  bps: Record<string, unknown>;
+  confidence: number;
+  extracted_params: string[];
+  default_params: string[];
+  warnings: string[];
+}
+
+export const aiApi = {
+  parseBuilding: (text: string) =>
+    api.post<NLParseResponse>("/ai/parse-building", { text }, { timeout: 60_000 }),
+};
+
 export const simulationsApi = {
   start: (buildingId: string, climateCity = "Seoul", periodType = "1year") =>
     api.post<SimulationProgress>("/simulations", {
       building_id: buildingId,
       climate_city: climateCity,
+      period_type: periodType,
+    }),
+  startBatch: (buildingId: string, climateCities: string[], periodType = "1year") =>
+    api.post<SimulationBatchResponse>("/simulations/batch", {
+      building_id: buildingId,
+      climate_cities: climateCities,
       period_type: periodType,
     }),
   progress: (configId: string) =>

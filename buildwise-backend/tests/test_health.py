@@ -1,5 +1,7 @@
 """Health endpoint tests."""
 
+import os
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -15,4 +17,6 @@ async def test_health():
     data = resp.json()
     assert data["status"] == "ok"
     assert data["service"] == "buildwise-api"
-    assert data["version"] == "0.1.0"
+    # version is only included in debug mode
+    if os.environ.get("DEBUG", "").lower() in ("true", "1"):
+        assert data["version"] == "0.1.0"

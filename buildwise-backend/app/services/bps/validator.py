@@ -18,8 +18,8 @@ _STRATEGY_HVAC: dict[str, list[str]] = {
     "baseline": ["vav_chiller_boiler", "vrf", "psz_hp", "psz_ac", "vav_chiller_boiler_school"],
     "m0": ["vav_chiller_boiler", "vrf", "psz_hp", "psz_ac", "vav_chiller_boiler_school"],
     "m1": ["vav_chiller_boiler", "vrf", "psz_hp", "psz_ac", "vav_chiller_boiler_school"],
-    "m2": ["vav_chiller_boiler", "vrf", "psz_hp", "psz_ac", "vav_chiller_boiler_school"],
-    "m3": ["vav_chiller_boiler", "vrf", "psz_hp", "psz_ac", "vav_chiller_boiler_school"],
+    "m2": ["vav_chiller_boiler", "psz_hp", "psz_ac", "vav_chiller_boiler_school"],  # VRF excluded (no central AHU)
+    "m3": ["vav_chiller_boiler", "vav_chiller_boiler_school"],  # chiller staging: requires multiple chillers
     "m4": ["vav_chiller_boiler", "vrf", "psz_hp", "psz_ac", "vav_chiller_boiler_school"],
     "m5": ["vav_chiller_boiler", "vrf", "psz_hp", "psz_ac", "vav_chiller_boiler_school"],
     "m6": ["vav_chiller_boiler", "vav_chiller_boiler_school"],  # chiller staging
@@ -49,8 +49,7 @@ def validate_bps(bps: BPS) -> list[str]:
     allowed_buildings = _HVAC_BUILDING_MATRIX.get(hvac_type, [])
     if building_type not in allowed_buildings:
         errors.append(
-            f"HVAC '{hvac_type}' is not compatible with building type '{building_type}'. "
-            f"Allowed: {allowed_buildings}"
+            f"HVAC '{hvac_type}' is not compatible with building type '{building_type}'. Allowed: {allowed_buildings}"
         )
 
     # 2. Conditioned area <= total area
@@ -110,7 +109,7 @@ def validate_bps(bps: BPS) -> list[str]:
 
     # 9. WWR per-facade validation (if dict/per-facade type)
     wwr = bps.geometry.wwr
-    if isinstance(wwr, (int, float)):
+    if isinstance(wwr, int | float):
         if wwr > 0.80:
             errors.append(
                 f"Window-to-wall ratio ({wwr}) exceeds practical limit of 0.80. "
@@ -120,9 +119,7 @@ def validate_bps(bps: BPS) -> list[str]:
         for direction in ("north", "south", "east", "west"):
             val = getattr(wwr, direction)
             if val > 0.80:
-                errors.append(
-                    f"WWR for {direction} facade ({val}) exceeds practical limit of 0.80."
-                )
+                errors.append(f"WWR for {direction} facade ({val}) exceeds practical limit of 0.80.")
 
     # 10. Aspect ratio × floors sanity check
     if bps.geometry.aspect_ratio > 3.0 and bps.geometry.num_floors_above > 20:
@@ -136,8 +133,4 @@ def validate_bps(bps: BPS) -> list[str]:
 
 def get_applicable_strategies(building_type: str, hvac_type: str) -> list[str]:
     """Return list of applicable strategy names for the given building/HVAC combo."""
-    return [
-        strat
-        for strat, hvac_list in _STRATEGY_HVAC.items()
-        if hvac_type in hvac_list
-    ]
+    return [strat for strat, hvac_list in _STRATEGY_HVAC.items() if hvac_type in hvac_list]

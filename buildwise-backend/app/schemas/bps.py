@@ -6,15 +6,23 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
 # ---------------------------------------------------------------------------
 # Sub-schemas
 # ---------------------------------------------------------------------------
 
+
 class BPSLocation(BaseModel):
     city: Literal[
-        "Seoul", "Busan", "Daegu", "Daejeon", "Gwangju",
-        "Incheon", "Gangneung", "Jeju", "Cheongju", "Ulsan",
+        "Seoul",
+        "Busan",
+        "Daegu",
+        "Daejeon",
+        "Gwangju",
+        "Incheon",
+        "Gangneung",
+        "Jeju",
+        "Cheongju",
+        "Ulsan",
     ]
     district: str | None = None
     latitude: float | None = Field(None, ge=33.0, le=39.0)
@@ -32,8 +40,12 @@ class WWRPerFacade(BaseModel):
 
 class BPSGeometry(BaseModel):
     building_type: Literal[
-        "large_office", "medium_office", "small_office",
-        "standalone_retail", "primary_school", "hospital",
+        "large_office",
+        "medium_office",
+        "small_office",
+        "standalone_retail",
+        "primary_school",
+        "hospital",
     ]
     num_floors_above: int = Field(ge=1, le=100)
     num_floors_below: int = Field(0, ge=0, le=10)
@@ -62,9 +74,21 @@ class BPSZone(BaseModel):
     floor: int = Field(ge=-10, le=100)
     area_m2: float | None = Field(None, ge=1)
     usage: Literal[
-        "office", "lobby", "conference", "restroom", "storage",
-        "mechanical", "parking", "retail", "classroom", "corridor",
-        "cafeteria", "data_center", "kitchen", "patient_room", "operating_room",
+        "office",
+        "lobby",
+        "conference",
+        "restroom",
+        "storage",
+        "mechanical",
+        "parking",
+        "retail",
+        "classroom",
+        "corridor",
+        "cafeteria",
+        "data_center",
+        "kitchen",
+        "patient_room",
+        "operating_room",
     ] = "office"
     occupancy_density: float | None = Field(None, ge=0.0, le=1.0)
     has_data_center: bool = False
@@ -79,7 +103,7 @@ class ChillerSpec(BaseModel):
 class BoilerSpec(BaseModel):
     count: int = Field(2, ge=1, le=10)
     capacity_kw: float | None = None
-    efficiency: float = Field(0.80, ge=0.5, le=1.0)
+    efficiency: float = Field(0.8125, ge=0.5, le=1.0)
 
 
 class AHUSpec(BaseModel):
@@ -135,15 +159,13 @@ class BPSInternalLoads(BaseModel):
 
 
 class BPSOperatingHours(BaseModel):
-    start: str = Field("08:00", pattern=r"^[0-2][0-9]:[0-5][0-9]$")
-    end: str = Field("18:00", pattern=r"^[0-2][0-9]:[0-5][0-9]$")
+    start: str = Field("08:00", pattern=r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$")
+    end: str = Field("18:00", pattern=r"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$")
 
 
 class BPSSchedules(BaseModel):
     occupancy_type: Literal["office_standard", "school", "retail", "hospital_24h"] = "office_standard"
-    workdays: list[Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"]] = [
-        "mon", "tue", "wed", "thu", "fri"
-    ]
+    workdays: list[Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"]] = ["mon", "tue", "wed", "thu", "fri"]
     saturday: Literal["full_day", "half_day", "off"] = "half_day"
     operating_hours: BPSOperatingHours = BPSOperatingHours()
     holidays: Literal["KR_standard", "none", "custom"] = "KR_standard"
@@ -153,20 +175,21 @@ class BPSSetpoints(BaseModel):
     cooling_occupied: float = Field(24.0, ge=18.0, le=30.0)
     heating_occupied: float = Field(20.0, ge=15.0, le=25.0)
     cooling_unoccupied: float = Field(29.0, ge=25.0, le=35.0)
-    heating_unoccupied: float = Field(15.0, ge=10.0, le=20.0)
+    heating_unoccupied: float = Field(15.6, ge=10.0, le=20.0)
 
 
 class BPSSimulation(BaseModel):
     period: Literal["1year", "1month_summer", "1month_winter", "custom"] = "1year"
     timestep: Literal[1, 2, 4, 6] = 4
-    strategies: list[Literal[
-        "baseline", "m0", "m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8"
-    ]] | None = None  # None = 건물유형에 따라 자동 결정
+    strategies: list[Literal["baseline", "m0", "m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8"]] | None = (
+        None  # None = 건물유형에 따라 자동 결정
+    )
 
 
 # ---------------------------------------------------------------------------
 # Top-level BPS
 # ---------------------------------------------------------------------------
+
 
 class BPS(BaseModel):
     """Building Parameter Schema - 전체 시스템의 SSOT."""

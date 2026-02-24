@@ -1,8 +1,10 @@
 """Database session management."""
 
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.config import settings
 
@@ -35,3 +37,30 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         except Exception:
             await session.rollback()
             raise
+
+
+@asynccontextmanager
+async def task_session() -> AsyncGenerator[AsyncSession, None]:
+    """Create a disposable session for Celery tasks.
+
+    Uses NullPool to avoid connection sharing issues with prefork workers.
+    Each call creates and disposes its own engine.
+    """
+    task_engine = create_async_engine(
+        settings.database_url,
+        echo=False,
+        poolclass=NullPool,
+    )
+    factory = async_sessionmaker(
+        task_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    async with factory() as session:
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await task_engine.dispose()

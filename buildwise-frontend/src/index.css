@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* ---- Branded background ---- */
+body {
+  background-color: #f1f5f9;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(99, 102, 241, 0.05), transparent);
+  min-height: 100vh;
+}
+
+/* ---- Animations ---- */
+
 @keyframes slide-up {
   from {
     opacity: 0;
@@ -40,6 +51,108 @@
 .animate-fade-in-scale {
   animation: fade-in-scale 0.15s ease-out;
 }
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+/* ---- Progress bar shimmer ---- */
+@keyframes progress-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.progress-bar-active {
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: progress-shimmer 2s linear infinite;
+}
+
+/* ---- Success celebration ---- */
+@keyframes success-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+  50% { box-shadow: 0 0 20px 8px rgba(34, 197, 94, 0.15); }
+}
+
+.animate-success-glow {
+  animation: success-glow 2s ease-in-out 2;
+}
+
+/* ---- Global polish ---- */
+
+/* Smooth transitions on all interactive elements */
+button, a, input, select, textarea {
+  transition: color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+
+/* Tabular numbers for data cells */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+td, th {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Card base */
+.card {
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 0 0 1px rgba(0, 0, 0, 0.03);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 12px 24px rgba(0, 0, 0, 0.08),
+    0 4px 8px rgba(0, 0, 0, 0.04),
+    0 0 0 1px rgba(59, 130, 246, 0.15);
+}
+
+/* ---- Focus ring consistency ---- */
+:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ---- Scrollbar styling (Webkit) ---- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ---- Selection color ---- */
+::selection {
+  background-color: rgba(59, 130, 246, 0.2);
+  color: inherit;
+}
+
+/* ---- Print ---- */
 
 @media print {
   nav, footer, .print\:hidden { display: none !important; }

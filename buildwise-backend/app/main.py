@@ -1,12 +1,17 @@
 """BuildWise API - FastAPI application entry point."""
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api.v1 import auth, billing, buildings, projects, results, simulations, templates
+from app.api.v1 import ai, auth, billing, buildings, projects, results, simulations, templates
+from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -15,6 +20,7 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown: dispose DB engine
     from app.db import engine
+
     await engine.dispose()
 
 
@@ -22,12 +28,23 @@ app = FastAPI(
     title="BuildWise API",
     version="0.1.0",
     description="Building Energy Simulation SaaS Platform",
-    docs_url="/docs",
-    openapi_url="/api/v1/openapi.json",
+    docs_url="/docs" if settings.debug else None,
+    openapi_url="/api/v1/openapi.json" if settings.debug else None,
     lifespan=lifespan,
 )
 
-from app.config import settings
+
+# Security response headers
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 # CORS configuration: restrict methods/headers, load origins from settings
 _cors_origins = (
@@ -52,6 +69,7 @@ app.add_middleware(
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Catch unhandled exceptions and return JSON error."""
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
         content={"type": "internal_error", "title": "Internal Server Error", "status": 500},
@@ -59,8 +77,11 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 @app.get("/health")
-async def health_check() -> dict[str, str]:
-    return {"status": "ok", "service": "buildwise-api", "version": app.version}
+async def health_check() -> dict:
+    resp: dict = {"status": "ok", "service": "buildwise-api"}
+    if settings.debug:
+        resp["version"] = app.version
+    return resp
 
 
 # API v1 routes
@@ -71,3 +92,4 @@ app.include_router(templates.router, prefix="/api/v1/buildings/templates", tags=
 app.include_router(simulations.router, prefix="/api/v1/simulations", tags=["simulations"])
 app.include_router(results.router, prefix="/api/v1/simulations", tags=["results"])
 app.include_router(billing.router, prefix="/api/v1/billing", tags=["billing"])
+app.include_router(ai.router, prefix="/api/v1/ai", tags=["ai"])

@@ -1,0 +1,137 @@
+! ============================================================================
+! M3: Load Limiting (피크시간 부하 제한)
+! IdealLoadsAirSystem compatible — Zone Temperature Control actuators only
+!
+! Strategy (time-based, no facility power sensor needed):
+! 1. Peak hours (14:00-17:00): Raise cooling setpoint to reduce load
+! 2. Pre-peak (12:00-14:00): Moderate setpoint raise for gradual transition
+! 3. High OAT override: Don't shed if zone already too hot
+! 4. Weekend: schedule values
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    M3_OAT_Sensor,
+    Environment,
+    Site Outdoor Air Drybulb Temperature;
+
+{% for zone in zones %}
+EnergyManagementSystem:Sensor,
+    M3_{{ zone.name }}_Temp,
+    {{ zone.name }},
+    Zone Mean Air Temperature;
+
+{% endfor %}
+
+! --- Actuators ---
+{% for zone in zones %}
+EnergyManagementSystem:Actuator,
+    M3_{{ zone.name }}_Cool_SP,
+    {{ zone.name }},
+    Zone Temperature Control,
+    Cooling Setpoint;
+
+EnergyManagementSystem:Actuator,
+    M3_{{ zone.name }}_Heat_SP,
+    {{ zone.name }},
+    Zone Temperature Control,
+    Heating Setpoint;
+
+{% endfor %}
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    M3_Shed_Level,
+    M3_Active;
+
+! --- Program ---
+EnergyManagementSystem:Program,
+    M3_Load_Limiting_Program,
+    ! Configuration
+    SET CoolSP = {{ cooling_setpoint | default(24.0) }},
+    SET PeakStart = {{ peak_start_hour | default(14) }},
+    SET PeakEnd = {{ peak_end_hour | default(17) }},
+    SET PrePeakStart = 12,
+    SET HighTempThreshold = {{ high_temp_threshold | default(35) }},
+    SET OverrideTempLimit = {{ override_temp_limit | default(27) }},
+    !
+    SET CurrentHour = Hour,
+    SET CurrentDay = DayOfWeek,
+    SET M3_Active = 0,
+    SET M3_Shed_Level = 0,
+    !
+    ! Weekend: schedule values
+    IF CurrentDay == 1 || CurrentDay == 7,
+{% for zone in zones %}
+        SET M3_{{ zone.name }}_Cool_SP = NULL,
+        SET M3_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+        RETURN,
+    ENDIF,
+    !
+    ! === Peak hours: aggressive load shedding ===
+    IF CurrentHour >= PeakStart && CurrentHour < PeakEnd,
+        ! High OAT override: don't shed if already extreme
+        IF M3_OAT_Sensor > HighTempThreshold,
+{% for zone in zones %}
+            SET M3_{{ zone.name }}_Cool_SP = NULL,
+            SET M3_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+            RETURN,
+        ENDIF,
+        !
+        SET M3_Active = 1,
+        SET M3_Shed_Level = 2,
+{% for zone in zones %}
+        IF M3_{{ zone.name }}_Temp < OverrideTempLimit,
+            SET M3_{{ zone.name }}_Cool_SP = CoolSP + 2.0,
+        ELSE,
+            SET M3_{{ zone.name }}_Cool_SP = NULL,
+        ENDIF,
+        SET M3_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+        RETURN,
+    ENDIF,
+    !
+    ! === Pre-peak: moderate transition ===
+    IF CurrentHour >= PrePeakStart && CurrentHour < PeakStart,
+        IF M3_OAT_Sensor <= HighTempThreshold,
+            SET M3_Active = 1,
+            SET M3_Shed_Level = 1,
+{% for zone in zones %}
+            IF M3_{{ zone.name }}_Temp < OverrideTempLimit,
+                SET M3_{{ zone.name }}_Cool_SP = CoolSP + 1.0,
+            ELSE,
+                SET M3_{{ zone.name }}_Cool_SP = NULL,
+            ENDIF,
+            SET M3_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+            RETURN,
+        ENDIF,
+    ENDIF,
+    !
+    ! Default: schedule values
+{% for zone in zones %}
+    SET M3_{{ zone.name }}_Cool_SP = NULL,
+    SET M3_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+    ;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    M3_Load_Limiting_Manager,
+    BeginTimestepBeforePredictor,
+    M3_Load_Limiting_Program;
+
+! --- Output Variables ---
+EnergyManagementSystem:OutputVariable,
+    M3 Load Limit Active,
+    M3_Active,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    M3 Shed Level,
+    M3_Shed_Level,
+    Averaged,
+    ZoneTimeStep;

@@ -1,0 +1,132 @@
+! ============================================================================
+! M4: Comfort Optimization Normal (쾌적 최적화 — PMV 0.5)
+! IdealLoadsAirSystem compatible — Zone Temperature Control actuators only
+!
+! Combined strategy:
+! 1. OAT-based setpoint adjustment (cooling +1C when OAT>30, heating -1C when OAT<5)
+! 2. Peak-hour limiting (14:00-17:00, cooling +2C)
+! 3. Both effects stack during peak hours on hot days
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    M4_OAT_Sensor,
+    Environment,
+    Site Outdoor Air Drybulb Temperature;
+
+{% for zone in zones %}
+EnergyManagementSystem:Sensor,
+    M4_{{ zone.name }}_Temp,
+    {{ zone.name }},
+    Zone Mean Air Temperature;
+
+{% endfor %}
+
+! --- Actuators ---
+{% for zone in zones %}
+EnergyManagementSystem:Actuator,
+    M4_{{ zone.name }}_Cool_SP,
+    {{ zone.name }},
+    Zone Temperature Control,
+    Cooling Setpoint;
+
+EnergyManagementSystem:Actuator,
+    M4_{{ zone.name }}_Heat_SP,
+    {{ zone.name }},
+    Zone Temperature Control,
+    Heating Setpoint;
+
+{% endfor %}
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    M4_Cool_Offset,
+    M4_Heat_Offset,
+    M4_Peak_Active;
+
+! --- Program ---
+EnergyManagementSystem:Program,
+    M4_Comfort_Normal_Program,
+    ! Configuration
+    SET CoolSP = {{ cooling_setpoint | default(24.0) }},
+    SET HeatSP = {{ heating_setpoint | default(20.0) }},
+    SET HighTempThreshold = {{ high_temp_threshold | default(30) }},
+    SET LowTempThreshold = {{ low_temp_threshold | default(5) }},
+    SET PeakStart = {{ peak_start_hour | default(14) }},
+    SET PeakEnd = {{ peak_end_hour | default(17) }},
+    SET OAT_CoolAdj = {{ cooling_sp_adjustment | default(1.0) }},
+    SET OAT_HeatAdj = {{ heating_sp_adjustment | default(-1.0) }},
+    SET PeakCoolAdj = 2.0,
+    SET OverrideTempLimit = {{ override_temp_limit | default(27) }},
+    !
+    SET CurrentHour = Hour,
+    SET CurrentDay = DayOfWeek,
+    SET M4_Cool_Offset = 0,
+    SET M4_Heat_Offset = 0,
+    SET M4_Peak_Active = 0,
+    !
+    ! Weekend: schedule values
+    IF CurrentDay == 1 || CurrentDay == 7,
+{% for zone in zones %}
+        SET M4_{{ zone.name }}_Cool_SP = NULL,
+        SET M4_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+        RETURN,
+    ENDIF,
+    !
+    ! === OAT-based adjustment ===
+    IF M4_OAT_Sensor > HighTempThreshold,
+        SET M4_Cool_Offset = OAT_CoolAdj,
+    ELSEIF M4_OAT_Sensor < LowTempThreshold,
+        SET M4_Heat_Offset = OAT_HeatAdj,
+    ENDIF,
+    !
+    ! === Peak-hour limiting (stacks with OAT adjustment) ===
+    IF CurrentHour >= PeakStart && CurrentHour < PeakEnd,
+        SET M4_Peak_Active = 1,
+        SET M4_Cool_Offset = M4_Cool_Offset + PeakCoolAdj,
+    ENDIF,
+    !
+    ! === Apply setpoints ===
+{% for zone in zones %}
+    IF M4_Cool_Offset > 0,
+        IF M4_{{ zone.name }}_Temp < OverrideTempLimit,
+            SET M4_{{ zone.name }}_Cool_SP = CoolSP + M4_Cool_Offset,
+        ELSE,
+            SET M4_{{ zone.name }}_Cool_SP = NULL,
+        ENDIF,
+    ELSE,
+        SET M4_{{ zone.name }}_Cool_SP = NULL,
+    ENDIF,
+    IF M4_Heat_Offset < 0,
+        SET M4_{{ zone.name }}_Heat_SP = HeatSP + M4_Heat_Offset,
+    ELSE,
+        SET M4_{{ zone.name }}_Heat_SP = NULL,
+    ENDIF,
+{% endfor %}
+    ;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    M4_Comfort_Normal_Manager,
+    BeginTimestepBeforePredictor,
+    M4_Comfort_Normal_Program;
+
+! --- Output Variables ---
+EnergyManagementSystem:OutputVariable,
+    M4 Cooling Offset,
+    M4_Cool_Offset,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    M4 Heating Offset,
+    M4_Heat_Offset,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    M4 Peak Active,
+    M4_Peak_Active,
+    Averaged,
+    ZoneTimeStep;

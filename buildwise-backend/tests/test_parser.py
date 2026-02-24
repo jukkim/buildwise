@@ -1,16 +1,15 @@
 """EnergyPlus output parser unit tests."""
 
-import os
 import tempfile
 from pathlib import Path
 
 import pytest
 
 from app.services.results.parser import (
-    parse_energyplus_output,
+    _estimate_from_meter_csv,
     _parse_summary_csv,
     _parse_summary_html,
-    _estimate_from_meter_csv,
+    parse_energyplus_output,
 )
 
 

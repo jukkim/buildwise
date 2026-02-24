@@ -71,7 +71,7 @@ EnergyManagementSystem:Program,
     SET HighTempThreshold = {{ high_temp | default(33) }},
     SET ScheduleStartHour = 6,
     !
-    SET CurrentHour = CurrentTime,
+    SET CurrentHour = Hour,
     SET CurrentDay = DayOfWeek,
     SET Total_VRF_Power = VRF_GF_Power + VRF_MF_Power + VRF_TF_Power,
     !

@@ -4,19 +4,18 @@ import pytest
 
 from app.schemas.bps import (
     BPS,
+    BPSHVAC,
+    AHUSpec,
+    BoilerSpec,
     BPSEnvelope,
     BPSGeometry,
-    BPSHVAC,
     BPSLocation,
     BPSSetpoints,
     BPSSimulation,
     ChillerSpec,
-    BoilerSpec,
-    AHUSpec,
+    PSZSpec,
     VAVSpec,
     VRFOutdoorSpec,
-    PSZSpec,
-    WWRPerFacade,
 )
 from app.services.bps.validator import get_applicable_strategies, validate_bps
 
@@ -27,8 +26,10 @@ def _make_bps(building_type="large_office", hvac_type="vav_chiller_boiler", **kw
 
     if hvac_type in ("vav_chiller_boiler", "vav_chiller_boiler_school"):
         hvac_kwargs.update(
-            chillers=ChillerSpec(), boilers=BoilerSpec(),
-            ahu=AHUSpec(), vav_terminals=VAVSpec(),
+            chillers=ChillerSpec(),
+            boilers=BoilerSpec(),
+            ahu=AHUSpec(),
+            vav_terminals=VAVSpec(),
         )
     elif hvac_type == "vrf":
         hvac_kwargs["vrf_outdoor_units"] = VRFOutdoorSpec()
@@ -208,11 +209,13 @@ class TestGeometryValidation:
         assert not any("Floor area per floor" in e for e in errors)
 
     def test_high_aspect_ratio_many_floors_warning(self):
-        bps = _make_bps(geometry={
-            "aspect_ratio": 4.0,
-            "num_floors_above": 30,
-            "total_floor_area_m2": 200000,
-        })
+        bps = _make_bps(
+            geometry={
+                "aspect_ratio": 4.0,
+                "num_floors_above": 30,
+                "total_floor_area_m2": 200000,
+            }
+        )
         errors = validate_bps(bps)
         assert any("aspect ratio" in e for e in errors)
 
@@ -250,9 +253,6 @@ class TestStrategyApplicability:
 
     def test_strategy_validation_in_bps(self):
         """M6 on PSZ should fail validation."""
-        bps = _make_bps(
-            "small_office", "psz_hp",
-            simulation=BPSSimulation(strategies=["baseline", "m6"])
-        )
+        bps = _make_bps("small_office", "psz_hp", simulation=BPSSimulation(strategies=["baseline", "m6"]))
         errors = validate_bps(bps)
         assert any("m6" in e and "not applicable" in e for e in errors)

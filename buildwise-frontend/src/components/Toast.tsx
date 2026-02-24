@@ -37,10 +37,11 @@ export default function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 space-y-2">
+    <div className="fixed bottom-4 right-4 z-50 space-y-2" aria-live="polite" aria-relevant="additions">
       {toasts.map((t) => (
         <div
           key={t.id}
+          role={t.type === "error" ? "alert" : "status"}
           className={clsx(
             "flex items-center rounded-lg px-4 py-3 text-sm shadow-lg max-w-sm animate-slide-up",
             t.type === "error" && "bg-red-600 text-white",

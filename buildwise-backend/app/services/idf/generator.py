@@ -11,7 +11,7 @@ Pipeline stages:
 8. Schedules (occupancy, lighting, equipment, setpoints)
 9. Internal loads (People, Lights, Equipment)
 10. Infiltration
-11. HVAC (IdealLoadsAirSystem)
+11. HVAC (VAV+Chiller+Boiler or IdealLoadsAirSystem fallback)
 12. EMS strategy injection (Jinja2 templates)
 13. Output variables
 """
@@ -22,8 +22,11 @@ import logging
 import re
 from pathlib import Path
 
-from jinja2.sandbox import SandboxedEnvironment
 from jinja2 import FileSystemLoader
+from jinja2.sandbox import SandboxedEnvironment
+
+from .ems_bridge import generate_idf_via_ems, is_ems_supported
+from .hvac_vav import generate_vav_chiller_boiler, output_variables_detailed
 
 logger = logging.getLogger(__name__)
 
@@ -35,67 +38,107 @@ def sanitize_idf_field(value: str) -> str:
     """Remove IDF metacharacters (comma, semicolon, comment, newlines) from a field value."""
     return _IDF_UNSAFE_RE.sub("", str(value)).strip()
 
-# Strategy → EMS template mapping per building type
-# Source: docs/strategy-naming-reconciliation.md section 3.2 (APPROVED)
+
+# Strategy → EMS template mapping (building-type-specific)
+# Source: docs/strategy-naming-reconciliation.md §3.2
+#
+# Current templates (root level) are IdealLoadsAirSystem compatible.
+# Future templates (full_hvac/ subdir) require detailed HVAC migration.
+#
+# Mapping rules:
+#   - Per-building-type entry: strategy is applicable with specific template
+#   - "*" wildcard: applicable to all building types with same template
+#   - Missing building type: strategy NOT applicable (returns empty list)
 STRATEGY_TEMPLATE_MAP: dict[str, dict[str, list[str]]] = {
     "baseline": {},
-    "m0": {  # 야간 정지
-        "large_office": ["m2_night_ventilation.j2", "occupancy_control.j2"],
-        "medium_office": ["vrf_night_setback.j2"],
-        "small_office": ["occupancy_control.j2"],
-        "standalone_retail": ["occupancy_control.j2"],
-        "primary_school": ["m2_night_ventilation.j2", "occupancy_control.j2"],
+    "m0": {
+        # Night stop: central HVAC systems get full night setback;
+        # VRF/PSZ systems get simplified occupancy-based control
+        "large_office": ["m0_occupancy_setback.j2"],
+        "medium_office": ["m0_occupancy_setback.j2"],  # VRF night setback variant
+        "small_office": ["m0_occupancy_setback.j2"],
+        "standalone_retail": ["m0_occupancy_setback.j2"],
+        "primary_school": ["m0_occupancy_setback.j2"],
     },
-    "m1": {  # 스마트 시작
-        "large_office": ["optimal_start.j2"],
-        "medium_office": ["optimal_start_vrf_v2.j2"],
-        "small_office": ["optimal_start_stop.j2"],
-        "standalone_retail": ["optimal_start_stop.j2"],
-        "primary_school": ["optimal_start.j2"],
+    "m1": {
+        # Smart start: all types supported with type-appropriate logic
+        "large_office": ["m1_optimal_start.j2"],
+        "medium_office": ["m1_optimal_start.j2"],  # VRF variant
+        "small_office": ["m1_optimal_start.j2"],  # PSZ variant
+        "standalone_retail": ["m1_optimal_start.j2"],
+        "primary_school": ["m1_optimal_start.j2"],
     },
-    "m2": {  # 외기 냉방
-        "large_office": ["enthalpy_economizer.j2"],
-        "small_office": ["enthalpy_economizer.j2"],
-        "standalone_retail": ["enthalpy_economizer.j2"],
-        "primary_school": ["enthalpy_economizer.j2"],
+    "m2": {
+        # Economizer/free cooling: requires central AHU (excludes VRF)
+        "large_office": ["m2_free_cooling.j2"],
+        # medium_office: N/A (VRF, no central AHU)
+        "small_office": ["m2_free_cooling.j2"],  # PSZ with OA damper
+        "standalone_retail": ["m2_free_cooling.j2"],
+        "primary_school": ["m2_free_cooling.j2"],
     },
-    "m3": {  # 냉동기 단계제어
-        "large_office": ["staging_control.j2"],
-        "primary_school": ["staging_control.j2"],
+    "m3": {
+        # Chiller staging: requires multiple chillers
+        "large_office": ["m3_load_limiting.j2"],
+        # medium_office: N/A (no chiller)
+        # small_office: N/A (no chiller)
+        # standalone_retail: N/A (no chiller)
+        "primary_school": ["m3_load_limiting.j2"],
     },
-    "m4": {  # 쾌적 최적화 (보통, PMV 0.5)
-        "*": ["m4_peak_limiting.j2", "setpoint_adjustment.j2"],
+    "m4": {
+        # PMV normal: applicable to all (zone setpoint adjustment)
+        "*": ["m4_comfort_normal.j2"],
     },
-    "m5": {  # 쾌적 최적화 (절약, PMV 0.7)
-        "*": ["m4_peak_limiting.j2", "setpoint_adjustment.j2"],
+    "m5": {
+        # PMV savings: applicable to all (wider comfort tolerance)
+        "*": ["m5_comfort_savings.j2"],
     },
-    "m6": {  # 설비 통합제어 (M2+M3)
-        "large_office": ["enthalpy_economizer.j2", "staging_control.j2"],
-        "primary_school": ["enthalpy_economizer.j2", "staging_control.j2"],
+    "m6": {
+        # Integrated (M2+M3): requires both economizer + staging
+        "large_office": ["m6_equipment_integration.j2"],
+        # medium_office: N/A
+        # small_office: N/A
+        # standalone_retail: N/A
+        "primary_school": ["m6_equipment_integration.j2"],
     },
-    "m7": {  # 통합+쾌적(보통) (M6+M4)
-        "large_office": ["enthalpy_economizer.j2", "staging_control.j2", "m4_peak_limiting.j2", "setpoint_adjustment.j2"],
-        "medium_office": ["vrf_full_control.j2", "setpoint_adjustment.j2"],
-        "small_office": ["optimal_start_stop.j2", "setpoint_adjustment.j2"],
-        "standalone_retail": ["optimal_start_stop.j2", "m4_peak_limiting.j2", "setpoint_adjustment.j2"],
-        "primary_school": ["enthalpy_economizer.j2", "staging_control.j2", "setpoint_adjustment.j2"],
+    "m7": {
+        # Full normal: building-type-specific strategy combination
+        "large_office": ["m7_full_normal.j2"],
+        "medium_office": ["m7_full_normal.j2"],  # VRF-compatible subset (M1+M4)
+        "small_office": ["m7_full_normal.j2"],
+        "standalone_retail": ["m7_full_normal.j2"],
+        "primary_school": ["m7_full_normal.j2"],
     },
-    "m8": {  # 통합+쾌적(절약) (M6+M5)
-        "large_office": ["enthalpy_economizer.j2", "staging_control.j2", "m4_peak_limiting.j2", "setpoint_adjustment.j2"],
-        "medium_office": ["vrf_full_control.j2", "setpoint_adjustment.j2"],
-        "small_office": ["optimal_start_stop.j2", "setpoint_adjustment.j2"],
-        "standalone_retail": ["optimal_start_stop.j2", "m4_peak_limiting.j2", "setpoint_adjustment.j2"],
-        "primary_school": ["enthalpy_economizer.j2", "staging_control.j2", "setpoint_adjustment.j2"],
+    "m8": {
+        # Full savings: building-type-specific with wider tolerance
+        "large_office": ["m8_full_savings.j2"],
+        "medium_office": ["m8_full_savings.j2"],  # VRF-compatible subset (M1+M5)
+        "small_office": ["m8_full_savings.j2"],
+        "standalone_retail": ["m8_full_savings.j2"],
+        "primary_school": ["m8_full_savings.j2"],
     },
 }
 
-# PMV parameters: M4 (normal) vs M5 (savings)
+# Future: detailed HVAC template mapping (from strategy-naming-reconciliation.md §3.2)
+# When migrating from IdealLoads to detailed HVAC, replace templates above with:
+# STRATEGY_TEMPLATE_MAP_FULL_HVAC = {
+#     "m0": {
+#         "large_office": ["full_hvac/m2_night_ventilation.j2", "full_hvac/occupancy_control.j2"],
+#         "medium_office": ["full_hvac/vrf_night_setback.j2"],
+#         ...
+#     },
+#     ...
+# }
+
+# PMV parameters: M4/M7 (normal, PMV 0.5) vs M5/M8 (savings, PMV 0.7)
 _PMV_PARAMS: dict[str, dict[str, float]] = {
     "m4": {"cooling_sp_adjustment": 1.0, "heating_sp_adjustment": -1.0},
     "m5": {"cooling_sp_adjustment": 2.0, "heating_sp_adjustment": -2.0},
     "m7": {"cooling_sp_adjustment": 1.0, "heating_sp_adjustment": -1.0},
     "m8": {"cooling_sp_adjustment": 2.0, "heating_sp_adjustment": -2.0},
 }
+# Note: These values are passed directly to templates via ems_context.
+# M4/M7 templates use default(1.0)/default(-1.0) for normal comfort.
+# M5/M8 templates use default(2.0)/default(-2.0) for savings mode.
 
 # Korean city design day data: (summer_db_C, summer_wb_C, winter_db_C, latitude, longitude, elevation_m)
 _CITY_DESIGN_DATA: dict[str, tuple[float, float, float, float, float, float]] = {
@@ -114,16 +157,16 @@ _CITY_DESIGN_DATA: dict[str, tuple[float, float, float, float, float, float]] = 
 # Monthly ground temperatures (°C) for Korean cities (Jan-Dec)
 # Source: KMA ground surface measurements + ASHRAE Fundamentals correlation
 _CITY_GROUND_TEMPS: dict[str, list[float]] = {
-    "Seoul":     [1.5,  2.8,  6.5, 12.0, 17.5, 22.5, 25.5, 26.0, 22.5, 16.5, 10.0,  4.0],
-    "Busan":     [5.0,  5.5,  8.5, 13.5, 18.0, 22.0, 25.0, 26.5, 23.5, 18.5, 12.5,  7.5],
-    "Daegu":     [2.5,  3.5,  7.5, 13.0, 18.5, 23.0, 26.0, 27.0, 23.0, 17.0, 10.5,  5.0],
-    "Daejeon":   [1.0,  2.5,  6.5, 12.0, 17.5, 22.5, 25.5, 26.0, 22.0, 16.0,  9.5,  3.5],
-    "Gwangju":   [3.0,  4.0,  7.5, 13.0, 18.0, 22.5, 25.5, 26.5, 23.0, 17.0, 11.0,  5.5],
-    "Incheon":   [0.5,  1.5,  5.5, 11.0, 16.5, 21.5, 25.0, 26.0, 22.5, 16.5,  9.5,  3.5],
-    "Gangneung": [2.0,  2.5,  6.0, 11.5, 16.5, 21.0, 24.5, 26.0, 22.5, 17.0, 10.5,  5.0],
-    "Jeju":      [6.5,  6.5,  9.0, 13.5, 17.5, 21.5, 25.5, 27.0, 24.0, 19.5, 13.5,  9.0],
-    "Cheongju":  [1.0,  2.0,  6.0, 12.0, 17.5, 22.5, 25.5, 26.5, 22.5, 16.0,  9.5,  3.5],
-    "Ulsan":     [4.0,  4.5,  7.5, 12.5, 17.5, 22.0, 25.0, 26.5, 23.5, 18.0, 12.0,  6.5],
+    "Seoul": [1.5, 2.8, 6.5, 12.0, 17.5, 22.5, 25.5, 26.0, 22.5, 16.5, 10.0, 4.0],
+    "Busan": [5.0, 5.5, 8.5, 13.5, 18.0, 22.0, 25.0, 26.5, 23.5, 18.5, 12.5, 7.5],
+    "Daegu": [2.5, 3.5, 7.5, 13.0, 18.5, 23.0, 26.0, 27.0, 23.0, 17.0, 10.5, 5.0],
+    "Daejeon": [1.0, 2.5, 6.5, 12.0, 17.5, 22.5, 25.5, 26.0, 22.0, 16.0, 9.5, 3.5],
+    "Gwangju": [3.0, 4.0, 7.5, 13.0, 18.0, 22.5, 25.5, 26.5, 23.0, 17.0, 11.0, 5.5],
+    "Incheon": [0.5, 1.5, 5.5, 11.0, 16.5, 21.5, 25.0, 26.0, 22.5, 16.5, 9.5, 3.5],
+    "Gangneung": [2.0, 2.5, 6.0, 11.5, 16.5, 21.0, 24.5, 26.0, 22.5, 17.0, 10.5, 5.0],
+    "Jeju": [6.5, 6.5, 9.0, 13.5, 17.5, 21.5, 25.5, 27.0, 24.0, 19.5, 13.5, 9.0],
+    "Cheongju": [1.0, 2.0, 6.0, 12.0, 17.5, 22.5, 25.5, 26.5, 22.5, 16.0, 9.5, 3.5],
+    "Ulsan": [4.0, 4.5, 7.5, 12.5, 17.5, 22.0, 25.0, 26.5, 23.5, 18.0, 12.0, 6.5],
 }
 
 # Building type → internal loads defaults (W/m2 for lighting/equipment, m2/person for people)
@@ -189,13 +232,15 @@ def _render_ems_templates(
 
 def _generate_global_geometry_rules() -> str:
     """Generate GlobalGeometryRules required by EnergyPlus."""
-    return "\n".join([
-        "GlobalGeometryRules,",
-        "  UpperLeftCorner,          !- Starting Vertex Position",
-        "  Counterclockwise,         !- Vertex Entry Direction",
-        "  Relative;                 !- Coordinate System",
-        "",
-    ])
+    return "\n".join(
+        [
+            "GlobalGeometryRules,",
+            "  UpperLeftCorner,          !- Starting Vertex Position",
+            "  Counterclockwise,         !- Vertex Entry Direction",
+            "  Relative;                 !- Coordinate System",
+            "",
+        ]
+    )
 
 
 def _generate_design_days(climate_city: str) -> str:
@@ -263,7 +308,7 @@ def _generate_design_days(climate_city: str) -> str:
         "  ASHRAEClearSky,              !- Solar Model Indicator",
         "  ,                            !- Beam Solar Day Schedule Name",
         "  ,                            !- Diffuse Solar Day Schedule Name",
-        "  0.0;                         !- ASHRAE Clear Sky Optical Depth for Beam Irradiance",
+        "  1.0;                         !- ASHRAE Clear Sky Optical Depth for Beam Irradiance",
         "",
     ]
     return "\n".join(lines)
@@ -279,8 +324,7 @@ def _generate_ground_temps(climate_city: str) -> str:
     ]
     for i, t in enumerate(temps):
         sep = ";" if i == 11 else ","
-        month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
         lines.append(f"  {t:.1f}{sep}                          !- {month_names[i]} Ground Temperature {{C}}")
     lines.append("")
     return "\n".join(lines)
@@ -289,9 +333,9 @@ def _generate_ground_temps(climate_city: str) -> str:
 def _generate_constructions(bps: dict) -> str:
     """Generate Material:NoMass and Construction objects from BPS envelope."""
     env = bps.get("envelope", {})
-    wall_u = env.get("wall_u_value", 0.5)
-    roof_u = env.get("roof_u_value", 0.3)
-    floor_u = env.get("floor_u_value", 0.5)
+    wall_u = env.get("wall_u_value") or 0.5
+    roof_u = env.get("roof_u_value") or 0.3
+    floor_u = env.get("floor_u_value") or 0.5
 
     # R-values = 1/U (m2·K/W)
     wall_r = 1.0 / wall_u if wall_u > 0 else 2.0
@@ -369,9 +413,7 @@ def _generate_constructions(bps: dict) -> str:
     return "\n".join(lines)
 
 
-def _compute_zone_geometry(
-    width: float, length: float, floors: int, height: float
-) -> list[dict]:
+def _compute_zone_geometry(width: float, length: float, floors: int, height: float) -> list[dict]:
     """Compute zone boundary coordinates for a perimeter/core model.
 
     Returns list of dicts: {name, floor, x_min, x_max, y_min, y_max, z_min, z_max,
@@ -386,40 +428,90 @@ def _compute_zone_geometry(
         z_max = f * height
 
         # South perimeter
-        zones.append({
-            "name": f"{fl}_Perimeter_S", "floor": f,
-            "x_min": 0, "x_max": width, "y_min": 0, "y_max": pd,
-            "z_min": z_min, "z_max": z_max,
-            "has_south": True, "has_north": False, "has_east": True, "has_west": True,
-        })
+        zones.append(
+            {
+                "name": f"{fl}_Perimeter_S",
+                "floor": f,
+                "x_min": 0,
+                "x_max": width,
+                "y_min": 0,
+                "y_max": pd,
+                "z_min": z_min,
+                "z_max": z_max,
+                "has_south": True,
+                "has_north": False,
+                "has_east": True,
+                "has_west": True,
+            }
+        )
         # North perimeter
-        zones.append({
-            "name": f"{fl}_Perimeter_N", "floor": f,
-            "x_min": 0, "x_max": width, "y_min": length - pd, "y_max": length,
-            "z_min": z_min, "z_max": z_max,
-            "has_south": False, "has_north": True, "has_east": True, "has_west": True,
-        })
+        zones.append(
+            {
+                "name": f"{fl}_Perimeter_N",
+                "floor": f,
+                "x_min": 0,
+                "x_max": width,
+                "y_min": length - pd,
+                "y_max": length,
+                "z_min": z_min,
+                "z_max": z_max,
+                "has_south": False,
+                "has_north": True,
+                "has_east": True,
+                "has_west": True,
+            }
+        )
         # East perimeter (between S and N perimeters)
-        zones.append({
-            "name": f"{fl}_Perimeter_E", "floor": f,
-            "x_min": width - pd, "x_max": width, "y_min": pd, "y_max": length - pd,
-            "z_min": z_min, "z_max": z_max,
-            "has_south": False, "has_north": False, "has_east": True, "has_west": False,
-        })
+        zones.append(
+            {
+                "name": f"{fl}_Perimeter_E",
+                "floor": f,
+                "x_min": width - pd,
+                "x_max": width,
+                "y_min": pd,
+                "y_max": length - pd,
+                "z_min": z_min,
+                "z_max": z_max,
+                "has_south": False,
+                "has_north": False,
+                "has_east": True,
+                "has_west": False,
+            }
+        )
         # West perimeter (between S and N perimeters)
-        zones.append({
-            "name": f"{fl}_Perimeter_W", "floor": f,
-            "x_min": 0, "x_max": pd, "y_min": pd, "y_max": length - pd,
-            "z_min": z_min, "z_max": z_max,
-            "has_south": False, "has_north": False, "has_east": False, "has_west": True,
-        })
+        zones.append(
+            {
+                "name": f"{fl}_Perimeter_W",
+                "floor": f,
+                "x_min": 0,
+                "x_max": pd,
+                "y_min": pd,
+                "y_max": length - pd,
+                "z_min": z_min,
+                "z_max": z_max,
+                "has_south": False,
+                "has_north": False,
+                "has_east": False,
+                "has_west": True,
+            }
+        )
         # Core
-        zones.append({
-            "name": f"{fl}_Core", "floor": f,
-            "x_min": pd, "x_max": width - pd, "y_min": pd, "y_max": length - pd,
-            "z_min": z_min, "z_max": z_max,
-            "has_south": False, "has_north": False, "has_east": False, "has_west": False,
-        })
+        zones.append(
+            {
+                "name": f"{fl}_Core",
+                "floor": f,
+                "x_min": pd,
+                "x_max": width - pd,
+                "y_min": pd,
+                "y_max": length - pd,
+                "z_min": z_min,
+                "z_max": z_max,
+                "has_south": False,
+                "has_north": False,
+                "has_east": False,
+                "has_west": False,
+            }
+        )
 
     return zones
 
@@ -480,13 +572,12 @@ def _generate_idf_geometry(bps: dict) -> str:
         x0, x1 = zg["x_min"], zg["x_max"]
         y0, y1 = zg["y_min"], zg["y_max"]
         h = wall_height
-        is_ground = (zg["floor"] == 1)
-        is_top = (zg["floor"] == floors)
+        is_ground = zg["floor"] == 1
+        is_top = zg["floor"] == floors
 
         # Floor surface
         surf_idx += 1
-        floor_bc = "Ground" if is_ground else "Surface"
-        floor_bc_obj = "" if is_ground else f"F{zg['floor']-1}_{zn.split('_', 1)[1]}_Ceiling"
+        floor_bc_obj = "" if is_ground else f"F{zg['floor'] - 1}_{zn.split('_', 1)[1]}_Ceiling"
         floor_construction = "GroundFloor" if is_ground else "IntFloor"
         lines.append("BuildingSurface:Detailed,")
         lines.append(f"  {zn}_Floor,                  !- Name")
@@ -523,7 +614,7 @@ def _generate_idf_geometry(bps: dict) -> str:
             ceil_type = "Ceiling"
             ceil_construction = "IntFloor"
             ceil_bc = "Surface"
-            ceil_bc_obj = f"F{zg['floor']+1}_{zn.split('_', 1)[1]}_Floor"
+            ceil_bc_obj = f"F{zg['floor'] + 1}_{zn.split('_', 1)[1]}_Floor"
             sun = "NoSun"
             wind = "NoWind"
         lines.append("BuildingSurface:Detailed,")
@@ -580,11 +671,11 @@ def _generate_idf_geometry(bps: dict) -> str:
             lines.append("")
 
             # Window on this wall
-            wwr = wwr_val if isinstance(wwr_val, (int, float)) else 0.38
+            wwr = wwr_val if isinstance(wwr_val, int | float) else 0.38
             if wwr > 0:
                 wall_width = ((wx1 - wx0) ** 2 + (wy1 - wy0) ** 2) ** 0.5
-                win_height = h * (wwr ** 0.5)
-                win_width = wall_width * (wwr ** 0.5)
+                win_height = h * (wwr**0.5)
+                win_width = wall_width * (wwr**0.5)
                 # Center the window
                 sill = (h - win_height) / 2
                 h_offset = (wall_width - win_width) / 2
@@ -621,8 +712,8 @@ def _generate_idf_geometry(bps: dict) -> str:
 def _generate_idf_envelope(bps: dict) -> str:
     """Generate IDF envelope (glazing) objects."""
     env = bps.get("envelope", {})
-    window_u = env.get("window_u_value", 1.5)
-    window_shgc = env.get("window_shgc", 0.25)
+    window_u = env.get("window_u_value") or 1.5
+    window_shgc = env.get("window_shgc") or 0.25
 
     lines = [
         "! === Glazing ===",
@@ -671,11 +762,25 @@ def _generate_schedules(bps: dict) -> str:
         "! === Operation Schedules ===",
         "",
         "Schedule:Compact,",
+        "  ActivityLevelSchedule,         !- Name",
+        "  Any Number,                    !- Schedule Type Limits Name",
+        "  Through: 12/31,                !- Field 1",
+        "  For: AllDays,                  !- Field 2",
+        "  Until: 24:00, 120;            !- Field 3 (120 W/person typical office)",
+        "",
+        "Schedule:Compact,",
         "  Always On,                     !- Name",
         "  On/Off,                        !- Schedule Type Limits Name",
         "  Through: 12/31,                !- Field 1",
         "  For: AllDays,                  !- Field 2",
         "  Until: 24:00, 1;              !- Field 3",
+        "",
+        "Schedule:Compact,",
+        "  DualSetpointControlType,       !- Name",
+        "  Any Number,                    !- Schedule Type Limits Name",
+        "  Through: 12/31,                !- Field 1",
+        "  For: AllDays,                  !- Field 2",
+        "  Until: 24:00, 4;              !- Field 3 (4 = DualSetpoint)",
         "",
         "Schedule:Compact,",
         "  OccupancySchedule,             !- Name",
@@ -776,51 +881,58 @@ def _generate_internal_loads(bps: dict, zone_names: list[str]) -> str:
 
     for zn in zone_names:
         # People
-        lines.extend([
-            "People,",
-            f"  {zn}_People,                  !- Name",
-            f"  {zn},                         !- Zone Name",
-            "  OccupancySchedule,            !- Number of People Schedule Name",
-            "  Area/Person,                  !- Number of People Calculation Method",
-            "  ,                             !- Zone Floor Area per Person",
-            f"  {loads['people_m2_per_person']},  !- Zone Floor Area per Person {{m2/person}}",
-            "  ,                             !- People per Floor Area",
-            "  0.3,                          !- Fraction Radiant",
-            "  autocalculate;                !- Sensible Heat Fraction",
-            "",
-        ])
+        lines.extend(
+            [
+                "People,",
+                f"  {zn}_People,                  !- Name",
+                f"  {zn},                         !- Zone Name",
+                "  OccupancySchedule,            !- Number of People Schedule Name",
+                "  Area/Person,                  !- Number of People Calculation Method",
+                "  ,                             !- Number of People",
+                "  ,                             !- People per Floor Area",
+                f"  {loads['people_m2_per_person']},  !- Floor Area per Person {{m2/person}}",
+                "  0.3,                          !- Fraction Radiant",
+                "  autocalculate,                !- Sensible Heat Fraction",
+                "  ActivityLevelSchedule;        !- Activity Level Schedule Name",
+                "",
+            ]
+        )
 
         # Lights
-        lines.extend([
-            "Lights,",
-            f"  {zn}_Lights,                  !- Name",
-            f"  {zn},                         !- Zone Name",
-            "  LightingSchedule,             !- Schedule Name",
-            "  Watts/Area,                   !- Design Level Calculation Method",
-            "  ,                             !- Lighting Level",
-            f"  {loads['lighting_w_m2']},      !- Watts per Floor Area {{W/m2}}",
-            "  ,                             !- Watts per Person",
-            "  0.0,                          !- Return Air Fraction",
-            "  0.7,                          !- Fraction Radiant",
-            "  0.2;                          !- Fraction Visible",
-            "",
-        ])
+        lines.extend(
+            [
+                "Lights,",
+                f"  {zn}_Lights,                  !- Name",
+                f"  {zn},                         !- Zone Name",
+                "  LightingSchedule,             !- Schedule Name",
+                "  Watts/Area,                   !- Design Level Calculation Method",
+                "  ,                             !- Lighting Level",
+                f"  {loads['lighting_w_m2']},      !- Watts per Floor Area {{W/m2}}",
+                "  ,                             !- Watts per Person",
+                "  0.0,                          !- Return Air Fraction",
+                "  0.7,                          !- Fraction Radiant",
+                "  0.2;                          !- Fraction Visible",
+                "",
+            ]
+        )
 
         # Equipment
-        lines.extend([
-            "ElectricEquipment,",
-            f"  {zn}_Equipment,               !- Name",
-            f"  {zn},                         !- Zone Name",
-            "  EquipmentSchedule,            !- Schedule Name",
-            "  Watts/Area,                   !- Design Level Calculation Method",
-            "  ,                             !- Design Level",
-            f"  {loads['equipment_w_m2']},     !- Watts per Floor Area {{W/m2}}",
-            "  ,                             !- Watts per Person",
-            "  0.0,                          !- Fraction Latent",
-            "  0.5,                          !- Fraction Radiant",
-            "  0.0;                          !- Fraction Lost",
-            "",
-        ])
+        lines.extend(
+            [
+                "ElectricEquipment,",
+                f"  {zn}_Equipment,               !- Name",
+                f"  {zn},                         !- Zone Name",
+                "  EquipmentSchedule,            !- Schedule Name",
+                "  Watts/Area,                   !- Design Level Calculation Method",
+                "  ,                             !- Design Level",
+                f"  {loads['equipment_w_m2']},     !- Watts per Floor Area {{W/m2}}",
+                "  ,                             !- Watts per Person",
+                "  0.0,                          !- Fraction Latent",
+                "  0.5,                          !- Fraction Radiant",
+                "  0.0;                          !- Fraction Lost",
+                "",
+            ]
+        )
 
     return "\n".join(lines)
 
@@ -831,94 +943,110 @@ def _generate_infiltration(bps: dict, zone_names: list[str]) -> str:
 
     lines = ["! === Infiltration ===", ""]
     for zn in zone_names:
-        lines.extend([
-            "ZoneInfiltration:DesignFlowRate,",
-            f"  {zn}_Infiltration,            !- Name",
-            f"  {zn},                         !- Zone Name",
-            "  Always On,                    !- Schedule Name",
-            "  AirChanges/Hour,              !- Design Flow Rate Calculation Method",
-            "  ,                             !- Design Flow Rate",
-            "  ,                             !- Flow Rate per Floor Area",
-            "  ,                             !- Flow Rate per Exterior Surface Area",
-            f"  {ach};                        !- Air Changes per Hour",
-            "",
-        ])
+        lines.extend(
+            [
+                "ZoneInfiltration:DesignFlowRate,",
+                f"  {zn}_Infiltration,            !- Name",
+                f"  {zn},                         !- Zone Name",
+                "  Always On,                    !- Schedule Name",
+                "  AirChanges/Hour,              !- Design Flow Rate Calculation Method",
+                "  ,                             !- Design Flow Rate",
+                "  ,                             !- Flow Rate per Floor Area",
+                "  ,                             !- Flow Rate per Exterior Surface Area",
+                f"  {ach};                        !- Air Changes per Hour",
+                "",
+            ]
+        )
 
     return "\n".join(lines)
 
 
-def _generate_hvac(zone_names: list[str]) -> str:
-    """Generate IdealLoadsAirSystem HVAC for each zone."""
+def _generate_ideal_loads(zone_names: list[str]) -> str:
+    """Generate IdealLoadsAirSystem HVAC for each zone (fallback for non-VAV systems)."""
     lines = ["! === HVAC (Ideal Loads Air System) ===", ""]
 
     for zn in zone_names:
-        lines.extend([
-            "ZoneHVAC:IdealLoadsAirSystem,",
-            f"  {zn}_IdealLoads,              !- Name",
-            "  ,                             !- Availability Schedule Name",
-            f"  {zn}_IdealLoads_InletNode,    !- Zone Supply Air Node Name",
-            f"  {zn}_IdealLoads_ExhaustNode,  !- Zone Exhaust Air Node Name",
-            "  ,                             !- System Inlet Air Node Name",
-            "  50,                           !- Maximum Heating Supply Air Temperature",
-            "  13,                           !- Minimum Cooling Supply Air Temperature",
-            "  0.0156,                       !- Maximum Heating Supply Air Humidity Ratio",
-            "  0.0077,                       !- Minimum Cooling Supply Air Humidity Ratio",
-            "  NoLimit,                      !- Heating Limit",
-            "  ,                             !- Maximum Heating Air Flow Rate",
-            "  ,                             !- Maximum Sensible Heating Capacity",
-            "  NoLimit,                      !- Cooling Limit",
-            "  ,                             !- Maximum Cooling Air Flow Rate",
-            "  ,                             !- Maximum Total Cooling Capacity",
-            "  CoolingSetpoint,              !- Heating Availability Schedule Name",
-            "  ,                             !- Cooling Availability Schedule Name",
-            "  ConstantSensibleHeatRatio,    !- Dehumidification Control Type",
-            "  0.7,                          !- Cooling Sensible Heat Ratio",
-            "  None,                         !- Humidification Control Type",
-            "  ,                             !- Design Specification Outdoor Air Object Name",
-            "  ,                             !- Outdoor Air Inlet Node Name",
-            "  None,                         !- Demand Controlled Ventilation Type",
-            "  NoEconomizer,                 !- Outdoor Air Economizer Type",
-            "  None,                         !- Heat Recovery Type",
-            "  0.7,                          !- Sensible Heat Recovery Effectiveness",
-            "  0.65;                         !- Latent Heat Recovery Effectiveness",
-            "",
-            "ZoneHVAC:EquipmentConnections,",
-            f"  {zn},                         !- Zone Name",
-            f"  {zn}_EquipmentList,           !- Zone Conditioning Equipment List Name",
-            f"  {zn}_IdealLoads_InletNode,    !- Zone Air Inlet Node or NodeList Name",
-            f"  {zn}_IdealLoads_ExhaustNode,  !- Zone Air Exhaust Node or NodeList Name",
-            f"  {zn}_AirNode,                 !- Zone Air Node Name",
-            f"  {zn}_ReturnAirNode;           !- Zone Return Air Node or NodeList Name",
-            "",
-            "ZoneHVAC:EquipmentList,",
-            f"  {zn}_EquipmentList,           !- Name",
-            "  SequentialLoad,               !- Load Distribution Scheme",
-            "  ZoneHVAC:IdealLoadsAirSystem,  !- Zone Equipment Object Type 1",
-            f"  {zn}_IdealLoads,              !- Zone Equipment Name 1",
-            "  1,                            !- Zone Equipment Cooling Sequence 1",
-            "  1,                            !- Zone Equipment Heating or No-Load Sequence 1",
-            "  ,                             !- Zone Equipment Sequential Cooling Fraction Schedule Name 1",
-            "  ;                             !- Zone Equipment Sequential Heating Fraction Schedule Name 1",
-            "",
-            "ZoneControl:Thermostat,",
-            f"  {zn}_Thermostat,              !- Name",
-            f"  {zn},                         !- Zone Name",
-            "  Always On,                    !- Control Type Schedule Name",
-            "  ThermostatSetpoint:DualSetpoint,  !- Control Object Type 1",
-            f"  {zn}_DualSetpoint;            !- Control Name 1",
-            "",
-            "ThermostatSetpoint:DualSetpoint,",
-            f"  {zn}_DualSetpoint,            !- Name",
-            "  HeatingSetpoint,              !- Heating Setpoint Temperature Schedule Name",
-            "  CoolingSetpoint;              !- Cooling Setpoint Temperature Schedule Name",
-            "",
-        ])
+        lines.extend(
+            [
+                "ZoneHVAC:IdealLoadsAirSystem,",
+                f"  {zn}_IdealLoads,              !- Name",
+                "  ,                             !- Availability Schedule Name",
+                f"  {zn}_IdealLoads_InletNode,    !- Zone Supply Air Node Name",
+                f"  {zn}_IdealLoads_ExhaustNode,  !- Zone Exhaust Air Node Name",
+                "  ,                             !- System Inlet Air Node Name",
+                "  50,                           !- Maximum Heating Supply Air Temperature",
+                "  13,                           !- Minimum Cooling Supply Air Temperature",
+                "  0.0156,                       !- Maximum Heating Supply Air Humidity Ratio",
+                "  0.0077,                       !- Minimum Cooling Supply Air Humidity Ratio",
+                "  NoLimit,                      !- Heating Limit",
+                "  ,                             !- Maximum Heating Air Flow Rate",
+                "  ,                             !- Maximum Sensible Heating Capacity",
+                "  NoLimit,                      !- Cooling Limit",
+                "  ,                             !- Maximum Cooling Air Flow Rate",
+                "  ,                             !- Maximum Total Cooling Capacity",
+                "  CoolingSetpoint,              !- Heating Availability Schedule Name",
+                "  ,                             !- Cooling Availability Schedule Name",
+                "  ConstantSensibleHeatRatio,    !- Dehumidification Control Type",
+                "  0.7,                          !- Cooling Sensible Heat Ratio",
+                "  None,                         !- Humidification Control Type",
+                "  ,                             !- Design Specification Outdoor Air Object Name",
+                "  ,                             !- Outdoor Air Inlet Node Name",
+                "  None,                         !- Demand Controlled Ventilation Type",
+                "  NoEconomizer,                 !- Outdoor Air Economizer Type",
+                "  None,                         !- Heat Recovery Type",
+                "  0.7,                          !- Sensible Heat Recovery Effectiveness",
+                "  0.65;                         !- Latent Heat Recovery Effectiveness",
+                "",
+                "ZoneHVAC:EquipmentConnections,",
+                f"  {zn},                         !- Zone Name",
+                f"  {zn}_EquipmentList,           !- Zone Conditioning Equipment List Name",
+                f"  {zn}_IdealLoads_InletNode,    !- Zone Air Inlet Node or NodeList Name",
+                f"  {zn}_IdealLoads_ExhaustNode,  !- Zone Air Exhaust Node or NodeList Name",
+                f"  {zn}_AirNode,                 !- Zone Air Node Name",
+                f"  {zn}_ReturnAirNode;           !- Zone Return Air Node or NodeList Name",
+                "",
+                "ZoneHVAC:EquipmentList,",
+                f"  {zn}_EquipmentList,           !- Name",
+                "  SequentialLoad,               !- Load Distribution Scheme",
+                "  ZoneHVAC:IdealLoadsAirSystem,  !- Zone Equipment Object Type 1",
+                f"  {zn}_IdealLoads,              !- Zone Equipment Name 1",
+                "  1,                            !- Zone Equipment Cooling Sequence 1",
+                "  1,                            !- Zone Equipment Heating or No-Load Sequence 1",
+                "  ,                             !- Zone Equipment Sequential Cooling Fraction Schedule Name 1",
+                "  ;                             !- Zone Equipment Sequential Heating Fraction Schedule Name 1",
+                "",
+                "ZoneControl:Thermostat,",
+                f"  {zn}_Thermostat,              !- Name",
+                f"  {zn},                         !- Zone Name",
+                "  DualSetpointControlType,      !- Control Type Schedule Name",
+                "  ThermostatSetpoint:DualSetpoint,  !- Control Object Type 1",
+                f"  {zn}_DualSetpoint;            !- Control Name 1",
+                "",
+                "ThermostatSetpoint:DualSetpoint,",
+                f"  {zn}_DualSetpoint,            !- Name",
+                "  HeatingSetpoint,              !- Heating Setpoint Temperature Schedule Name",
+                "  CoolingSetpoint;              !- Cooling Setpoint Temperature Schedule Name",
+                "",
+            ]
+        )
 
     return "\n".join(lines)
 
 
-def _generate_output_variables(strategy: str) -> str:
+def _generate_hvac(zone_names: list[str], bps: dict) -> str:
+    """Generate HVAC section based on system_type in BPS."""
+    system_type = bps.get("hvac", {}).get("system_type", "vav_chiller_boiler")
+    if system_type in ("vav_chiller_boiler", "vav_chiller_boiler_school"):
+        return generate_vav_chiller_boiler(bps, zone_names)
+    else:
+        return _generate_ideal_loads(zone_names)
+
+
+def _generate_output_variables(strategy: str, hvac_type: str = "ideal_loads") -> str:
     """Add standard EnergyPlus output variables for result parsing."""
+    if hvac_type in ("vav_chiller_boiler", "vav_chiller_boiler_school"):
+        return output_variables_detailed(strategy)
+
     lines = [
         "! === Output Variables ===",
         "Output:Variable,*,Zone Ideal Loads Supply Air Total Heating Energy,Hourly;",
@@ -975,7 +1103,7 @@ def generate_idf(
     period_type: str = "1year",
     period_start: str | None = None,
     period_end: str | None = None,
-) -> str:
+) -> tuple[str, dict[str, bytes]]:
     """Generate a complete IDF file from BPS + strategy.
 
     Args:
@@ -991,10 +1119,25 @@ def generate_idf(
         period_end: Custom period end (MM/DD format).
 
     Returns:
-        Complete IDF file content as string.
+        Tuple of (idf_content, auxiliary_files).
+        auxiliary_files maps filename → bytes (CSV schedules for Schedule:File).
     """
     if bps is None:
         raise ValueError("bps dict required for IDF generation")
+
+    # Delegate to ems_simulation for supported DOE Reference Building types
+    building_type = bps.get("geometry", {}).get("building_type", "large_office")
+    if is_ems_supported(building_type) and period_type != "custom":
+        try:
+            return generate_idf_via_ems(
+                strategy=strategy,
+                climate_city=climate_city,
+                building_type=building_type,
+                period_type=period_type,
+                bps=bps,
+            )
+        except Exception as exc:
+            logger.warning("ems_simulation bridge failed, falling back to BuildWise generator: %s", exc)
 
     geom = bps.get("geometry", {})
     hvac_type = bps.get("hvac", {}).get("system_type", "vav_chiller_boiler")
@@ -1012,7 +1155,7 @@ def generate_idf(
     zone_names = [zg["name"] for zg in zone_geoms]
 
     # Build zone list for EMS context
-    zones_ctx = [{"name": zg["name"], "floor": zg["floor"]} for zg in zone_geoms]
+    zones_ctx = [{"name": zg["name"], "original_name": zg["name"], "floor": zg["floor"]} for zg in zone_geoms]
 
     # Header (sanitize all interpolated values in IDF content)
     safe_city = sanitize_idf_field(climate_city)
@@ -1020,9 +1163,7 @@ def generate_idf(
     safe_strategy = sanitize_idf_field(strategy)
 
     # Resolve run period from period_type
-    rp_name, rp_sm, rp_sd, rp_em, rp_ed = _resolve_run_period(
-        period_type, period_start, period_end
-    )
+    rp_name, rp_sm, rp_sd, rp_em, rp_ed = _resolve_run_period(period_type, period_start, period_end)
 
     header = f"""\
 ! BuildWise Generated IDF
@@ -1034,7 +1175,7 @@ def generate_idf(
 
 Version,24.1;
 
-Timestep,{bps.get('simulation', {}).get('timestep', 4)};
+Timestep,{bps.get("simulation", {}).get("timestep", 4)};
 
 SimulationControl,
   Yes,  !- Do Zone Sizing Calculation
@@ -1045,9 +1186,13 @@ SimulationControl,
 
 RunPeriod,
   {rp_name},               !- Name
-  {rp_sm}, {rp_sd},        !- Start Month, Day
-  {rp_em}, {rp_ed},        !- End Month, Day
-  UseWeatherFile,          !- Day of Week for Start Day
+  {rp_sm},                  !- Begin Month
+  {rp_sd},                  !- Begin Day of Month
+  ,                          !- Begin Year
+  {rp_em},                  !- End Month
+  {rp_ed},                  !- End Day of Month
+  ,                          !- End Year
+  Sunday,                  !- Day of Week for Start Day
   Yes,                     !- Use Weather File Holidays and Special Days
   Yes,                     !- Use Weather File Daylight Saving Period
   No,                      !- Apply Weekend Holiday Rule
@@ -1066,8 +1211,8 @@ RunPeriod,
     schedules = _generate_schedules(bps)
     internal_loads = _generate_internal_loads(bps, zone_names)
     infiltration = _generate_infiltration(bps, zone_names)
-    hvac = _generate_hvac(zone_names)
-    outputs = _generate_output_variables(strategy)
+    hvac = _generate_hvac(zone_names, bps)
+    outputs = _generate_output_variables(strategy, hvac_type)
 
     # EMS injection
     building_type = geom.get("building_type", "large_office")
@@ -1080,51 +1225,39 @@ RunPeriod,
     cool_unocc = setpoints.get("cooling_unoccupied", 29.0)
     heat_unocc = setpoints.get("heating_unoccupied", 15.0)
 
-    # Operating hours from BPS schedules
+    # Operating hours from BPS schedules (convert "HH:MM" string → numeric hour)
     op_hours = bps.get("schedules", {}).get("operating_hours", {})
-    op_start = op_hours.get("start", 9)
-    op_end = op_hours.get("end", 18)
+    _raw_start = op_hours.get("start") or "09:00"
+    _raw_end = op_hours.get("end") or "18:00"
+    op_start = int(_raw_start.split(":")[0]) if isinstance(_raw_start, str) else int(_raw_start)
+    op_end = int(_raw_end.split(":")[0]) if isinstance(_raw_end, str) else int(_raw_end)
 
     # PMV-based adjustment parameters (M4/M5/M7/M8)
     pmv = _PMV_PARAMS.get(strategy, {})
 
-    # Airloop / AHU context
-    ahu_name = "AHU1"
-    airloops = [{"name": f"AirLoop_{f}", "original_name": f"AirLoop_{f}", "full_name": f"AirLoop_{f}"}
-                for f in range(1, floors + 1)]
-    zones_with_occ = [{"name": z["name"], "original_name": z["name"]} for z in zones_ctx]
-
-    # Chiller capacity estimate (for staging_control.j2)
-    chiller_capacity_kw = max(50, int(area * 0.12))  # ~120 W/m2 peak cooling
+    # Power limit estimate (~120 W/m2 peak for lights+equipment)
+    power_limit_kw = max(50, int(area * 0.08))  # 80 W/m2 threshold
 
     ems_context = {
         # Zone info
         "zones": zones_ctx,
-        "zones_with_occupancy": zones_with_occ,
         "zone_name": zones_ctx[0]["name"] if zones_ctx else "F1_Core",
         "representative_zone": zones_ctx[0]["name"] if zones_ctx else "F1_Core",
-        # HVAC references
-        "airloops": airloops,
-        "ahu_name": ahu_name,
-        "return_air_node": f"{ahu_name}_Return",
-        "oa_controller_name": f"{ahu_name}_OAController",
         # Setpoints
         "cooling_setpoint": cool_occ,
         "heating_setpoint": heat_occ,
-        "day_cooling_sp": cool_occ,
-        "day_heating_sp": heat_occ,
         "night_cooling_sp": cool_unocc,
         "night_heating_sp": heat_unocc,
         # Schedule
         "occupancy_start": op_start,
         "occupancy_end": op_end,
-        "target_hour": op_start,
-        "operation_start": float(op_start),
-        "operation_end": float(op_end),
-        # PMV / peak limiting
-        "cooling_sp_adjustment": pmv.get("cooling_sp_adjustment", "2.0"),
-        # Staging
-        "chiller_capacity_kw": chiller_capacity_kw,
+        # PMV adjustment parameters (M4/M5/M7/M8)
+        "cooling_sp_adjustment": pmv.get("cooling_sp_adjustment", 1.0),
+        "heating_sp_adjustment": pmv.get("heating_sp_adjustment", -1.0),
+        # Load limiting
+        "power_limit_kw": power_limit_kw,
+        # Night pre-cooling target (M2/M6/M7/M8)
+        "night_cool_target": 21.0,
         # Meta
         "hvac_type": hvac_type,
         "building_type": building_type,
@@ -1133,24 +1266,28 @@ RunPeriod,
     ems_section = _render_ems_templates(ems_templates, ems_context, ems_template_dir)
 
     # Combine
-    idf_content = "\n".join([
-        header,
-        global_rules,
-        design_days,
-        ground_temps,
-        geometry,
-        constructions,
-        envelope,
-        schedules,
-        internal_loads,
-        infiltration,
-        hvac,
-        ems_section,
-        outputs,
-    ])
+    idf_content = "\n".join(
+        [
+            header,
+            global_rules,
+            design_days,
+            ground_temps,
+            geometry,
+            constructions,
+            envelope,
+            schedules,
+            internal_loads,
+            infiltration,
+            hvac,
+            ems_section,
+            outputs,
+        ]
+    )
 
     logger.info(
         "Generated IDF: building=%s strategy=%s lines=%d",
-        building_id, strategy, idf_content.count("\n"),
+        building_id,
+        strategy,
+        idf_content.count("\n"),
     )
-    return idf_content
+    return idf_content, {}

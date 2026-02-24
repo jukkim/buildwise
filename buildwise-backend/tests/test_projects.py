@@ -8,25 +8,14 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx import AsyncClient
 
-from app.models.project import Project, ProjectStatus
-
 
 @pytest.mark.anyio
-async def test_create_project(client: AsyncClient, mock_db, test_user):
+async def test_create_project(client: AsyncClient, mock_db):
     """POST /api/v1/projects creates a project."""
-    fake_project = MagicMock(spec=Project)
-    fake_project.id = uuid.uuid4()
-    fake_project.name = "Test Project"
-    fake_project.description = None
-    fake_project.status = ProjectStatus.ACTIVE.value
-    fake_project.buildings_count = 0
-    fake_project.created_at = test_user.created_at
-    fake_project.updated_at = test_user.updated_at
-
-    mock_db.refresh = AsyncMock(return_value=None)
-
     resp = await client.post("/api/v1/projects", json={"name": "Test Project"})
     assert resp.status_code == 201
+    data = resp.json()
+    assert data["name"] == "Test Project"
     assert mock_db.add.called
 
 

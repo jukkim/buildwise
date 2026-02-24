@@ -1,0 +1,167 @@
+! ============================================================================
+! M6: Equipment Integration (M2 + M3 = 외기냉방 + 부하제한)
+! IdealLoadsAirSystem compatible — Zone Temperature Control actuators only
+!
+! Combined strategy:
+! 1. Night pre-cooling (M2): Lower cooling SP when OAT favorable at night
+! 2. Daytime OAT optimization (M2): Lower cooling SP when OAT in economizer range
+! 3. Peak load limiting (M3): Raise cooling SP during peak hours (time-based)
+! 4. Load limiting takes priority over OAT optimization during peak hours
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    M6_OAT_Sensor,
+    Environment,
+    Site Outdoor Air Drybulb Temperature;
+
+{% for zone in zones %}
+EnergyManagementSystem:Sensor,
+    M6_{{ zone.name }}_Temp,
+    {{ zone.name }},
+    Zone Mean Air Temperature;
+
+{% endfor %}
+
+! --- Actuators ---
+{% for zone in zones %}
+EnergyManagementSystem:Actuator,
+    M6_{{ zone.name }}_Cool_SP,
+    {{ zone.name }},
+    Zone Temperature Control,
+    Cooling Setpoint;
+
+EnergyManagementSystem:Actuator,
+    M6_{{ zone.name }}_Heat_SP,
+    {{ zone.name }},
+    Zone Temperature Control,
+    Heating Setpoint;
+
+{% endfor %}
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    M6_Night_Precool,
+    M6_Day_Economizer,
+    M6_Load_Limit,
+    M6_Avg_Zone_Temp,
+    M6_Cool_Offset;
+
+! --- Program ---
+EnergyManagementSystem:Program,
+    M6_Equipment_Integration_Program,
+    ! Configuration
+    SET CoolSP = {{ cooling_setpoint | default(24.0) }},
+    SET HeatSP = {{ heating_setpoint | default(20.0) }},
+    SET OccStart = {{ occupancy_start | default(9) }},
+    SET OccEnd = {{ occupancy_end | default(18) }},
+    SET NightCoolTarget = {{ night_cool_target | default(21.0) }},
+    SET PeakStart = {{ peak_start_hour | default(14) }},
+    SET PeakEnd = {{ peak_end_hour | default(17) }},
+    SET OverrideTempLimit = {{ override_temp_limit | default(27) }},
+    SET HighTempThreshold = 35,
+    !
+    SET CurrentHour = Hour,
+    SET CurrentDay = DayOfWeek,
+    SET M6_Night_Precool = 0,
+    SET M6_Day_Economizer = 0,
+    SET M6_Load_Limit = 0,
+    SET M6_Cool_Offset = 0,
+    !
+    ! Weekend: schedule values
+    IF CurrentDay == 1 || CurrentDay == 7,
+{% for zone in zones %}
+        SET M6_{{ zone.name }}_Cool_SP = NULL,
+        SET M6_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+        RETURN,
+    ENDIF,
+    !
+    ! Average zone temp
+    SET M6_Avg_Zone_Temp = 0,
+{% for zone in zones %}
+    SET M6_Avg_Zone_Temp = M6_Avg_Zone_Temp + M6_{{ zone.name }}_Temp,
+{% endfor %}
+    SET M6_Avg_Zone_Temp = M6_Avg_Zone_Temp / {{ zones | length }},
+    !
+    ! === Night Pre-Cooling (22:00-06:00) ===
+    IF (CurrentHour >= 22) || (CurrentHour < 6),
+        IF M6_OAT_Sensor >= 15.0 && M6_OAT_Sensor <= 25.0,
+            IF M6_OAT_Sensor < M6_Avg_Zone_Temp,
+                SET M6_Night_Precool = 1,
+{% for zone in zones %}
+                SET M6_{{ zone.name }}_Cool_SP = NightCoolTarget,
+                SET M6_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+                RETURN,
+            ENDIF,
+        ENDIF,
+{% for zone in zones %}
+        SET M6_{{ zone.name }}_Cool_SP = NULL,
+        SET M6_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+        RETURN,
+    ENDIF,
+    !
+    ! === Daytime: Peak load limiting has priority ===
+    IF CurrentHour >= PeakStart && CurrentHour < PeakEnd,
+        IF M6_OAT_Sensor <= HighTempThreshold,
+            SET M6_Load_Limit = 1,
+            SET M6_Cool_Offset = 2.0,
+{% for zone in zones %}
+            IF M6_{{ zone.name }}_Temp < OverrideTempLimit,
+                SET M6_{{ zone.name }}_Cool_SP = CoolSP + M6_Cool_Offset,
+            ELSE,
+                SET M6_{{ zone.name }}_Cool_SP = NULL,
+            ENDIF,
+            SET M6_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+            RETURN,
+        ENDIF,
+    ENDIF,
+    !
+    ! OAT optimization (occupied hours, when not in peak)
+    IF CurrentHour >= OccStart && CurrentHour < OccEnd,
+        IF M6_OAT_Sensor >= 15.0 && M6_OAT_Sensor <= 26.0,
+            IF M6_OAT_Sensor < M6_Avg_Zone_Temp,
+                SET M6_Day_Economizer = 1,
+{% for zone in zones %}
+                SET M6_{{ zone.name }}_Cool_SP = CoolSP - 1.0,
+                SET M6_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+                RETURN,
+            ENDIF,
+        ENDIF,
+    ENDIF,
+    !
+    ! Default: schedule values
+{% for zone in zones %}
+    SET M6_{{ zone.name }}_Cool_SP = NULL,
+    SET M6_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+    ;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    M6_Equipment_Integration_Manager,
+    BeginTimestepBeforePredictor,
+    M6_Equipment_Integration_Program;
+
+! --- Output Variables ---
+EnergyManagementSystem:OutputVariable,
+    M6 Night Precool,
+    M6_Night_Precool,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    M6 Day Economizer,
+    M6_Day_Economizer,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    M6 Load Limit,
+    M6_Load_Limit,
+    Averaged,
+    ZoneTimeStep;

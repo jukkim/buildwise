@@ -1,0 +1,120 @@
+! ============================================================================
+! M0: Occupancy-Based Night Setback (재실 기반 야간 설정온도 완화)
+! IdealLoadsAirSystem compatible — Zone Temperature Control actuators only
+!
+! Strategy:
+! 1. Weekdays occupied + people present: normal setpoints (schedule values)
+! 2. Weekdays occupied + no people: widen setpoints (+4/-4 C)
+! 3. Weekdays unoccupied + weekends: widen setpoints (schedule handles via NULL)
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    M0_OAT_Sensor,
+    Environment,
+    Site Outdoor Air Drybulb Temperature;
+
+{% for zone in zones %}
+EnergyManagementSystem:Sensor,
+    M0_{{ zone.name }}_Occ,
+    {{ zone.name }},
+    Zone People Occupant Count;
+
+{% endfor %}
+
+! --- Actuators ---
+{% for zone in zones %}
+EnergyManagementSystem:Actuator,
+    M0_{{ zone.name }}_Cool_SP,
+    {{ zone.name }},
+    Zone Temperature Control,
+    Cooling Setpoint;
+
+EnergyManagementSystem:Actuator,
+    M0_{{ zone.name }}_Heat_SP,
+    {{ zone.name }},
+    Zone Temperature Control,
+    Heating Setpoint;
+
+{% endfor %}
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    M0_Total_Occupancy,
+    M0_Active;
+
+! --- Program ---
+EnergyManagementSystem:Program,
+    M0_Occupancy_Setback_Program,
+    ! Configuration
+    SET CoolSP = {{ cooling_setpoint | default(24.0) }},
+    SET HeatSP = {{ heating_setpoint | default(20.0) }},
+    SET OccStart = {{ occupancy_start | default(9) }},
+    SET OccEnd = {{ occupancy_end | default(18) }},
+    SET SetbackCool = 4.0,
+    SET SetbackHeat = -4.0,
+    !
+    SET CurrentHour = Hour,
+    SET CurrentDay = DayOfWeek,
+    !
+    ! Weekend check (1=Sunday, 7=Saturday)
+    IF CurrentDay == 1 || CurrentDay == 7,
+        ! Weekend: use schedule values (unoccupied setpoints)
+        SET M0_Active = 0,
+{% for zone in zones %}
+        SET M0_{{ zone.name }}_Cool_SP = NULL,
+        SET M0_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+        RETURN,
+    ENDIF,
+    !
+    ! Weekday operating hours check
+    IF CurrentHour >= OccStart && CurrentHour < OccEnd,
+        ! Operating hours: check occupancy
+        SET M0_Total_Occupancy = 0,
+{% for zone in zones %}
+        SET M0_Total_Occupancy = M0_Total_Occupancy + M0_{{ zone.name }}_Occ,
+{% endfor %}
+        !
+        IF M0_Total_Occupancy >= 1,
+            ! People present: normal setpoints
+            SET M0_Active = 1,
+{% for zone in zones %}
+            SET M0_{{ zone.name }}_Cool_SP = NULL,
+            SET M0_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+        ELSE,
+            ! No people: widen setpoints for energy savings
+            SET M0_Active = 2,
+{% for zone in zones %}
+            SET M0_{{ zone.name }}_Cool_SP = CoolSP + SetbackCool,
+            SET M0_{{ zone.name }}_Heat_SP = HeatSP + SetbackHeat,
+{% endfor %}
+        ENDIF,
+    ELSE,
+        ! Outside operating hours: use schedule (unoccupied setpoints)
+        SET M0_Active = 0,
+{% for zone in zones %}
+        SET M0_{{ zone.name }}_Cool_SP = NULL,
+        SET M0_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+    ENDIF;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    M0_Occupancy_Setback_Manager,
+    BeginTimestepBeforePredictor,
+    M0_Occupancy_Setback_Program;
+
+! --- Output Variables ---
+EnergyManagementSystem:OutputVariable,
+    M0 Strategy Active,
+    M0_Active,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    M0 Total Occupancy,
+    M0_Total_Occupancy,
+    Averaged,
+    ZoneTimeStep;

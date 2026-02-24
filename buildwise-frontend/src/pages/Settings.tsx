@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { authApi, billingApi, type PlanInfo } from "@/api/client";
 import { Skeleton } from "@/components/Skeleton";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import { STRATEGY_LABELS } from "@/constants/strategies";
 
 export default function Settings() {
   useDocumentTitle("Settings");
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const { data: user, isLoading: userLoading, isError: userError, refetch: refetchUser } = useQuery({
     queryKey: ["user-me"],
@@ -48,7 +51,7 @@ export default function Settings() {
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Settings</h1>
 
       {/* Profile */}
-      <section className="rounded-lg border border-gray-200 bg-white p-6 mb-6">
+      <section className="rounded-xl bg-white shadow-sm p-6 mb-6">
         <div className="flex items-center gap-4 mb-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-lg font-bold text-blue-700">
             {(user?.name ?? "U").split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
@@ -90,7 +93,7 @@ export default function Settings() {
       </section>
 
       {/* Current Plan & Usage */}
-      <section className="rounded-lg border border-gray-200 bg-white p-6 mb-6">
+      <section className="rounded-xl bg-white shadow-sm p-6 mb-6">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Plan & Usage</h2>
         {usageLoading ? (
           <div className="space-y-3">
@@ -176,7 +179,7 @@ export default function Settings() {
 
       {/* Plan Comparison */}
       {plans && plans.length > 0 && (
-        <section className="rounded-lg border border-gray-200 bg-white p-6">
+        <section className="rounded-xl bg-white shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">Available Plans</h2>
           <div className="grid gap-4 sm:grid-cols-3">
             {plans.map((plan: PlanInfo) => {
@@ -226,7 +229,7 @@ export default function Settings() {
         </section>
       )}
       {/* Data Management */}
-      <section className="rounded-lg border border-gray-200 bg-white p-6 mt-6">
+      <section className="rounded-xl bg-white shadow-sm p-6 mt-6">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Data</h2>
         <div className="flex flex-wrap gap-3">
           <button
@@ -259,20 +262,30 @@ export default function Settings() {
             ) : null;
           })()}
           <button
-            onClick={() => {
-              localStorage.removeItem("buildwise_banner_dismissed");
-              localStorage.removeItem("buildwise_last_email");
-              window.location.reload();
-            }}
+            onClick={() => setShowClearConfirm(true)}
             className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
           >
             Clear Local Preferences
           </button>
+          {showClearConfirm && (
+            <ConfirmDialog
+              title="Clear Local Preferences"
+              message="This will reset your banner preference, remembered email, and other local settings. The page will reload."
+              confirmLabel="Clear"
+              destructive
+              onConfirm={() => {
+                localStorage.removeItem("buildwise_banner_dismissed");
+                localStorage.removeItem("buildwise_last_email");
+                window.location.reload();
+              }}
+              onCancel={() => setShowClearConfirm(false)}
+            />
+          )}
         </div>
       </section>
 
       {/* Security */}
-      <section className="rounded-lg border border-gray-200 bg-white p-6 mt-6">
+      <section className="rounded-xl bg-white shadow-sm p-6 mt-6">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Security</h2>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
@@ -303,7 +316,7 @@ export default function Settings() {
       </section>
 
       {/* Keyboard Shortcuts */}
-      <details className="rounded-lg border border-gray-200 bg-white mt-6 group">
+      <details className="rounded-xl bg-white shadow-sm mt-6 group">
         <summary className="cursor-pointer p-6 text-lg font-semibold text-gray-800 list-none flex items-center justify-between">
           Keyboard Shortcuts
           <svg className="h-5 w-5 text-gray-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -328,7 +341,7 @@ export default function Settings() {
       </details>
 
       {/* Appearance */}
-      <section className="rounded-lg border border-gray-200 bg-white p-6 mt-6">
+      <section className="rounded-xl bg-white shadow-sm p-6 mt-6">
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Appearance</h2>
         <div className="flex gap-4">
           <div className="flex-1 rounded-lg border-2 border-blue-500 bg-white p-4 text-center cursor-default">

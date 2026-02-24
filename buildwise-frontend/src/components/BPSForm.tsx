@@ -87,6 +87,24 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
   });
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [showErrors, setShowErrors] = useState(false);
+  const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
+
+  const markTouched = (section: string, field: string) => {
+    setTouchedFields((prev) => new Set(prev).add(`${section}.${field}`));
+  };
+
+  // Sync draft when external bps prop changes (e.g. after server save)
+  useEffect(() => {
+    setDraft({
+      location: { ...(bps.location ?? {}) },
+      geometry: { ...(bps.geometry ?? {}) },
+      envelope: { ...(bps.envelope ?? {}) },
+      hvac: { ...(bps.hvac ?? {}) },
+      setpoints: { ...(bps.setpoints ?? {}) },
+      internal_loads: { ...(bps.internal_loads ?? {}) },
+      schedules: { ...(bps.schedules ?? {}) },
+    });
+  }, [bps]);
 
   // Validate on draft change
   useEffect(() => {
@@ -94,9 +112,12 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
   }, [draft]);
 
   const getFieldError = useCallback(
-    (section: string, field: string) =>
-      showErrors ? validationErrors.find((e) => e.section === section && e.field === field)?.message : undefined,
-    [validationErrors, showErrors],
+    (section: string, field: string) => {
+      const err = validationErrors.find((e) => e.section === section && e.field === field)?.message;
+      if (!err) return undefined;
+      return showErrors || touchedFields.has(`${section}.${field}`) ? err : undefined;
+    },
+    [validationErrors, showErrors, touchedFields],
   );
 
   const sectionHasErrors = useCallback(
@@ -191,7 +212,7 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
   const isVRF = hvacType === "vrf";
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white">
+    <div className="rounded-xl bg-white shadow-sm">
       {/* Unsaved changes banner */}
       {isDirty && (
         <div className="flex items-center justify-between bg-amber-50 border-b border-amber-200 px-4 py-2 text-sm">
@@ -208,7 +229,7 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
       )}
       {/* Section tabs */}
       <div
-        className="flex border-b border-gray-200 overflow-x-auto"
+        className="flex border-b border-gray-200 overflow-x-auto scrollbar-hide relative [mask-image:linear-gradient(to_right,transparent,black_2%,black_98%,transparent)] sm:[mask-image:none]"
         role="tablist"
         onKeyDown={(e) => {
           if (jsonView) return;
@@ -278,7 +299,7 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
           <div className="relative">
             <button
               onClick={() => {
-                navigator.clipboard.writeText(JSON.stringify(draft, null, 2));
+                navigator.clipboard.writeText(JSON.stringify(draft, null, 2)).catch(() => {});
               }}
               className="absolute right-2 top-2 rounded bg-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-300"
               title="Copy JSON to clipboard"
@@ -295,9 +316,11 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
           <>
             <NumField label="Floors Above" value={draft.geometry.num_floors_above as number} min={1} max={100}
               onChange={(v) => update("geometry", "num_floors_above", v)} error={getFieldError("geometry", "num_floors_above")}
+              onBlur={() => markTouched("geometry", "num_floors_above")}
               hint="Number of above-ground floors" />
             <NumField label="Total Floor Area (m2)" value={draft.geometry.total_floor_area_m2 as number} min={100} max={500000}
               onChange={(v) => update("geometry", "total_floor_area_m2", v)} error={getFieldError("geometry", "total_floor_area_m2")}
+              onBlur={() => markTouched("geometry", "total_floor_area_m2")}
               hint="Gross floor area including all floors" />
             <NumField label="Floor-to-Floor Height (m)" value={draft.geometry.floor_to_floor_height_m as number} min={2.5} max={10} step={0.1}
               onChange={(v) => update("geometry", "floor_to_floor_height_m", v)}
@@ -307,6 +330,7 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
               hint="Length/width ratio of building footprint" />
             <NumField label="WWR" value={draft.geometry.wwr as number} min={0} max={0.95} step={0.01}
               onChange={(v) => update("geometry", "wwr", v)} error={getFieldError("geometry", "wwr")}
+              onBlur={() => markTouched("geometry", "wwr")}
               hint="Window-to-Wall Ratio (0.0-0.95)" />
             <NumField label="Orientation (deg)" value={draft.geometry.orientation_deg as number} min={0} max={360}
               onChange={(v) => update("geometry", "orientation_deg", v)} />
@@ -344,8 +368,12 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
               onChange={(v) => update("envelope", "wall_type", v)} />
             <SelectField label="Window Type" value={draft.envelope.window_type as string} options={WINDOW_TYPES}
               onChange={(v) => update("envelope", "window_type", v)} />
+            <NumField label="Wall U-value (W/m²K)" value={draft.envelope.wall_u_value as number} min={0.1} max={5.0} step={0.01}
+              onChange={(v) => update("envelope", "wall_u_value", v)}
+              hint="Wall thermal transmittance (lower = better insulation)" />
             <NumField label="Window SHGC" value={draft.envelope.window_shgc as number} min={0.1} max={0.9} step={0.01}
               onChange={(v) => update("envelope", "window_shgc", v)} error={getFieldError("envelope", "window_shgc")}
+              onBlur={() => markTouched("envelope", "window_shgc")}
               hint="Solar Heat Gain Coefficient (lower = less solar heat)" />
             <NumField label="Infiltration (ACH)" value={draft.envelope.infiltration_ach as number} min={0} max={2} step={0.1}
               onChange={(v) => update("envelope", "infiltration_ach", v)}
@@ -394,7 +422,9 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
         {activeSection === "internal_loads" && (
           <>
             <NumField label="People Density (ppl/m2)" value={(draft.internal_loads.people_density as number) ?? 0.0565} min={0.01} max={1} step={0.001}
-              onChange={(v) => update("internal_loads", "people_density", v)} error={getFieldError("internal_loads", "people_density")} />
+              onChange={(v) => update("internal_loads", "people_density", v)} error={getFieldError("internal_loads", "people_density")}
+              onBlur={() => markTouched("internal_loads", "people_density")}
+              hint="Occupant density per m² (office typical: 0.05)" />
             <NumField label="Lighting Power (W/m2)" value={(draft.internal_loads.lighting_power_density as number) ?? 10.76} min={1} max={50} step={0.1}
               onChange={(v) => update("internal_loads", "lighting_power_density", v)} />
             <NumField label="Equipment Power (W/m2)" value={(draft.internal_loads.equipment_power_density as number) ?? 10.76} min={1} max={50} step={0.1}
@@ -411,12 +441,14 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
           <>
             <NumField label="Cooling (Occupied)" value={draft.setpoints.cooling_occupied as number} min={18} max={30} step={0.5}
               onChange={(v) => update("setpoints", "cooling_occupied", v)} unit="°C" error={getFieldError("setpoints", "cooling_occupied")}
+              onBlur={() => markTouched("setpoints", "cooling_occupied")}
               hint="Typical office: 24-26°C" />
             <NumField label="Heating (Occupied)" value={draft.setpoints.heating_occupied as number} min={15} max={25} step={0.5}
               onChange={(v) => update("setpoints", "heating_occupied", v)} unit="°C"
-              hint="Typical office: 20-22°C" />
+              hint="DOE Reference: 21°C" />
             <NumField label="Cooling (Unoccupied)" value={draft.setpoints.cooling_unoccupied as number} min={25} max={35} step={0.5}
               onChange={(v) => update("setpoints", "cooling_unoccupied", v)} unit="°C" error={getFieldError("setpoints", "cooling_unoccupied")}
+              onBlur={() => markTouched("setpoints", "cooling_unoccupied")}
               hint="Setback during unoccupied hours" />
             <NumField label="Heating (Unoccupied)" value={draft.setpoints.heating_unoccupied as number} min={10} max={20} step={0.5}
               onChange={(v) => update("setpoints", "heating_unoccupied", v)} unit="°C"
@@ -507,26 +539,35 @@ export default function BPSForm({ bps, onSave, saving, error }: BPSFormProps) {
 
 // --- Field components ---
 
+let _fieldId = 0;
+function useFieldId(label: string) {
+  const [id] = useState(() => `bps-${label.replace(/\W+/g, "-").toLowerCase()}-${++_fieldId}`);
+  return id;
+}
+
 function NumField({
-  label, value, min, max, step = 1, unit, onChange, error, hint,
+  label, value, min, max, step = 1, unit, onChange, error, hint, onBlur,
 }: {
   label: string; value: number; min: number; max: number; step?: number; unit?: string;
-  onChange: (v: number) => void; error?: string; hint?: string;
+  onChange: (v: number) => void; error?: string; hint?: string; onBlur?: () => void;
 }) {
+  const id = useFieldId(label);
+  const hintId = hint ? `${id}-hint` : undefined;
+  const errorId = error ? `${id}-error` : undefined;
   return (
     <div>
       <div className="flex items-center justify-between gap-4">
-        <label className="text-sm text-gray-600 min-w-[160px]" title={hint}>{label}
-          {hint && (
-            <span className="ml-1 inline-block text-gray-300 cursor-help" title={hint}>?</span>
-          )}
-        </label>
+        <label htmlFor={id} className="text-sm text-gray-600 min-w-[160px]">{label}</label>
         <div className="flex items-center gap-2">
           <input
+            id={id}
             type="number"
             value={value ?? ""}
             min={min} max={max} step={step}
             onChange={(e) => onChange(Number(e.target.value))}
+            onBlur={onBlur}
+            aria-describedby={[hintId, errorId].filter(Boolean).join(" ") || undefined}
+            aria-invalid={!!error}
             className={clsx(
               "w-28 rounded border px-2 py-1.5 text-sm text-right",
               error ? "border-red-400 bg-red-50" : "border-gray-300",
@@ -535,7 +576,8 @@ function NumField({
           {unit && <span className="text-xs text-gray-400">{unit}</span>}
         </div>
       </div>
-      {error && <p className="mt-0.5 text-right text-xs text-red-500">{error}</p>}
+      {hint && <p id={hintId} className="mt-0.5 text-right text-xs text-gray-400">{hint}</p>}
+      {error && <p id={errorId} className="mt-0.5 text-right text-xs text-red-500">{error}</p>}
     </div>
   );
 }
@@ -546,10 +588,12 @@ function SelectField({
   label: string; value: string; options: string[] | { value: string; label: string }[];
   onChange: (v: string) => void;
 }) {
+  const id = useFieldId(label);
   return (
     <div className="flex items-center justify-between gap-4">
-      <label className="text-sm text-gray-600 min-w-[160px]">{label}</label>
+      <label htmlFor={id} className="text-sm text-gray-600 min-w-[160px]">{label}</label>
       <select
+        id={id}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
         className="rounded border border-gray-300 px-2 py-1.5 text-sm"

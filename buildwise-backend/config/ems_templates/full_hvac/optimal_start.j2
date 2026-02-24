@@ -67,7 +67,7 @@ EnergyManagementSystem:Program,
     SET MaxStartAdvance = {{ max_start_advance | default(3.0) }},  ! 최대 선행 시간
     !
     ! 현재 시간
-    SET CurrentHour = CurrentTime,
+    SET CurrentHour = Hour,
     SET CurrentDay = DayOfWeek,
     !
     ! 주말 체크 (1=일요일, 7=토요일)

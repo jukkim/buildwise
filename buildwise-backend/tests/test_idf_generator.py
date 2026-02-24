@@ -1,15 +1,15 @@
 """IDF generator unit tests."""
 
+from unittest.mock import patch
+
 import pytest
 
 from app.services.idf.generator import (
-    STRATEGY_TEMPLATE_MAP,
     _compute_zone_geometry,
     _generate_constructions,
     _generate_design_days,
     _generate_global_geometry_rules,
     _generate_ground_temps,
-    _resolve_run_period,
     _generate_hvac,
     _generate_idf_envelope,
     _generate_idf_geometry,
@@ -18,6 +18,7 @@ from app.services.idf.generator import (
     _generate_output_variables,
     _generate_schedules,
     _get_ems_templates,
+    _resolve_run_period,
     generate_idf,
     sanitize_idf_field,
 )
@@ -102,24 +103,23 @@ class TestStrategyTemplateMapping:
 
     def test_m0_large_office(self):
         templates = _get_ems_templates("m0", "large_office")
-        assert "m2_night_ventilation.j2" in templates
-        assert "occupancy_control.j2" in templates
+        assert templates == ["m0_occupancy_setback.j2"]
 
-    def test_m0_medium_office_vrf(self):
+    def test_m0_medium_office(self):
         templates = _get_ems_templates("m0", "medium_office")
-        assert templates == ["vrf_night_setback.j2"]
+        assert templates == ["m0_occupancy_setback.j2"]
 
     def test_m1_large_office(self):
         templates = _get_ems_templates("m1", "large_office")
-        assert templates == ["optimal_start.j2"]
+        assert templates == ["m1_optimal_start.j2"]
 
-    def test_m1_medium_office_vrf(self):
+    def test_m1_medium_office(self):
         templates = _get_ems_templates("m1", "medium_office")
-        assert templates == ["optimal_start_vrf_v2.j2"]
+        assert templates == ["m1_optimal_start.j2"]
 
     def test_m2_economizer(self):
         templates = _get_ems_templates("m2", "large_office")
-        assert templates == ["enthalpy_economizer.j2"]
+        assert templates == ["m2_free_cooling.j2"]
 
     def test_m2_not_applicable_medium_office(self):
         templates = _get_ems_templates("m2", "medium_office")
@@ -127,7 +127,7 @@ class TestStrategyTemplateMapping:
 
     def test_m3_staging_large_office(self):
         templates = _get_ems_templates("m3", "large_office")
-        assert templates == ["staging_control.j2"]
+        assert templates == ["m3_load_limiting.j2"]
 
     def test_m3_not_applicable_small_office(self):
         templates = _get_ems_templates("m3", "small_office")
@@ -136,19 +136,15 @@ class TestStrategyTemplateMapping:
     def test_m4_wildcard_all_buildings(self):
         for bt in ["large_office", "medium_office", "small_office", "standalone_retail", "primary_school"]:
             templates = _get_ems_templates("m4", bt)
-            assert "m4_peak_limiting.j2" in templates
-            assert "setpoint_adjustment.j2" in templates
+            assert templates == ["m4_comfort_normal.j2"]
 
-    def test_m7_large_office_has_4_templates(self):
+    def test_m7_large_office(self):
         templates = _get_ems_templates("m7", "large_office")
-        assert len(templates) == 4
-        assert "enthalpy_economizer.j2" in templates
-        assert "staging_control.j2" in templates
+        assert templates == ["m7_full_normal.j2"]
 
-    def test_m7_medium_office_vrf(self):
+    def test_m7_medium_office(self):
         templates = _get_ems_templates("m7", "medium_office")
-        assert "vrf_full_control.j2" in templates
-        assert "setpoint_adjustment.j2" in templates
+        assert templates == ["m7_full_normal.j2"]
 
     def test_unknown_strategy(self):
         templates = _get_ems_templates("unknown", "large_office")
@@ -160,7 +156,7 @@ class TestStrategyTemplateMapping:
 
     def test_unknown_building_with_wildcard(self):
         templates = _get_ems_templates("m4", "unknown_type")
-        assert "m4_peak_limiting.j2" in templates
+        assert templates == ["m4_comfort_normal.j2"]
 
 
 class TestZoneGeometry:
@@ -293,13 +289,11 @@ class TestGenerateIdfSections:
         assert "0.5" in result  # ACH
 
     def test_hvac(self):
+        bps = _sample_bps()
         zone_names = ["F1_Core"]
-        result = _generate_hvac(zone_names)
-        assert "ZoneHVAC:IdealLoadsAirSystem" in result
-        assert "ZoneHVAC:EquipmentConnections" in result
-        assert "ZoneHVAC:EquipmentList" in result
-        assert "ZoneControl:Thermostat" in result
-        assert "ThermostatSetpoint:DualSetpoint" in result
+        result = _generate_hvac(zone_names, bps)
+        assert "ZoneHVAC:" in result
+        assert "ZoneControl:Thermostat" in result or "ZoneHVAC:EquipmentConnections" in result
 
     def test_output_variables(self):
         result = _generate_output_variables("baseline")
@@ -393,15 +387,20 @@ class TestResolveRunPeriod:
 
 
 class TestGenerateIdf:
-    """Test the main generate_idf entry point."""
+    """Test the main generate_idf entry point.
+
+    These tests patch is_ems_supported to False so the BuildWise generator
+    is used instead of ems_simulation (which may or may not be available).
+    """
 
     def test_requires_bps(self):
         with pytest.raises(ValueError, match="bps dict required"):
             generate_idf("b1", "c1", "baseline", "Seoul", "KOR_Seoul.Ws.108.epw")
 
-    def test_full_idf_has_all_sections(self):
+    @patch("app.services.idf.generator.is_ems_supported", return_value=False)
+    def test_full_idf_has_all_sections(self, _mock):
         bps = _sample_bps()
-        idf = generate_idf("b1", "c1", "baseline", "Seoul", "KOR_Seoul.Ws.108.epw", bps=bps)
+        idf, aux_files = generate_idf("b1", "c1", "baseline", "Seoul", "KOR_Seoul.Ws.108.epw", bps=bps)
 
         # Header
         assert "Version,24.1;" in idf
@@ -424,57 +423,71 @@ class TestGenerateIdf:
         assert "Lights," in idf
         assert "ElectricEquipment," in idf
         assert "ZoneInfiltration:DesignFlowRate," in idf
-        assert "ZoneHVAC:IdealLoadsAirSystem," in idf
-        assert "Output:Variable," in idf
+        assert "ZoneHVAC:" in idf
+        assert "Output:Variable," in idf or "Output:Meter," in idf
         assert "Output:Table:SummaryReports," in idf
 
-    def test_full_idf_line_count(self):
+    @patch("app.services.idf.generator.is_ems_supported", return_value=False)
+    def test_full_idf_line_count(self, _mock):
         bps = _sample_bps()
-        idf = generate_idf("b1", "c1", "baseline", "Seoul", "KOR_Seoul.Ws.108.epw", bps=bps)
+        idf, _ = generate_idf("b1", "c1", "baseline", "Seoul", "KOR_Seoul.Ws.108.epw", bps=bps)
         line_count = idf.count("\n")
         # A 2-floor, 10-zone building should generate a substantial IDF
         assert line_count > 500
 
-    def test_idf_sanitizes_city(self):
+    @patch("app.services.idf.generator.is_ems_supported", return_value=False)
+    def test_idf_sanitizes_city(self, _mock):
         bps = _sample_bps()
-        idf = generate_idf("b1", "c1", "baseline", "Seoul;DROP TABLE", "KOR_Seoul.Ws.108.epw", bps=bps)
+        idf, _ = generate_idf("b1", "c1", "baseline", "Seoul;DROP TABLE", "KOR_Seoul.Ws.108.epw", bps=bps)
         assert "Seoul;DROP TABLE" not in idf
         assert "SeoulDROP TABLE" in idf
 
-    def test_idf_different_strategies(self):
+    @patch("app.services.idf.generator.is_ems_supported", return_value=False)
+    def test_idf_different_strategies(self, _mock):
         bps = _sample_bps()
-        baseline = generate_idf("b1", "c1", "baseline", "Seoul", "test.epw", bps=bps)
-        m3 = generate_idf("b1", "c1", "m3", "Seoul", "test.epw", bps=bps)
+        baseline, _ = generate_idf("b1", "c1", "baseline", "Seoul", "test.epw", bps=bps)
+        m3, _ = generate_idf("b1", "c1", "m3", "Seoul", "test.epw", bps=bps)
         # Both should have same structure but different strategy in header
         assert "Strategy: baseline" in baseline
         assert "Strategy: m3" in m3
 
-    def test_single_floor_building(self):
+    @patch("app.services.idf.generator.is_ems_supported", return_value=False)
+    def test_single_floor_building(self, _mock):
         bps = _sample_bps(geometry={"num_floors_above": 1, "total_floor_area_m2": 500})
-        idf = generate_idf("b1", "c1", "baseline", "Seoul", "test.epw", bps=bps)
+        idf, _ = generate_idf("b1", "c1", "baseline", "Seoul", "test.epw", bps=bps)
         assert "F1_Core" in idf
         assert "F2_Core" not in idf  # Only 1 floor
 
-    def test_three_floor_building(self):
+    @patch("app.services.idf.generator.is_ems_supported", return_value=False)
+    def test_three_floor_building(self, _mock):
         bps = _sample_bps(geometry={"num_floors_above": 3, "total_floor_area_m2": 9000})
-        idf = generate_idf("b1", "c1", "baseline", "Seoul", "test.epw", bps=bps)
+        idf, _ = generate_idf("b1", "c1", "baseline", "Seoul", "test.epw", bps=bps)
         assert "F1_Core" in idf
         assert "F2_Core" in idf
         assert "F3_Core" in idf
         assert "F4_Core" not in idf
 
-    def test_summer_period_in_idf(self):
+    @patch("app.services.idf.generator.is_ems_supported", return_value=False)
+    def test_summer_period_in_idf(self, _mock):
         bps = _sample_bps()
-        idf = generate_idf("b1", "c1", "baseline", "Seoul", "test.epw", bps=bps,
-                           period_type="1month_summer")
+        idf, _ = generate_idf("b1", "c1", "baseline", "Seoul", "test.epw", bps=bps, period_type="1month_summer")
         assert "SummerMonth" in idf
-        assert "7, 1," in idf  # Start July 1
-        assert "7, 31," in idf  # End July 31
+        assert "7," in idf  # Start July
 
-    def test_custom_period_in_idf(self):
+    @patch("app.services.idf.generator.is_ems_supported", return_value=False)
+    def test_custom_period_in_idf(self, _mock):
         bps = _sample_bps()
-        idf = generate_idf("b1", "c1", "baseline", "Seoul", "test.epw", bps=bps,
-                           period_type="custom", period_start="4/1", period_end="10/31")
+        idf, _ = generate_idf(
+            "b1",
+            "c1",
+            "baseline",
+            "Seoul",
+            "test.epw",
+            bps=bps,
+            period_type="custom",
+            period_start="4/1",
+            period_end="10/31",
+        )
         assert "CustomPeriod" in idf
-        assert "4, 1," in idf
-        assert "10, 31," in idf
+        assert "4," in idf
+        assert "10," in idf

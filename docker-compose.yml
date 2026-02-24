@@ -1,19 +1,16 @@
-version: "3.9"
-
 services:
   # PostgreSQL + TimescaleDB
   db:
-    image: timescale/timescaledb:latest-pg16
+    image: timescale/timescaledb:2.17.2-pg16
     container_name: buildwise-db
     environment:
       POSTGRES_DB: buildwise
       POSTGRES_USER: buildwise
       POSTGRES_PASSWORD: buildwise_dev
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./schemas/database.sql:/docker-entrypoint-initdb.d/01-schema.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U buildwise"]
       interval: 5s
@@ -25,25 +22,35 @@ services:
     image: redis:7-alpine
     container_name: buildwise-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  # Backend API (optional - can also run locally with uvicorn)
+  # Backend API
   backend:
     build:
       context: ./buildwise-backend
       dockerfile: Dockerfile
     container_name: buildwise-backend
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       DATABASE_URL: postgresql+asyncpg://buildwise:buildwise_dev@db:5432/buildwise
       REDIS_URL: redis://redis:6379/0
       DEBUG: "true"
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:3000"
+      # AI (Claude API for natural language building generation)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Auth0 (uncomment to enable JWT auth instead of dev X-User-Id)
+      # AUTH0_DOMAIN: "your-tenant.auth0.com"
+      # AUTH0_CLIENT_ID: "your-client-id"
+      # AUTH0_API_AUDIENCE: "https://api.buildwise.ai"
+      PYTHONPATH: /app
+    volumes:
+      - ./buildwise-backend:/app
     depends_on:
       db:
         condition: service_healthy
@@ -54,10 +61,35 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    profiles:
-      - full
+      start_period: 15s
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
-  # Frontend (nginx + SPA)
+  # Celery worker (simulation task processing) — includes EnergyPlus binary
+  worker:
+    build:
+      context: ./buildwise-backend
+      dockerfile: Dockerfile.worker
+    container_name: buildwise-worker
+    environment:
+      DATABASE_URL: postgresql+asyncpg://buildwise:buildwise_dev@db:5432/buildwise
+      REDIS_URL: redis://redis:6379/0
+      DEBUG: "true"
+      SIMULATION_MODE: "mock"  # "mock"=eplustbl lookup (MVP), "real"=EnergyPlus (requires all strategies supported)
+      PYTHONPATH: /app
+      BUILDWISE_EPW_DIR: /opt/weather
+      EMS_SIMULATION_ROOT: /opt/ems_simulation
+    volumes:
+      - ./buildwise-backend:/app
+      - ./energyplus/weather:/opt/weather:ro
+      - ../ems_simulation:/opt/ems_simulation
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["celery", "-A", "app.worker:celery_app", "worker", "--loglevel=info", "-Q", "simulation", "--concurrency=2"]
+
+  # Frontend (nginx + SPA) — use `docker compose --profile frontend up` or run `npm run dev` locally
   frontend:
     build:
       context: ./buildwise-frontend
@@ -69,9 +101,9 @@ services:
       backend:
         condition: service_healthy
     profiles:
-      - full
+      - frontend
 
-  # EnergyPlus (시뮬레이션 엔진)
+  # EnergyPlus (시뮬레이션 엔진) — `docker compose --profile energyplus up`
   energyplus:
     build:
       context: ./energyplus
@@ -83,6 +115,8 @@ services:
     environment:
       WEATHER_DIR: /opt/weather
       WORK_DIR: /opt/workdir
+    profiles:
+      - energyplus
 
 volumes:
   pgdata:

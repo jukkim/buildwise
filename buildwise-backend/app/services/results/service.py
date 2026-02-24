@@ -8,9 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.project import Building
 from app.models.simulation import (
-    EnergyResult,
     SimulationConfig,
     SimulationRun,
     SimulationStatus,
@@ -34,10 +32,7 @@ async def get_strategy_comparison(
     if config is None:
         return None
 
-    completed = [
-        r for r in config.runs
-        if r.status == SimulationStatus.COMPLETED and r.energy_result is not None
-    ]
+    completed = [r for r in config.runs if r.status == SimulationStatus.COMPLETED and r.energy_result is not None]
     if not completed:
         return None
 

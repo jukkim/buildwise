@@ -1,0 +1,186 @@
+! ============================================================================
+! M1: Optimal Start (최적 기동 — 설정온도 기반 예열/예냉)
+! IdealLoadsAirSystem compatible — Zone Temperature Control actuators only
+!
+! Strategy:
+! 1. Calculate optimal start time based on zone-to-setpoint temperature gap
+! 2. Pre-start period: aggressive setpoints (cooling -1C, heating +1C)
+! 3. Occupied period: normal setpoints (schedule values)
+! 4. Optimal stop: 30min before end, allow thermal coasting
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    M1_OAT_Sensor,
+    Environment,
+    Site Outdoor Air Drybulb Temperature;
+
+{% for zone in zones %}
+EnergyManagementSystem:Sensor,
+    M1_{{ zone.name }}_Temp,
+    {{ zone.name }},
+    Zone Mean Air Temperature;
+
+{% endfor %}
+
+! --- Actuators ---
+{% for zone in zones %}
+EnergyManagementSystem:Actuator,
+    M1_{{ zone.name }}_Cool_SP,
+    {{ zone.name }},
+    Zone Temperature Control,
+    Cooling Setpoint;
+
+EnergyManagementSystem:Actuator,
+    M1_{{ zone.name }}_Heat_SP,
+    {{ zone.name }},
+    Zone Temperature Control,
+    Heating Setpoint;
+
+{% endfor %}
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    M1_Optimal_Start_Hour,
+    M1_Optimal_Stop_Hour,
+    M1_Avg_Zone_Temp,
+    M1_Phase;
+
+! --- Program ---
+EnergyManagementSystem:Program,
+    M1_Optimal_Start_Program,
+    ! Configuration
+    SET CoolSP = {{ cooling_setpoint | default(24.0) }},
+    SET HeatSP = {{ heating_setpoint | default(20.0) }},
+    SET OccStart = {{ occupancy_start | default(9) }},
+    SET OccEnd = {{ occupancy_end | default(18) }},
+    SET MaxAdvance = {{ max_start_advance | default(3.0) }},
+    SET TempChangeRate = 2.0,
+    !
+    SET CurrentHour = Hour,
+    SET CurrentDay = DayOfWeek,
+    !
+    ! Weekend: schedule values
+    IF CurrentDay == 1 || CurrentDay == 7,
+        SET M1_Phase = 0,
+{% for zone in zones %}
+        SET M1_{{ zone.name }}_Cool_SP = NULL,
+        SET M1_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+        RETURN,
+    ENDIF,
+    !
+    ! Calculate average zone temperature
+    SET M1_Avg_Zone_Temp = 0,
+{% for zone in zones %}
+    SET M1_Avg_Zone_Temp = M1_Avg_Zone_Temp + M1_{{ zone.name }}_Temp,
+{% endfor %}
+    SET M1_Avg_Zone_Temp = M1_Avg_Zone_Temp / {{ zones | length }},
+    !
+    ! Determine required conditioning mode and time
+    SET TempDiff = 0,
+    SET Mode = 0,
+    IF M1_Avg_Zone_Temp > CoolSP,
+        SET TempDiff = M1_Avg_Zone_Temp - CoolSP,
+        SET Mode = 1,
+    ELSEIF M1_Avg_Zone_Temp < HeatSP,
+        SET TempDiff = HeatSP - M1_Avg_Zone_Temp,
+        SET Mode = 2,
+    ENDIF,
+    !
+    ! Calculate advance time
+    SET AdvanceTime = 0,
+    IF TempDiff > 0,
+        SET AdvanceTime = TempDiff / TempChangeRate,
+        ! OAT correction factor
+        IF Mode == 2 && M1_OAT_Sensor < 0,
+            SET AdvanceTime = AdvanceTime * 1.5,
+        ELSEIF Mode == 1 && M1_OAT_Sensor > 35,
+            SET AdvanceTime = AdvanceTime * 1.5,
+        ENDIF,
+        IF AdvanceTime > MaxAdvance,
+            SET AdvanceTime = MaxAdvance,
+        ENDIF,
+    ENDIF,
+    !
+    SET M1_Optimal_Start_Hour = OccStart - AdvanceTime,
+    SET M1_Optimal_Stop_Hour = OccEnd - 0.5,
+    !
+    ! Earliest start guard (5:00)
+    IF M1_Optimal_Start_Hour < 5.0,
+        SET M1_Optimal_Start_Hour = 5.0,
+    ENDIF,
+    !
+    ! === Phase Control ===
+    !
+    ! Phase 1: Pre-conditioning (optimal start to occupancy start)
+    IF CurrentHour >= M1_Optimal_Start_Hour && CurrentHour < OccStart,
+        SET M1_Phase = 1,
+{% for zone in zones %}
+        IF Mode == 1,
+            SET M1_{{ zone.name }}_Cool_SP = CoolSP - 1.0,
+            SET M1_{{ zone.name }}_Heat_SP = NULL,
+        ELSEIF Mode == 2,
+            SET M1_{{ zone.name }}_Cool_SP = NULL,
+            SET M1_{{ zone.name }}_Heat_SP = HeatSP + 1.0,
+        ELSE,
+            SET M1_{{ zone.name }}_Cool_SP = NULL,
+            SET M1_{{ zone.name }}_Heat_SP = NULL,
+        ENDIF,
+{% endfor %}
+        RETURN,
+    ENDIF,
+    !
+    ! Phase 2: Occupied (occupancy start to optimal stop)
+    IF CurrentHour >= OccStart && CurrentHour < M1_Optimal_Stop_Hour,
+        SET M1_Phase = 2,
+{% for zone in zones %}
+        SET M1_{{ zone.name }}_Cool_SP = NULL,
+        SET M1_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+        RETURN,
+    ENDIF,
+    !
+    ! Phase 3: Thermal coasting (optimal stop to occupancy end)
+    IF CurrentHour >= M1_Optimal_Stop_Hour && CurrentHour < OccEnd,
+        SET M1_Phase = 3,
+{% for zone in zones %}
+        ! Widen setpoints for thermal coasting
+        SET M1_{{ zone.name }}_Cool_SP = CoolSP + 2.0,
+        SET M1_{{ zone.name }}_Heat_SP = HeatSP - 2.0,
+{% endfor %}
+        RETURN,
+    ENDIF,
+    !
+    ! Phase 0: Off-hours (schedule handles)
+    SET M1_Phase = 0,
+{% for zone in zones %}
+    SET M1_{{ zone.name }}_Cool_SP = NULL,
+    SET M1_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+    ;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    M1_Optimal_Start_Manager,
+    BeginTimestepBeforePredictor,
+    M1_Optimal_Start_Program;
+
+! --- Output Variables ---
+EnergyManagementSystem:OutputVariable,
+    M1 Optimal Start Hour,
+    M1_Optimal_Start_Hour,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    M1 Phase,
+    M1_Phase,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    M1 Average Zone Temp,
+    M1_Avg_Zone_Temp,
+    Averaged,
+    ZoneTimeStep;

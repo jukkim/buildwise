@@ -44,7 +44,7 @@ EnergyManagementSystem:Program,
     SET NightCoolSP = {{ night_cooling_sp | default(30.0) }},
     SET NightHeatSP = {{ night_heating_sp | default(16.0) }},
     !
-    SET CurrentHour = CurrentTime,
+    SET CurrentHour = Hour,
     SET CurrentDay = DayOfWeek,
     !
     ! Weekend - Night setback all day

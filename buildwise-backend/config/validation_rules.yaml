@@ -1,0 +1,135 @@
+# BuildWise Validation Rules
+# Adapted from ems_simulation/config/validation_rules.yaml
+# Last Updated: 2026-02-19
+
+# =============================================================================
+# Result Validation Rules (RES)
+# =============================================================================
+result_validation:
+  energy_range:
+    id: RES-001
+    name: "Energy value range"
+    checks:
+      - name: "No negative energy"
+        condition: "energy >= 0"
+        severity: "error"
+      - name: "Max capacity exceeded"
+        condition: "energy <= max_capacity * 1.2 * hours"
+        severity: "warning"
+      - name: "Zero energy during operation"
+        condition: "energy > 0 during operating hours"
+        severity: "warning"
+
+  temperature_range:
+    id: RES-002
+    name: "Temperature range"
+    checks:
+      - name: "Minimum temperature"
+        condition: "zone_temp >= 10"
+        unit: "C"
+        severity: "error"
+      - name: "Maximum temperature"
+        condition: "zone_temp <= 40"
+        unit: "C"
+        severity: "error"
+      - name: "Comfort range deviation"
+        condition: "18 <= zone_temp <= 28"
+        unit: "C"
+        severity: "warning"
+
+  numerical_validity:
+    id: RES-003
+    name: "Numerical validity"
+    checks:
+      - "No NaN values"
+      - "No Inf/-Inf values"
+      - "Extreme outlier detection"
+
+# =============================================================================
+# Physics Validation Rules (PHY)
+# =============================================================================
+physics_validation:
+  setpoint_energy_relation:
+    id: PHY-001
+    name: "Setpoint-energy relationship"
+    rules:
+      cooling:
+        description: "Higher cooling setpoint -> lower cooling energy"
+        condition: "E(c26) <= E(c24)"
+        tolerance: 0.05
+      heating:
+        description: "Lower heating setpoint -> lower heating energy"
+        condition: "E(h20) <= E(h22)"
+        tolerance: 0.05
+
+  season_energy_type:
+    id: PHY-002
+    name: "Season-energy type"
+    rules:
+      summer:
+        months: [6, 7, 8]
+        expected: "cooling dominant"
+        warning_threshold: 0.05
+      winter:
+        months: [12, 1, 2]
+        expected: "heating dominant"
+        warning_threshold: 0.05
+
+  ems_effect:
+    id: PHY-004
+    name: "EMS strategy effect"
+    description: "Strategy results should show savings vs baseline"
+    rules:
+      strategy_vs_baseline:
+        description: "E(strategy) <= E(baseline)"
+        tolerance: 0.02
+
+# =============================================================================
+# EUI Reference Ranges (kWh/m2/year)
+# Source: ems_simulation eplustbl.csv 10-city averages (Feb 2026)
+# =============================================================================
+eui_reference:
+  large_office:
+    baseline: 120.1  # eplustbl 10-city avg
+    hvac_eui: 33.6   # 120.1 × 0.28
+    min_expected: 85
+    max_expected: 155
+  medium_office:
+    baseline: 77.8   # eplustbl 10-city avg
+    hvac_eui: 35.0   # 77.8 × 0.45
+    min_expected: 55
+    max_expected: 100
+  small_office:
+    baseline: 97.8   # eplustbl 10-city avg
+    hvac_eui: 27.4   # 97.8 × 0.28
+    min_expected: 70
+    max_expected: 130
+  standalone_retail:
+    baseline: 125.6  # eplustbl 10-city avg
+    hvac_eui: 46.5   # 125.6 × 0.37
+    min_expected: 90
+    max_expected: 165
+  primary_school:
+    baseline: 139.5  # eplustbl 10-city avg
+    hvac_eui: 54.4   # 139.5 × 0.39
+    min_expected: 100
+    max_expected: 180
+  hospital:
+    baseline: 339.6  # eplustbl 8-city avg
+    hvac_eui: 186.8  # 339.6 × 0.55
+    min_expected: 250
+    max_expected: 440
+
+# =============================================================================
+# Severity Levels
+# =============================================================================
+severity_levels:
+  error:
+    description: "Abort required. Simulation results invalid."
+    action: "abort"
+  warning:
+    description: "Review required. Results may be usable."
+    action: "log_and_continue"
+  info:
+    description: "Informational. Within normal range."
+    action: "log"

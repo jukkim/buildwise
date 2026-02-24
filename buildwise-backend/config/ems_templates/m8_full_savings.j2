@@ -1,0 +1,188 @@
+! ============================================================================
+! M8: Full Optimization Savings (M6 + M5 = 외기냉방 + 부하제한 + 쾌적 절약)
+! IdealLoadsAirSystem compatible — Zone Temperature Control actuators only
+!
+! Same as M7 but more aggressive comfort adjustments (PMV 0.7):
+! - OAT cooling adjustment: +2C (vs M7 +1C)
+! - OAT heating adjustment: -2C (vs M7 -1C)
+! - Peak comfort relaxation: +3C (vs M7 +2C)
+! ============================================================================
+
+! --- Sensors ---
+EnergyManagementSystem:Sensor,
+    M8_OAT_Sensor,
+    Environment,
+    Site Outdoor Air Drybulb Temperature;
+
+{% for zone in zones %}
+EnergyManagementSystem:Sensor,
+    M8_{{ zone.name }}_Temp,
+    {{ zone.name }},
+    Zone Mean Air Temperature;
+
+{% endfor %}
+
+! --- Actuators ---
+{% for zone in zones %}
+EnergyManagementSystem:Actuator,
+    M8_{{ zone.name }}_Cool_SP,
+    {{ zone.name }},
+    Zone Temperature Control,
+    Cooling Setpoint;
+
+EnergyManagementSystem:Actuator,
+    M8_{{ zone.name }}_Heat_SP,
+    {{ zone.name }},
+    Zone Temperature Control,
+    Heating Setpoint;
+
+{% endfor %}
+
+! --- Global Variables ---
+EnergyManagementSystem:GlobalVariable,
+    M8_Night_Precool,
+    M8_Load_Limit,
+    M8_Economizer,
+    M8_Avg_Zone_Temp,
+    M8_Cool_Offset,
+    M8_Heat_Offset;
+
+! --- Program ---
+EnergyManagementSystem:Program,
+    M8_Full_Savings_Program,
+    ! Configuration
+    SET CoolSP = {{ cooling_setpoint | default(24.0) }},
+    SET HeatSP = {{ heating_setpoint | default(20.0) }},
+    SET OccStart = {{ occupancy_start | default(9) }},
+    SET OccEnd = {{ occupancy_end | default(18) }},
+    SET NightCoolTarget = {{ night_cool_target | default(21.0) }},
+    SET PeakStart = {{ peak_start_hour | default(14) }},
+    SET PeakEnd = {{ peak_end_hour | default(17) }},
+    SET OverrideTempLimit = {{ override_temp_limit | default(28) }},
+    SET HighTempThreshold = 30,
+    SET LowTempThreshold = 5,
+    SET OAT_CoolAdj = {{ cooling_sp_adjustment | default(2.0) }},
+    SET OAT_HeatAdj = {{ heating_sp_adjustment | default(-2.0) }},
+    SET PeakCoolAdj = 3.0,
+    !
+    SET CurrentHour = Hour,
+    SET CurrentDay = DayOfWeek,
+    SET M8_Night_Precool = 0,
+    SET M8_Load_Limit = 0,
+    SET M8_Economizer = 0,
+    SET M8_Cool_Offset = 0,
+    SET M8_Heat_Offset = 0,
+    !
+    ! Weekend: schedule values
+    IF CurrentDay == 1 || CurrentDay == 7,
+{% for zone in zones %}
+        SET M8_{{ zone.name }}_Cool_SP = NULL,
+        SET M8_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+        RETURN,
+    ENDIF,
+    !
+    ! Average zone temp
+    SET M8_Avg_Zone_Temp = 0,
+{% for zone in zones %}
+    SET M8_Avg_Zone_Temp = M8_Avg_Zone_Temp + M8_{{ zone.name }}_Temp,
+{% endfor %}
+    SET M8_Avg_Zone_Temp = M8_Avg_Zone_Temp / {{ zones | length }},
+    !
+    ! === Night Pre-Cooling (22:00-06:00) ===
+    IF (CurrentHour >= 22) || (CurrentHour < 6),
+        IF M8_OAT_Sensor >= 15.0 && M8_OAT_Sensor <= 25.0,
+            IF M8_OAT_Sensor < M8_Avg_Zone_Temp,
+                SET M8_Night_Precool = 1,
+{% for zone in zones %}
+                SET M8_{{ zone.name }}_Cool_SP = NightCoolTarget,
+                SET M8_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+                RETURN,
+            ENDIF,
+        ENDIF,
+{% for zone in zones %}
+        SET M8_{{ zone.name }}_Cool_SP = NULL,
+        SET M8_{{ zone.name }}_Heat_SP = NULL,
+{% endfor %}
+        RETURN,
+    ENDIF,
+    !
+    ! === Daytime Logic ===
+    !
+    ! OAT comfort adjustment (more aggressive than M7)
+    IF M8_OAT_Sensor > HighTempThreshold,
+        SET M8_Cool_Offset = OAT_CoolAdj,
+    ELSEIF M8_OAT_Sensor < LowTempThreshold,
+        SET M8_Heat_Offset = OAT_HeatAdj,
+    ENDIF,
+    !
+    ! Peak-hour adjustments
+    IF CurrentHour >= PeakStart && CurrentHour < PeakEnd,
+        SET M8_Cool_Offset = M8_Cool_Offset + PeakCoolAdj,
+        SET M8_Load_Limit = 1,
+    ENDIF,
+    !
+    ! OAT economizer (not during peak)
+    IF M8_Load_Limit == 0,
+        IF CurrentHour >= OccStart && CurrentHour < OccEnd,
+            IF M8_OAT_Sensor >= 15.0 && M8_OAT_Sensor <= 26.0,
+                IF M8_OAT_Sensor < M8_Avg_Zone_Temp,
+                    SET M8_Economizer = 1,
+                    SET M8_Cool_Offset = M8_Cool_Offset - 1.0,
+                ENDIF,
+            ENDIF,
+        ENDIF,
+    ENDIF,
+    !
+    ! === Apply setpoints ===
+{% for zone in zones %}
+    IF M8_Cool_Offset > 0,
+        IF M8_{{ zone.name }}_Temp < OverrideTempLimit,
+            SET M8_{{ zone.name }}_Cool_SP = CoolSP + M8_Cool_Offset,
+        ELSE,
+            SET M8_{{ zone.name }}_Cool_SP = NULL,
+        ENDIF,
+    ELSEIF M8_Cool_Offset < 0,
+        SET M8_{{ zone.name }}_Cool_SP = CoolSP + M8_Cool_Offset,
+    ELSE,
+        SET M8_{{ zone.name }}_Cool_SP = NULL,
+    ENDIF,
+    IF M8_Heat_Offset < 0,
+        SET M8_{{ zone.name }}_Heat_SP = HeatSP + M8_Heat_Offset,
+    ELSE,
+        SET M8_{{ zone.name }}_Heat_SP = NULL,
+    ENDIF,
+{% endfor %}
+    ;
+
+! --- Program Calling Manager ---
+EnergyManagementSystem:ProgramCallingManager,
+    M8_Full_Savings_Manager,
+    BeginTimestepBeforePredictor,
+    M8_Full_Savings_Program;
+
+! --- Output Variables ---
+EnergyManagementSystem:OutputVariable,
+    M8 Night Precool,
+    M8_Night_Precool,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    M8 Load Limit,
+    M8_Load_Limit,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    M8 Cooling Offset,
+    M8_Cool_Offset,
+    Averaged,
+    ZoneTimeStep;
+
+EnergyManagementSystem:OutputVariable,
+    M8 Heating Offset,
+    M8_Heat_Offset,
+    Averaged,
+    ZoneTimeStep;

@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
@@ -16,6 +16,8 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
+  LineChart,
+  Line,
 } from "recharts";
 import { simulationsApi, type EnergyResult } from "@/api/client";
 import { Skeleton } from "@/components/Skeleton";
@@ -23,6 +25,7 @@ import { showToast } from "@/components/Toast";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import { STRATEGY_LABELS, STRATEGY_DESCRIPTIONS } from "@/constants/strategies";
 import Breadcrumb from "@/components/Breadcrumb";
+import { PdfChartRenderer } from "@/features/pdf-report";
 
 type SortKey = "strategy" | "eui" | "total" | "hvac" | "savings" | "cost" | "cost_savings";
 type SortDir = "asc" | "desc";
@@ -42,6 +45,9 @@ export default function Results() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [selectedRow, setSelectedRow] = useState<string | null>(null);
   const [allExpanded, setAllExpanded] = useState(true);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [showPdfCharts, setShowPdfCharts] = useState(false);
+  const pdfChartRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = () => setShowScrollTop(window.scrollY > 400);
@@ -117,7 +123,7 @@ export default function Results() {
 
   if (allStrategies.length === 0) {
     return (
-      <div className="rounded-lg border border-gray-200 bg-white p-12 text-center">
+      <div className="rounded-xl bg-white shadow-sm p-12 text-center">
         <svg className="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
         </svg>
@@ -185,6 +191,20 @@ export default function Results() {
       Cooling: s.cooling_energy_kwh ? Number((s.cooling_energy_kwh / 1000).toFixed(1)) : 0,
       Heating: s.heating_energy_kwh ? Number((s.heating_energy_kwh / 1000).toFixed(1)) : 0,
       Fan: s.fan_energy_kwh ? Number((s.fan_energy_kwh / 1000).toFixed(1)) : 0,
+      Pump: s.pump_energy_kwh ? Number((s.pump_energy_kwh / 1000).toFixed(1)) : 0,
+      Lighting: s.lighting_energy_kwh ? Number((s.lighting_energy_kwh / 1000).toFixed(1)) : 0,
+      Equipment: s.equipment_energy_kwh ? Number((s.equipment_energy_kwh / 1000).toFixed(1)) : 0,
+    }));
+
+  const costChartData = allStrategies
+    .filter((s) => s.annual_cost_krw != null)
+    .map((s) => ({
+      strategy: STRATEGY_LABELS[s.strategy] ?? s.strategy,
+      strategyKey: s.strategy,
+      "Cost (만원)": Number((s.annual_cost_krw! / 10000).toFixed(0)),
+      fill: s.strategy === comparison.recommended_strategy
+        ? "#059669"
+        : STRATEGY_COLORS[s.strategy] ?? "#3B82F6",
     }));
 
   const downloadCsv = () => {
@@ -225,8 +245,10 @@ export default function Results() {
       s.annual_savings_krw?.toString() ?? "",
     ]);
     const tsv = [headers, ...rows].map((r) => r.join("\t")).join("\n");
-    navigator.clipboard.writeText(tsv);
-    showToast("Table copied to clipboard", "success");
+    navigator.clipboard.writeText(tsv).then(
+      () => showToast("Table copied to clipboard", "success"),
+      () => showToast("Failed to copy to clipboard"),
+    );
   };
 
   const copySummary = () => {
@@ -244,8 +266,32 @@ export default function Results() {
         ? `Baseline EUI: ${comparison.baseline.eui_kwh_m2.toFixed(1)} kWh/m²`
         : "",
     ].filter(Boolean);
-    navigator.clipboard.writeText(lines.join("\n"));
-    showToast("Summary copied", "success");
+    navigator.clipboard.writeText(lines.join("\n")).then(
+      () => showToast("Summary copied", "success"),
+      () => showToast("Failed to copy summary"),
+    );
+  };
+
+  const downloadPdf = async () => {
+    setIsGeneratingPdf(true);
+    setShowPdfCharts(true);
+    try {
+      // Wait for Recharts to render in the hidden container
+      await new Promise((r) => requestAnimationFrame(() => setTimeout(r, 600)));
+      const { generateReport } = await import("@/features/pdf-report");
+      await generateReport({
+        comparison,
+        allStrategies,
+        chartContainer: pdfChartRef.current!,
+      });
+      showToast("PDF report downloaded", "success");
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      showToast("Failed to generate PDF report");
+    } finally {
+      setShowPdfCharts(false);
+      setIsGeneratingPdf(false);
+    }
   };
 
   return (
@@ -272,7 +318,7 @@ export default function Results() {
 
       <div className="mt-2 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
             Strategy Comparison
           </h1>
           <p className="text-sm text-gray-500">
@@ -317,8 +363,10 @@ export default function Results() {
           </button>
           <button
             onClick={() => {
-              navigator.clipboard.writeText(window.location.href);
-              showToast("Link copied", "success");
+              navigator.clipboard.writeText(window.location.href).then(
+                () => showToast("Link copied", "success"),
+                () => showToast("Failed to copy link"),
+              );
             }}
             className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:px-4 sm:py-2"
             title="Copy shareable link"
@@ -345,6 +393,23 @@ export default function Results() {
             <span className="hidden sm:inline">Download </span>CSV
           </button>
           <button
+            onClick={downloadPdf}
+            disabled={isGeneratingPdf}
+            className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 sm:px-4 sm:py-2"
+          >
+            {isGeneratingPdf ? (
+              <span className="flex items-center gap-1.5">
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                PDF...
+              </span>
+            ) : (
+              <><span className="hidden sm:inline">Download </span>PDF</>
+            )}
+          </button>
+          <button
             onClick={() => rerunMutation.mutate()}
             disabled={rerunMutation.isPending}
             className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 sm:px-4 sm:py-2"
@@ -365,35 +430,55 @@ export default function Results() {
         const baseCost = comparison.baseline.annual_cost_krw ?? 0;
 
         return (
-          <div className="mt-4 grid gap-4 sm:grid-cols-4">
-            <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-center">
-              <p className="text-xs text-green-600">Recommended</p>
-              <p className="mt-1 text-lg font-bold text-green-800">
+          <div className="mt-4 grid gap-3 sm:grid-cols-4">
+            <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-emerald-500 via-green-500 to-teal-600 p-5 text-center text-white shadow-xl shadow-green-500/25">
+              <div className="absolute -right-3 -top-3 h-16 w-16 rounded-full bg-white/10" />
+              <p className="text-xs font-medium text-white/70">Recommended</p>
+              <p className="mt-1 text-lg font-bold">
                 {STRATEGY_LABELS[comparison.recommended_strategy] ?? comparison.recommended_strategy}
               </p>
             </div>
-            <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
-              <p className="text-xs text-gray-500">Energy Savings</p>
-              <p className="mt-1 text-2xl font-bold text-blue-600">-{savingsPct.toFixed(1)}%</p>
-              <p className="text-xs text-gray-400">{baselineEui.toFixed(0)} → {bestEui.toFixed(0)} kWh/m2</p>
+            <div className="rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 p-4 text-center shadow-sm ring-1 ring-blue-100">
+              <p className="text-xs font-medium text-gray-400">Energy Savings</p>
+              <p className={`mt-1 text-2xl font-bold ${savingsPct > 0 ? "text-blue-600" : "text-red-500"}`}>
+                {savingsPct > 0 ? "-" : "+"}{Math.abs(savingsPct).toFixed(1)}%
+              </p>
+              <p className="text-xs text-gray-400">{baselineEui.toFixed(0)} → {bestEui.toFixed(0)} kWh/m²</p>
             </div>
-            <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
-              <p className="text-xs text-gray-500">Annual Cost Savings</p>
-              <p className="mt-1 text-2xl font-bold text-green-600">
+            <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 p-4 text-center shadow-sm ring-1 ring-emerald-100">
+              <p className="text-xs font-medium text-gray-400">Annual Cost Savings</p>
+              <p className="mt-1 text-2xl font-bold text-emerald-600">
                 {costSavings > 0 ? `${(costSavings / 10000).toFixed(0)}만원` : "-"}
               </p>
               <p className="text-xs text-gray-400">
                 {baseCost > 0 ? `Base: ${(baseCost / 10000).toFixed(0)}만원/yr` : ""}
               </p>
             </div>
-            <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
-              <p className="text-xs text-gray-500">Strategies Compared</p>
+            <div className="rounded-xl bg-gradient-to-br from-gray-50 to-slate-100/50 p-4 text-center shadow-sm ring-1 ring-gray-200">
+              <p className="text-xs font-medium text-gray-400">Strategies Compared</p>
               <p className="mt-1 text-2xl font-bold text-gray-800">{allStrategies.length}</p>
               <p className="text-xs text-gray-400">baseline + M0~M8</p>
             </div>
           </div>
         );
       })()}
+
+      {/* Mock mode disclaimer */}
+      {allStrategies.some((s) => s.is_mock) && (
+        <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <svg className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          <div>
+            <p className="text-sm font-medium text-amber-800">Demo Mode Results</p>
+            <p className="text-xs text-amber-600">
+              These results are statistical approximations based on reference simulation data,
+              not actual EnergyPlus outputs. Values are calibrated against 100+ validated
+              simulations but may differ from real building performance.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Recommendation reason */}
       {comparison.recommendation_reason && (
@@ -420,7 +505,7 @@ export default function Results() {
       </div>
 
       {/* EUI Chart */}
-      <div className="mt-2 rounded-lg border border-gray-200 bg-white">
+      <div className="mt-2 rounded-xl bg-white shadow-sm">
         <button
           onClick={() => setCollapsed((c) => ({ ...c, eui: !c.eui }))}
           className="flex w-full items-center justify-between p-5 text-left"
@@ -454,7 +539,7 @@ export default function Results() {
                   const d = payload[0].payload;
                   const desc = STRATEGY_DESCRIPTIONS[d.strategyKey];
                   return (
-                    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-lg text-xs">
+                    <div className="rounded-xl bg-white shadow-sm px-3 py-2 shadow-lg text-xs">
                       <p className="font-medium text-gray-900">{d.strategy}</p>
                       <p className="text-gray-600">{d["EUI (kWh/m2)"]} kWh/m²</p>
                       {desc && <p className="mt-1 text-gray-400 max-w-[200px]">{desc}</p>}
@@ -477,10 +562,10 @@ export default function Results() {
       {/* Strategy Radar Chart */}
       {comparison.baseline && allStrategies.length > 2 && (() => {
         const baseEui = comparison.baseline!.eui_kwh_m2;
-        const baseCool = comparison.baseline!.cooling_energy_kwh ?? 1;
-        const baseHeat = comparison.baseline!.heating_energy_kwh ?? 1;
-        const baseFan = comparison.baseline!.fan_energy_kwh ?? 1;
-        const basePeak = comparison.baseline!.peak_demand_kw ?? 1;
+        const baseCool = comparison.baseline!.cooling_energy_kwh || 1;
+        const baseHeat = comparison.baseline!.heating_energy_kwh || 1;
+        const baseFan = comparison.baseline!.fan_energy_kwh || 1;
+        const basePeak = comparison.baseline!.peak_demand_kw || 1;
 
         // Normalize to 0-100 scale relative to baseline (lower is better)
         const radarData = [
@@ -497,7 +582,7 @@ export default function Results() {
           : allStrategies.slice(0, 3);
 
         return (
-          <div className="mt-6 rounded-lg border border-gray-200 bg-white">
+          <div className="mt-6 rounded-xl bg-white shadow-sm">
             <button
               onClick={() => setCollapsed((c) => ({ ...c, radar: !c.radar }))}
               className="flex w-full items-center justify-between p-5 text-left"
@@ -537,7 +622,7 @@ export default function Results() {
 
       {/* Energy Breakdown Chart */}
       {breakdownChartData.length > 0 && (
-        <div className="mt-6 rounded-lg border border-gray-200 bg-white">
+        <div className="mt-6 rounded-xl bg-white shadow-sm">
           <button
             onClick={() => setCollapsed((c) => ({ ...c, breakdown: !c.breakdown }))}
             className="flex w-full items-center justify-between p-5 text-left"
@@ -559,6 +644,9 @@ export default function Results() {
                   <Bar dataKey="Cooling" stackId="a" fill="#60A5FA" />
                   <Bar dataKey="Heating" stackId="a" fill="#F87171" />
                   <Bar dataKey="Fan" stackId="a" fill="#A78BFA" />
+                  <Bar dataKey="Pump" stackId="a" fill="#34D399" />
+                  <Bar dataKey="Lighting" stackId="a" fill="#FBBF24" />
+                  <Bar dataKey="Equipment" stackId="a" fill="#FB923C" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -566,21 +654,92 @@ export default function Results() {
         </div>
       )}
 
-      {/* Cost comparison text */}
-      {comparison.baseline?.annual_cost_krw && allStrategies.filter((s) => s.annual_cost_krw).length > 1 && (
-        <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-5 py-3 text-sm text-gray-600">
-          <span className="font-medium text-gray-700">Annual Cost Range: </span>
-          {(() => {
-            const costs = allStrategies.filter((s) => s.annual_cost_krw != null).map((s) => s.annual_cost_krw!);
-            const minCost = Math.min(...costs);
-            const maxCost = Math.max(...costs);
-            return `${(minCost / 10000).toFixed(0)}만원 ~ ${(maxCost / 10000).toFixed(0)}만원`;
-          })()}
-          {comparison.baseline.annual_cost_krw && (
-            <span className="text-gray-400"> (baseline: {(comparison.baseline.annual_cost_krw / 10000).toFixed(0)}만원)</span>
+      {/* Cost comparison chart */}
+      {costChartData.length > 1 && (
+        <div className="mt-6 rounded-xl bg-white shadow-sm">
+          <button
+            onClick={() => setCollapsed((c) => ({ ...c, cost: !c.cost }))}
+            className="flex w-full items-center justify-between p-5 text-left"
+          >
+            <h3 className="font-semibold text-gray-800">
+              Annual Energy Cost (만원/yr)
+              {comparison.baseline?.annual_cost_krw && (
+                <span className="ml-2 text-xs font-normal text-gray-400">
+                  baseline: {(comparison.baseline.annual_cost_krw / 10000).toFixed(0)}만원
+                </span>
+              )}
+            </h3>
+            <svg className={`h-5 w-5 text-gray-400 transition-transform ${collapsed.cost ? "" : "rotate-180"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {!collapsed.cost && (
+            <div className="px-5 pb-5">
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={costChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="strategy" tick={{ fontSize: 11 }} />
+                  <YAxis unit=" 만원" tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="Cost (만원)" radius={[4, 4, 0, 0]}>
+                    {costChartData.map((entry, index) => (
+                      <Cell key={index} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           )}
         </div>
       )}
+
+      {/* Monthly Energy Profile */}
+      {(() => {
+        const recommended = comparison.recommended_strategy
+          ? allStrategies.find((s) => s.strategy === comparison.recommended_strategy)
+          : null;
+        const profileSource = recommended ?? comparison.baseline ?? allStrategies[0];
+        const monthlyData = profileSource?.monthly_profile;
+        if (!monthlyData || monthlyData.length === 0) return null;
+        return (
+          <div className="mt-6 rounded-xl bg-white shadow-sm">
+            <button
+              onClick={() => setCollapsed((c) => ({ ...c, monthly: !c.monthly }))}
+              className="flex w-full items-center justify-between p-5 text-left"
+            >
+              <h3 className="font-semibold text-gray-800">
+                Monthly Energy Profile
+                <span className="ml-2 text-xs font-normal text-gray-400">
+                  {STRATEGY_LABELS[profileSource.strategy] ?? profileSource.strategy}
+                </span>
+              </h3>
+              <svg className={`h-5 w-5 text-gray-400 transition-transform ${collapsed.monthly ? "" : "rotate-180"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {!collapsed.monthly && (
+              <div className="px-5 pb-5">
+                <ResponsiveContainer width="100%" height={320}>
+                  <LineChart data={monthlyData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                    <YAxis unit=" kWh" tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    <Legend />
+                    <Line type="monotone" dataKey="total" stroke="#374151" strokeWidth={2} name="Total" />
+                    <Line type="monotone" dataKey="cooling" stroke="#60A5FA" name="Cooling" />
+                    <Line type="monotone" dataKey="heating" stroke="#F87171" name="Heating" />
+                    <Line type="monotone" dataKey="lighting" stroke="#FBBF24" name="Lighting" />
+                    <Line type="monotone" dataKey="equipment" stroke="#FB923C" name="Equipment" />
+                    <Line type="monotone" dataKey="fan" stroke="#A78BFA" name="Fan" dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Detail table */}
       <div className="mt-6 overflow-x-auto overflow-y-auto max-h-[70vh] rounded-lg border border-gray-200">
@@ -626,11 +785,13 @@ export default function Results() {
                   onClick={() => setSelectedRow(isSelected ? null : s.strategy)}
                   onDoubleClick={() => {
                     const text = `${STRATEGY_LABELS[s.strategy] ?? s.strategy}: EUI ${s.eui_kwh_m2.toFixed(1)} kWh/m², ${s.savings_pct != null ? `${s.savings_pct.toFixed(1)}% savings` : "baseline"}${s.annual_cost_krw ? `, ${(s.annual_cost_krw / 10000).toFixed(0)}만원/yr` : ""}`;
-                    navigator.clipboard.writeText(text);
-                    showToast("Strategy result copied", "success");
+                    navigator.clipboard.writeText(text).then(
+                      () => showToast("Strategy result copied", "success"),
+                      () => showToast("Failed to copy"),
+                    );
                   }}
                   title="Click to expand, double-click to copy"
-                  className={`cursor-pointer transition-colors ${isSelected ? "ring-2 ring-blue-400 ring-inset" : ""} ${isRecommended ? "bg-green-50" : isWorst ? "bg-red-50/50" : s.strategy === "baseline" ? "bg-gray-50/70" : "hover:bg-gray-50"}`}
+                  className={`cursor-pointer transition-colors ${isSelected ? "ring-2 ring-blue-400 ring-inset" : ""} ${isRecommended ? "bg-green-50 border-l-4 border-l-green-500" : isWorst ? "bg-red-50/50 border-l-4 border-l-red-300" : s.strategy === "baseline" ? "bg-gray-50/70 border-l-4 border-l-gray-300" : "hover:bg-gray-50 border-l-4 border-l-transparent"}`}
                 >
                   <td className={`sticky left-0 px-4 py-3 font-medium text-gray-900 ${isRecommended ? "bg-green-50" : isWorst ? "bg-red-50/50" : s.strategy === "baseline" ? "bg-gray-50" : "bg-white group-hover:bg-gray-50"}`}>
                     <span className="mr-2 text-xs text-gray-400">#{rowIdx + 1}</span>
@@ -784,6 +945,11 @@ export default function Results() {
           </p>
         );
       })()}
+
+      {/* Hidden PDF chart renderer */}
+      {showPdfCharts && (
+        <PdfChartRenderer ref={pdfChartRef} comparison={comparison} allStrategies={allStrategies} />
+      )}
 
       {/* Scroll to top */}
       {showScrollTop && (

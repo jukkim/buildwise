@@ -5,7 +5,7 @@ import { simulationsApi, type SimulationRun } from "@/api/client";
 import { Skeleton } from "@/components/Skeleton";
 import useDocumentTitle from "@/hooks/useDocumentTitle";
 import clsx from "clsx";
-import { STRATEGY_LABELS, STRATEGY_DESCRIPTIONS } from "@/constants/strategies";
+import { STRATEGY_LABELS, STRATEGY_DESCRIPTIONS, STRATEGY_SHORT_DESCRIPTIONS } from "@/constants/strategies";
 import Breadcrumb from "@/components/Breadcrumb";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -121,7 +121,7 @@ export default function SimulationProgress() {
         { label: "Simulation" },
       ]} />
 
-      <h1 className="mt-2 text-2xl font-bold text-gray-900">
+      <h1 className="mt-2 text-3xl font-extrabold text-gray-900 tracking-tight">
         Simulation Progress
       </h1>
       {(progress.building_name || progress.climate_city) && (
@@ -152,11 +152,16 @@ export default function SimulationProgress() {
           </span>
           <span className={pct >= 100 ? "text-green-600 font-medium" : pct >= 50 ? "text-blue-600" : "text-gray-600"}>{pct}%</span>
         </div>
-        <div className="h-3 rounded-full bg-gray-200 overflow-hidden">
+        <div className="h-4 rounded-full bg-gray-200/70 overflow-hidden shadow-inner">
           <div
             className={clsx(
-              "h-full rounded-full transition-all duration-500",
-              progress.failed > 0 && allDone ? "bg-yellow-500" : "bg-blue-600",
+              "h-full rounded-full transition-all duration-700 ease-out relative",
+              allDone && progress.failed === 0
+                ? "bg-gradient-to-r from-green-500 to-emerald-400"
+                : progress.failed > 0 && allDone
+                ? "bg-gradient-to-r from-yellow-500 to-amber-400"
+                : "bg-gradient-to-r from-blue-600 to-indigo-500",
+              !allDone && "progress-bar-active",
             )}
             style={{ width: `${pct}%` }}
           />
@@ -181,7 +186,7 @@ export default function SimulationProgress() {
             </span>
           );
         })()}
-        {progress.estimated_remaining_seconds && !allDone && (
+        {progress.estimated_remaining_seconds != null && progress.estimated_remaining_seconds > 0 && !allDone && (
           <span className="text-gray-500">
             ~{Math.ceil(progress.estimated_remaining_seconds / 60)} min remaining
             {" "}(ETA {new Date(Date.now() + progress.estimated_remaining_seconds * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })})
@@ -191,12 +196,14 @@ export default function SimulationProgress() {
 
       {/* Completion banner */}
       {allDone && progress.failed === 0 && (
-        <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-5 py-4 text-center animate-slide-up">
-          <svg className="mx-auto h-8 w-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <p className="mt-2 text-sm font-medium text-green-800">All {progress.total_strategies} strategies completed successfully!</p>
-          <p className="text-xs text-green-600">Redirecting to results...</p>
+        <div className="mb-4 rounded-2xl bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 border border-green-200 px-6 py-6 text-center animate-slide-up animate-success-glow">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-green-500 to-emerald-400 shadow-lg shadow-green-500/30">
+            <svg className="h-7 w-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <p className="mt-3 text-base font-bold text-green-800">All {progress.total_strategies} strategies completed!</p>
+          <p className="mt-1 text-sm text-green-600/80">Redirecting to results...</p>
         </div>
       )}
       {allDone && progress.failed > 0 && (
@@ -262,7 +269,12 @@ export default function SimulationProgress() {
         }).map((run: SimulationRun, idx: number) => (
           <div
             key={run.id}
-            className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3"
+            className={`flex items-center justify-between rounded-xl px-4 py-3 shadow-sm transition-colors ${
+              run.status === "completed" ? "bg-green-50/60 border border-green-100" :
+              run.status === "failed" ? "bg-red-50/60 border border-red-100" :
+              run.status === "running" ? "bg-blue-50/40 border border-blue-100" :
+              "bg-white border border-gray-100"
+            }`}
           >
             <div>
               <span className="mr-2 text-xs text-gray-300">#{idx + 1}</span>
@@ -272,6 +284,11 @@ export default function SimulationProgress() {
               >
                 {STRATEGY_LABELS[run.strategy] ?? run.strategy}
               </span>
+              {STRATEGY_SHORT_DESCRIPTIONS[run.strategy] && (
+                <span className="ml-2 text-xs text-gray-400 hidden sm:inline">
+                  {STRATEGY_SHORT_DESCRIPTIONS[run.strategy]}
+                </span>
+              )}
               {run.completed_at && (
                 <span className="ml-2 text-xs text-gray-300" title={new Date(run.completed_at).toLocaleString()}>
                   {new Date(run.completed_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}

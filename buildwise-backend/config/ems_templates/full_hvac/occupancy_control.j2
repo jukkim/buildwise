@@ -32,7 +32,7 @@ EnergyManagementSystem:GlobalVariable,
 EnergyManagementSystem:Program,
     Occupancy_Control_Program,   !- Name
     ! 현재 시간 정보
-    SET Current_Hour = CurrentTime,
+    SET Current_Hour = Hour,
     SET Current_Day = DayOfWeek,
     !
     ! 주말 체크 (1=일요일, 7=토요일)

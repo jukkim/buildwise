@@ -13,8 +13,12 @@ async def test_list_templates(client):
 
     types = {t["building_type"] for t in data}
     assert types == {
-        "large_office", "medium_office", "small_office",
-        "standalone_retail", "primary_school", "hospital",
+        "large_office",
+        "medium_office",
+        "small_office",
+        "standalone_retail",
+        "primary_school",
+        "hospital",
     }
 
 

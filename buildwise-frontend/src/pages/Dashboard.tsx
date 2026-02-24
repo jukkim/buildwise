@@ -92,7 +92,9 @@ export default function Dashboard() {
     <div>
       {/* Welcome banner */}
       {!bannerDismissed && (
-        <div className="relative mb-6 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white">
+        <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-700 p-8 text-white shadow-xl shadow-blue-500/20">
+          <div className="absolute -right-8 -top-8 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+          <div className="absolute -left-4 bottom-0 h-24 w-24 rounded-full bg-white/5 blur-xl" />
           <button
             onClick={() => {
               setBannerDismissed(true);
@@ -105,16 +107,16 @@ export default function Dashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          <h1 className="text-2xl font-bold">Welcome back, {userName}</h1>
-          <p className="mt-1 text-blue-100">Manage your building energy simulation projects</p>
-          <div className="mt-4 flex gap-6">
-            <div>
-              <p className="text-2xl font-bold">{allProjects.length}</p>
-              <p className="text-xs text-blue-200">Projects</p>
+          <h1 className="text-3xl font-extrabold tracking-tight">Welcome back, {userName}</h1>
+          <p className="mt-1 text-blue-100/80">Manage your building energy simulation projects</p>
+          <div className="mt-5 flex gap-4">
+            <div className="rounded-xl bg-white/10 backdrop-blur-sm px-5 py-3">
+              <p className="text-3xl font-extrabold tracking-tight">{allProjects.length}</p>
+              <p className="text-xs font-medium text-blue-200/80 uppercase tracking-wider">Projects</p>
             </div>
-            <div>
-              <p className="text-2xl font-bold">{totalBuildings}</p>
-              <p className="text-xs text-blue-200">Buildings</p>
+            <div className="rounded-xl bg-white/10 backdrop-blur-sm px-5 py-3">
+              <p className="text-3xl font-extrabold tracking-tight">{totalBuildings}</p>
+              <p className="text-xs font-medium text-blue-200/80 uppercase tracking-wider">Buildings</p>
             </div>
           </div>
         </div>
@@ -134,11 +136,11 @@ export default function Dashboard() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 hover:from-blue-500 hover:to-indigo-400 active:scale-[0.98]"
           title="Press N to quick-create"
         >
           New Project
-          <kbd className="ml-2 hidden sm:inline rounded bg-blue-500 px-1 py-0.5 text-xs font-mono">N</kbd>
+          <kbd className="ml-2 hidden sm:inline rounded bg-blue-500/50 px-1 py-0.5 text-xs font-mono">N</kbd>
         </button>
       </div>
 
@@ -190,7 +192,7 @@ export default function Dashboard() {
 
       {/* Create form */}
       {showCreate && (
-        <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4">
+        <div className="mb-6 rounded-xl bg-white shadow-sm p-4">
           <input
             type="text"
             placeholder="Project name"
@@ -258,12 +260,12 @@ export default function Dashboard() {
             {projects.map((p: Project) => (
               <div
                 key={p.id}
-                className={`group relative rounded-lg border border-gray-200 bg-white hover:shadow-md hover:border-blue-300 transition-all ${
+                className={`group relative rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-blue-200 transition-all duration-200 ${
                   viewMode === "list" ? "flex items-center justify-between px-5 py-3" : "p-5"
                 }`}
               >
                 {/* Action buttons */}
-                <div className={`${viewMode === "list" ? "flex" : "absolute right-3 top-3 hidden group-hover:flex group-focus-within:flex"} gap-1 ${viewMode === "grid" ? "" : "shrink-0 ml-3"}`}>
+                <div className={`${viewMode === "list" ? "flex" : "absolute right-3 top-3 flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"} gap-1 ${viewMode === "grid" ? "" : "shrink-0 ml-3"}`}>
                   <button
                     onClick={(e) => {
                       e.preventDefault();
@@ -350,7 +352,7 @@ export default function Dashboard() {
           </div>
         </>
       ) : projects.length === 0 && debouncedSearch ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
+        <div className="rounded-xl bg-white shadow-sm p-8 text-center">
           <p className="text-sm text-gray-500">No projects matching "{debouncedSearch}"</p>
           <button
             onClick={() => setSearch("")}
@@ -397,12 +399,12 @@ export default function Dashboard() {
           {projects.map((p: Project) => (
             <div
               key={p.id}
-              className={`group relative rounded-lg border border-gray-200 bg-white hover:shadow-md hover:border-blue-300 transition-all ${
+              className={`group relative rounded-xl bg-white border border-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-0.5 hover:border-blue-200 transition-all duration-200 ${
                 viewMode === "list" ? "flex items-center justify-between px-5 py-3" : "p-5"
               }`}
             >
               {/* Action buttons */}
-              <div className={`${viewMode === "list" ? "flex" : "absolute right-3 top-3 hidden group-hover:flex group-focus-within:flex"} gap-1 ${viewMode === "grid" ? "" : "shrink-0 ml-3"}`}>
+              <div className={`${viewMode === "list" ? "flex" : "absolute right-3 top-3 flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"} gap-1 ${viewMode === "grid" ? "" : "shrink-0 ml-3"}`}>
                 <button
                   onClick={(e) => {
                     e.preventDefault();

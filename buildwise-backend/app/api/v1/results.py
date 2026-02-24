@@ -14,7 +14,6 @@ from app.api.deps import get_current_user
 from app.db import get_db
 from app.models.project import Building
 from app.models.simulation import (
-    EnergyResult,
     SimulationConfig,
     SimulationRun,
     SimulationStatus,
@@ -23,7 +22,6 @@ from app.models.user import User
 from app.schemas.api import (
     EnergyResultResponse,
     StrategyComparisonResponse,
-    TimeSeriesPoint,
     TimeSeriesResponse,
 )
 
@@ -45,9 +43,7 @@ async def get_results(
         )
         .join(SimulationConfig.building)
         .where(SimulationConfig.id == config_id)
-        .where(SimulationConfig.building.has(
-            Building.project.has(user_id=user.id)
-        ))
+        .where(SimulationConfig.building.has(Building.project.has(user_id=user.id)))
     )
     config = result.scalar_one_or_none()
     if config is None:
@@ -60,8 +56,31 @@ async def get_results(
     baseline_result = None
     strategy_results = []
 
+    # First pass: build entries and find baseline
+    baseline_energy: float | None = None
+    baseline_cost: int | None = None
+
     for run in completed_runs:
         er = run.energy_result
+        if run.strategy.value == "baseline":
+            baseline_energy = er.total_energy_kwh
+            baseline_cost = er.annual_cost_krw
+
+    for run in completed_runs:
+        er = run.energy_result
+
+        # Compute savings at query time if not stored
+        savings_pct = er.savings_pct
+        annual_savings_krw = er.annual_savings_krw
+
+        if savings_pct is None and baseline_energy and baseline_energy > 0:
+            if run.strategy.value != "baseline":
+                savings_pct = round((1 - er.total_energy_kwh / baseline_energy) * 100, 1)
+
+        if annual_savings_krw is None and baseline_cost and er.annual_cost_krw:
+            if run.strategy.value != "baseline":
+                annual_savings_krw = baseline_cost - er.annual_cost_krw
+
         entry = EnergyResultResponse(
             strategy=run.strategy.value,
             total_energy_kwh=er.total_energy_kwh,
@@ -69,29 +88,37 @@ async def get_results(
             cooling_energy_kwh=er.cooling_energy_kwh,
             heating_energy_kwh=er.heating_energy_kwh,
             fan_energy_kwh=er.fan_energy_kwh,
+            pump_energy_kwh=er.pump_energy_kwh,
+            lighting_energy_kwh=er.lighting_energy_kwh,
+            equipment_energy_kwh=er.equipment_energy_kwh,
             eui_kwh_m2=er.eui_kwh_m2,
             peak_demand_kw=er.peak_demand_kw,
-            savings_pct=er.savings_pct,
+            savings_pct=savings_pct,
             annual_cost_krw=er.annual_cost_krw,
-            annual_savings_krw=er.annual_savings_krw,
+            annual_savings_krw=annual_savings_krw,
+            monthly_profile=er.monthly_profile_json,
+            is_mock=er.is_mock,
         )
         if run.strategy.value == "baseline":
             baseline_result = entry
         else:
             strategy_results.append(entry)
 
-    # Simple recommendation: strategy with highest savings_pct
+    # Recommendation: strategy with lowest EUI (highest real savings)
     recommended = None
     reason = None
     if strategy_results:
-        best = max(
-            (s for s in strategy_results if s.savings_pct is not None),
-            key=lambda s: s.savings_pct or 0,
-            default=None,
+        best = min(
+            strategy_results,
+            key=lambda s: s.eui_kwh_m2,
         )
-        if best and best.savings_pct and best.savings_pct > 0:
+        if best.savings_pct is not None and best.savings_pct > 0:
             recommended = best.strategy
-            reason = f"{best.savings_pct:.1f}% energy savings vs baseline"
+            reason = f"{best.savings_pct:.1f}% energy savings vs baseline ({best.eui_kwh_m2:.1f} kWh/m²)"
+        elif baseline_result and best.eui_kwh_m2 < baseline_result.eui_kwh_m2:
+            recommended = best.strategy
+            pct = round((1 - best.eui_kwh_m2 / baseline_result.eui_kwh_m2) * 100, 1)
+            reason = f"{pct:.1f}% lower EUI than baseline ({best.eui_kwh_m2:.1f} kWh/m²)"
 
     return {
         "building_id": config.building.id,
@@ -128,9 +155,7 @@ async def get_timeseries(
         select(SimulationConfig)
         .join(SimulationConfig.building)
         .where(SimulationConfig.id == config_id)
-        .where(SimulationConfig.building.has(
-            Building.project.has(user_id=user.id)
-        ))
+        .where(SimulationConfig.building.has(Building.project.has(user_id=user.id)))
     )
     config = result.scalar_one_or_none()
     if config is None:
@@ -143,11 +168,13 @@ async def get_timeseries(
     results = []
     for strat in strategy_list:
         for var in variable_list:
-            results.append({
-                "strategy": strat,
-                "variable": var,
-                "resolution": resolution,
-                "data": [],  # TimescaleDB query would go here
-            })
+            results.append(
+                {
+                    "strategy": strat,
+                    "variable": var,
+                    "resolution": resolution,
+                    "data": [],  # TimescaleDB query would go here
+                }
+            )
 
     return results

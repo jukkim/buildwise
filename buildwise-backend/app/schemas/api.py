@@ -8,12 +8,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.schemas.bps import BPS, BPSPatch
-
+from app.schemas.bps import BPS
 
 # ---------------------------------------------------------------------------
 # Common
 # ---------------------------------------------------------------------------
+
 
 class PaginationMeta(BaseModel):
     total: int
@@ -33,6 +33,7 @@ class ErrorResponse(BaseModel):
 # User
 # ---------------------------------------------------------------------------
 
+
 class UserResponse(BaseModel):
     id: uuid.UUID
     email: str
@@ -47,6 +48,7 @@ class UserResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Project
 # ---------------------------------------------------------------------------
+
 
 class ProjectCreate(BaseModel):
     name: str = Field(max_length=200)
@@ -78,6 +80,7 @@ class ProjectListResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Building
 # ---------------------------------------------------------------------------
+
 
 class BuildingCreate(BaseModel):
     name: str = Field(max_length=200)
@@ -116,16 +119,29 @@ class BuildingTemplateResponse(BaseModel):
 # Simulation
 # ---------------------------------------------------------------------------
 
+
+_CLIMATE_CITIES = Literal[
+    "Seoul", "Busan", "Daegu", "Daejeon", "Gwangju",
+    "Incheon", "Gangneung", "Jeju", "Cheongju", "Ulsan",
+]
+
+
 class SimulationStart(BaseModel):
     building_id: uuid.UUID
-    climate_city: Literal[
-        "Seoul", "Busan", "Daegu", "Daejeon", "Gwangju",
-        "Incheon", "Gangneung", "Jeju", "Cheongju", "Ulsan",
-    ] = "Seoul"
+    climate_city: _CLIMATE_CITIES = "Seoul"
     period_type: Literal["1year", "1month_summer", "1month_winter"] = "1year"
-    strategies: list[Literal[
-        "baseline", "m0", "m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8"
-    ]] | None = None
+    strategies: list[Literal["baseline", "m0", "m1", "m2", "m3", "m4", "m5", "m6", "m7", "m8"]] | None = None
+
+
+class SimulationStartBatch(BaseModel):
+    building_id: uuid.UUID
+    climate_cities: list[_CLIMATE_CITIES] = Field(min_length=2, max_length=10)
+    period_type: Literal["1year", "1month_summer", "1month_winter"] = "1year"
+
+
+class SimulationBatchResponse(BaseModel):
+    config_ids: list[uuid.UUID]
+    total_configs: int
 
 
 class SimulationRunResponse(BaseModel):
@@ -169,6 +185,18 @@ class SimulationHistoryItem(BaseModel):
 # Results
 # ---------------------------------------------------------------------------
 
+
+class MonthlyEnergyPoint(BaseModel):
+    month: str
+    cooling: float
+    heating: float
+    fan: float
+    pump: float
+    lighting: float
+    equipment: float
+    total: float
+
+
 class EnergyResultResponse(BaseModel):
     strategy: str
     total_energy_kwh: float
@@ -176,11 +204,16 @@ class EnergyResultResponse(BaseModel):
     cooling_energy_kwh: float | None
     heating_energy_kwh: float | None
     fan_energy_kwh: float | None
+    pump_energy_kwh: float | None = None
+    lighting_energy_kwh: float | None = None
+    equipment_energy_kwh: float | None = None
     eui_kwh_m2: float
     peak_demand_kw: float | None
     savings_pct: float | None
     annual_cost_krw: int | None
     annual_savings_krw: int | None
+    monthly_profile: list[MonthlyEnergyPoint] | None = None
+    is_mock: bool = False
 
 
 class StrategyComparisonResponse(BaseModel):
@@ -212,6 +245,7 @@ class TimeSeriesResponse(BaseModel):
 # Billing
 # ---------------------------------------------------------------------------
 
+
 class PlanInfoResponse(BaseModel):
     plan: str
     price_monthly_usd: float
@@ -228,3 +262,22 @@ class UsageInfoResponse(BaseModel):
     buildings_count: int
     buildings_limit: int
     credits_remaining: int
+
+
+# ---------------------------------------------------------------------------
+# AI (NL → BPS)
+# ---------------------------------------------------------------------------
+
+
+class NLParseRequest(BaseModel):
+    text: str = Field(min_length=3, max_length=500)
+
+
+class NLParseResponse(BaseModel):
+    name: str
+    building_type: str
+    bps: dict
+    confidence: float
+    extracted_params: list[str]
+    default_params: list[str]
+    warnings: list[str]

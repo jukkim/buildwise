@@ -5,26 +5,24 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
 from app.db import get_db
-from sqlalchemy.orm import selectinload
-
 from app.models.project import Building, BuildingType, Project, ProjectStatus
 from app.models.simulation import SimulationConfig, SimulationStatus
 from app.models.user import User
 from app.schemas.api import BuildingCreate, BuildingResponse, BuildingUpdate, SimulationHistoryItem
 from app.schemas.bps import BPS, BPSPatch
+from app.api.v1.billing import _PLANS
 from app.services.bps.validator import validate_bps
 
 router = APIRouter()
 
 
-async def _get_project_or_404(
-    project_id: uuid.UUID, user: User, db: AsyncSession
-) -> Project:
+async def _get_project_or_404(project_id: uuid.UUID, user: User, db: AsyncSession) -> Project:
     result = await db.execute(
         select(Project).where(
             Project.id == project_id,
@@ -38,9 +36,7 @@ async def _get_project_or_404(
     return project
 
 
-async def _get_building_or_404(
-    building_id: uuid.UUID, project_id: uuid.UUID, db: AsyncSession
-) -> Building:
+async def _get_building_or_404(building_id: uuid.UUID, project_id: uuid.UUID, db: AsyncSession) -> Building:
     result = await db.execute(
         select(Building).where(
             Building.id == building_id,
@@ -62,9 +58,7 @@ async def list_buildings(
     """GET /projects/{project_id}/buildings - 건물 목록."""
     await _get_project_or_404(project_id, user, db)
     result = await db.execute(
-        select(Building)
-        .where(Building.project_id == project_id)
-        .order_by(Building.created_at.desc())
+        select(Building).where(Building.project_id == project_id).order_by(Building.created_at.desc())
     )
     return list(result.scalars().all())
 
@@ -82,6 +76,22 @@ async def create_building(
 ) -> Building:
     """POST /projects/{project_id}/buildings - 건물 생성."""
     await _get_project_or_404(project_id, user, db)
+
+    # Check building count limit
+    plan_info = _PLANS.get(user.plan.value, _PLANS["free"])
+    max_buildings = plan_info["max_buildings"]
+    result = await db.execute(
+        select(func.count(Building.id))
+        .join(Building.project)
+        .where(Project.user_id == user.id)
+        .where(Project.status != ProjectStatus.DELETED)
+    )
+    buildings_count = result.scalar() or 0
+    if buildings_count >= max_buildings:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Building limit reached ({max_buildings}). Upgrade your plan for more.",
+        )
 
     # BPS domain validation
     errors = validate_bps(body.bps)
@@ -157,11 +167,18 @@ async def update_bps(
 
     current_bps = dict(building.bps_json)
     patch_data = patch.model_dump(exclude_none=True)
-    for key, value in patch_data.items():
-        if isinstance(value, dict) and key in current_bps:
-            current_bps[key] = {**current_bps[key], **value}
-        else:
-            current_bps[key] = value
+
+    def _deep_merge(base: dict, patch: dict) -> dict:
+        """Recursively merge patch into base dict."""
+        merged = dict(base)
+        for k, v in patch.items():
+            if isinstance(v, dict) and isinstance(merged.get(k), dict):
+                merged[k] = _deep_merge(merged[k], v)
+            else:
+                merged[k] = v
+        return merged
+
+    current_bps = _deep_merge(current_bps, patch_data)
 
     # Validate merged BPS
     try:
@@ -260,15 +277,17 @@ async def list_building_simulations(
     for cfg in configs:
         completed = sum(1 for r in cfg.runs if r.status == SimulationStatus.COMPLETED)
         failed = sum(1 for r in cfg.runs if r.status == SimulationStatus.FAILED)
-        items.append({
-            "config_id": cfg.id,
-            "climate_city": cfg.climate_city,
-            "period_type": cfg.period_type,
-            "strategies": cfg.strategies,
-            "total": len(cfg.runs),
-            "completed": completed,
-            "failed": failed,
-            "created_at": cfg.created_at,
-        })
+        items.append(
+            {
+                "config_id": cfg.id,
+                "climate_city": cfg.climate_city,
+                "period_type": cfg.period_type,
+                "strategies": cfg.strategies,
+                "total": len(cfg.runs),
+                "completed": completed,
+                "failed": failed,
+                "created_at": cfg.created_at,
+            }
+        )
 
     return items

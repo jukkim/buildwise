@@ -17,6 +17,7 @@ export default defineConfig({
           "vendor-three": ["three", "@react-three/fiber", "@react-three/drei"],
           "vendor-charts": ["recharts"],
           "vendor-react": ["react", "react-dom", "react-router-dom"],
+          "vendor-pdf": ["jspdf", "jspdf-autotable", "html2canvas"],
         },
       },
     },
@@ -25,8 +26,9 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        target: "http://localhost:8001",
         changeOrigin: true,
+        proxyTimeout: 60000,
       },
     },
   },

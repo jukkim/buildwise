@@ -6,15 +6,13 @@ import asyncio
 import logging
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
-
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
-from app.db import async_session_factory
-from app.models.project import Building
+from app.db import task_session
 from app.models.simulation import (
     EnergyResult,
     SimulationConfig,
@@ -60,11 +58,9 @@ def run_single_strategy(self, run_id: str) -> dict:
 
 
 async def _execute_strategy(run_id: str, task) -> dict:
-    async with async_session_factory() as db:
+    async with task_session() as db:
         # 1. Load run
-        result = await db.execute(
-            select(SimulationRun).where(SimulationRun.id == uuid.UUID(run_id))
-        )
+        result = await db.execute(select(SimulationRun).where(SimulationRun.id == uuid.UUID(run_id)))
         run = result.scalar_one_or_none()
         if run is None:
             return {"error": f"Run {run_id} not found"}
@@ -76,7 +72,7 @@ async def _execute_strategy(run_id: str, task) -> dict:
 
         # Mark as running
         run.status = SimulationStatus.RUNNING
-        run.started_at = datetime.now(timezone.utc)
+        run.started_at = datetime.now(UTC)
         await db.commit()
 
         try:
@@ -93,6 +89,7 @@ async def _execute_strategy(run_id: str, task) -> dict:
             if building.bps_json:
                 from app.schemas.bps import BPS
                 from app.services.bps.validator import validate_bps
+
                 try:
                     bps_obj = BPS(**building.bps_json)
                     bps_errors = validate_bps(bps_obj)
@@ -102,20 +99,31 @@ async def _execute_strategy(run_id: str, task) -> dict:
                     raise ValueError(f"BPS schema error: {exc}") from exc
 
             # 3. Demo mode or real E+ execution
-            use_mock = settings.debug or not bool(settings.energyplus_image)
+            if settings.simulation_mode == "mock":
+                use_mock = True
+            elif settings.simulation_mode == "real":
+                use_mock = False
+            else:  # "auto"
+                use_mock = settings.debug or not bool(settings.energyplus_image)
 
             if use_mock:
                 # Mock mode: return pre-computed realistic results
                 import asyncio as _aio
-                from app.services.simulation.mock_runner import generate_mock_result
+
+                from app.services.simulation.mock_runner import (
+                    extract_user_config,
+                    generate_mock_result,
+                )
 
                 await _aio.sleep(2)  # Simulate processing time
                 area = building.bps_json.get("geometry", {}).get("total_floor_area_m2", 1000)
+                user_cfg = extract_user_config(building.bps_json, building.building_type.value)
                 parsed = generate_mock_result(
                     building_type=building.building_type.value,
                     climate_city=config.climate_city,
                     strategy=run.strategy.value,
                     total_floor_area_m2=area,
+                    user_config=user_cfg,
                 )
             else:
                 # Real E+ execution
@@ -123,7 +131,7 @@ async def _execute_strategy(run_id: str, task) -> dict:
                 from app.services.results.parser import parse_energyplus_output
                 from app.services.simulation.runner import run_energyplus
 
-                idf_content = generate_idf(
+                idf_content, auxiliary_files = generate_idf(
                     building_id=str(config.building_id),
                     config_id=str(config.id),
                     strategy=run.strategy.value,
@@ -138,12 +146,14 @@ async def _execute_strategy(run_id: str, task) -> dict:
                     idf_content=idf_content,
                     epw_file=config.epw_file,
                     run_id=run_id,
+                    auxiliary_files=auxiliary_files,
                 )
                 try:
                     parsed = parse_energyplus_output(ep_result["output_dir"])
                 finally:
                     # Clean up temp files after parsing
                     from app.services.simulation.runner import cleanup_run_directory
+
                     cleanup_run_directory(run_id)
 
             # Re-check cancellation before storing results
@@ -170,16 +180,16 @@ async def _execute_strategy(run_id: str, task) -> dict:
                 savings_pct=parsed.get("savings_pct"),
                 annual_cost_krw=parsed.get("annual_cost_krw"),
                 annual_savings_krw=parsed.get("annual_savings_krw"),
+                monthly_profile_json=parsed.get("monthly_profile"),
+                is_mock=parsed.get("is_mock", False),
             )
             db.add(energy)
 
             # 7. Mark completed
             run.status = SimulationStatus.COMPLETED
-            run.completed_at = datetime.now(timezone.utc)
+            run.completed_at = datetime.now(UTC)
             if run.started_at:
-                run.duration_seconds = int(
-                    (run.completed_at - run.started_at).total_seconds()
-                )
+                run.duration_seconds = int((run.completed_at - run.started_at).total_seconds())
 
             await db.commit()
             logger.info("Run %s completed: EUI=%.1f kWh/m2", run_id, parsed["eui_kwh_m2"])
@@ -187,11 +197,12 @@ async def _execute_strategy(run_id: str, task) -> dict:
 
         except Exception as exc:
             run.status = SimulationStatus.FAILED
-            run.completed_at = datetime.now(timezone.utc)
+            run.completed_at = datetime.now(UTC)
             # Sanitize error log: strip filesystem paths to prevent info disclosure
             error_msg = str(exc)[:2000]
             error_msg = re.sub(r"[A-Za-z]:\\[^\s:]+", "<path>", error_msg)
-            error_msg = re.sub(r"/(?:usr|app|tmp|home|var)[^\s:]*", "<path>", error_msg)
+            error_msg = re.sub(r"/(?:usr|app|tmp|home|var|opt|etc|proc|sys)[^\s:]*", "<path>", error_msg)
+            error_msg = re.sub(r"postgresql\+?\w*://[^\s]+", "<db_url>", error_msg)
             run.error_log = error_msg
             await db.commit()
             logger.error("Run %s failed: %s", run_id, exc)
@@ -205,7 +216,7 @@ def dispatch_simulation(config_id: str) -> dict:
 
 
 async def _dispatch(config_id: str) -> dict:
-    async with async_session_factory() as db:
+    async with task_session() as db:
         result = await db.execute(
             select(SimulationRun)
             .where(SimulationRun.config_id == uuid.UUID(config_id))
@@ -219,18 +230,16 @@ async def _dispatch(config_id: str) -> dict:
         dispatched = []
         for run in runs:
             run.status = SimulationStatus.QUEUED
-            run.queued_at = datetime.now(timezone.utc)
+            run.queued_at = datetime.now(UTC)
             dispatched.append(str(run.id))
 
         await db.commit()
 
     # Dispatch individual strategy tasks and store task IDs
-    async with async_session_factory() as db:
+    async with task_session() as db:
         for rid in dispatched:
             async_result = run_single_strategy.delay(rid)
-            run_obj = await db.execute(
-                select(SimulationRun).where(SimulationRun.id == uuid.UUID(rid))
-            )
+            run_obj = await db.execute(select(SimulationRun).where(SimulationRun.id == uuid.UUID(rid)))
             run = run_obj.scalar_one()
             run.runner_id = async_result.id
             run.runner_type = "celery"

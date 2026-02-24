@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     # Auth0
     auth0_domain: str = ""
     auth0_api_audience: str = ""
+    auth0_client_id: str = ""
     auth0_algorithms: list[str] = ["RS256"]
 
     # GCS
@@ -21,11 +22,17 @@ class Settings(BaseSettings):
 
     # EnergyPlus
     energyplus_image: str = "nrel/energyplus:24.1.0"
-    energyplus_timeout_seconds: int = 3600
+    energyplus_timeout_seconds: int = 900
+
+    # Simulation mode: "auto" (mock if debug else real), "mock", "real"
+    simulation_mode: str = "auto"
 
     # Billing
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
+
+    # AI (Claude API for NL → BPS parsing)
+    anthropic_api_key: str = ""
 
     # App
     debug: bool = False

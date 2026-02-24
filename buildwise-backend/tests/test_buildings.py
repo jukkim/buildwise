@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from httpx import AsyncClient
 
-from app.models.project import Building, Project, ProjectStatus
+from app.models.project import Project, ProjectStatus
 
 
 def _make_project(user_id: uuid.UUID) -> MagicMock:
@@ -52,9 +52,7 @@ async def test_get_building_not_found(client: AsyncClient, mock_db, test_user):
 
     mock_db.execute = mock_execute
 
-    resp = await client.get(
-        f"/api/v1/projects/{project.id}/buildings/{uuid.uuid4()}"
-    )
+    resp = await client.get(f"/api/v1/projects/{project.id}/buildings/{uuid.uuid4()}")
     assert resp.status_code == 404
 
 
@@ -77,7 +75,5 @@ async def test_delete_building_not_found(client: AsyncClient, mock_db, test_user
 
     mock_db.execute = mock_execute
 
-    resp = await client.delete(
-        f"/api/v1/projects/{project.id}/buildings/{uuid.uuid4()}"
-    )
+    resp = await client.delete(f"/api/v1/projects/{project.id}/buildings/{uuid.uuid4()}")
     assert resp.status_code == 404

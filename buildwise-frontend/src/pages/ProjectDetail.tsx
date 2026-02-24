@@ -6,8 +6,10 @@ import {
   buildingsApi,
   templatesApi,
   simulationsApi,
+  aiApi,
   type Building,
   type BuildingTemplate,
+  type NLParseResponse,
 } from "@/api/client";
 import { ListSkeleton } from "@/components/Skeleton";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -54,6 +56,10 @@ export default function ProjectDetail() {
   const [descValue, setDescValue] = useState("");
   const [cloningBuildingId, setCloningBuildingId] = useState<string | null>(null);
   const [buildingSort, setBuildingSort] = useState<"newest" | "oldest" | "name">("newest");
+  const [createMode, setCreateMode] = useState<"describe" | "templates">("describe");
+  const [nlInput, setNlInput] = useState("");
+  const [nlResult, setNlResult] = useState<NLParseResponse | null>(null);
+  const [nlBuildingName, setNlBuildingName] = useState("");
 
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ["project", projectId],
@@ -70,7 +76,7 @@ export default function ProjectDetail() {
   const { data: templates } = useQuery({
     queryKey: ["templates"],
     queryFn: () => templatesApi.list().then((r) => r.data),
-    enabled: showTemplates,
+    enabled: showTemplates && createMode === "templates",
   });
 
   const createBuilding = useMutation({
@@ -82,6 +88,9 @@ export default function ProjectDetail() {
       setShowTemplates(false);
       setSelectedTemplate(null);
       setNewBuildingName("");
+      setNlResult(null);
+      setNlInput("");
+      setCreateMode("describe");
       showToast("Building created", "success");
       navigate(`/projects/${projectId}/buildings/${res.data.id}`);
     },
@@ -130,6 +139,19 @@ export default function ProjectDetail() {
       navigate(`/projects/${projectId}/buildings/${res.data.id}`);
     },
     onError: () => showToast("Failed to clone building"),
+  });
+
+  const parseBuilding = useMutation({
+    mutationFn: (text: string) => aiApi.parseBuilding(text).then((r) => r.data),
+    onSuccess: (data) => {
+      setNlResult(data);
+      setNlBuildingName(data.name);
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        ?? "AI service unavailable. Please use template selection.";
+      showToast(msg);
+    },
   });
 
   const deleteBuilding = useMutation({
@@ -301,7 +323,16 @@ export default function ProjectDetail() {
           )}
         </h2>
         <button
-          onClick={() => setShowTemplates(!showTemplates)}
+          onClick={() => {
+            if (showTemplates) {
+              setShowTemplates(false);
+              setNlResult(null);
+              setNlInput("");
+              setCreateMode("describe");
+            } else {
+              setShowTemplates(true);
+            }
+          }}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
         >
           {showTemplates ? "Cancel" : "Add Building"}
@@ -330,8 +361,175 @@ export default function ProjectDetail() {
         </div>
       )}
 
-      {/* Template selection */}
-      {showTemplates && templates && !selectedTemplate && (
+      {/* Tab bar: Describe | Templates */}
+      {showTemplates && !selectedTemplate && !nlResult && (
+        <div className="mb-4 flex border-b border-gray-200">
+          <button
+            onClick={() => setCreateMode("describe")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              createMode === "describe"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Describe with AI
+          </button>
+          <button
+            onClick={() => setCreateMode("templates")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              createMode === "templates"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Choose Template
+          </button>
+        </div>
+      )}
+
+      {/* Describe tab: NL input */}
+      {showTemplates && createMode === "describe" && !selectedTemplate && !nlResult && (
+        <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6">
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Describe your building</h3>
+          <textarea
+            value={nlInput}
+            onChange={(e) => setNlInput(e.target.value)}
+            placeholder='e.g. "12-story glass office building in Seoul" or "서울 강남 12층 유리 오피스"'
+            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+            rows={3}
+            maxLength={500}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && nlInput.trim().length >= 3) {
+                e.preventDefault();
+                parseBuilding.mutate(nlInput.trim());
+              }
+            }}
+          />
+          <div className="mt-3 flex items-center justify-between">
+            <span className="text-xs text-gray-400">{nlInput.length}/500</span>
+            <button
+              onClick={() => parseBuilding.mutate(nlInput.trim())}
+              disabled={nlInput.trim().length < 3 || parseBuilding.isPending}
+              className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {parseBuilding.isPending ? (
+                <span className="flex items-center gap-2">
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Analyzing...
+                </span>
+              ) : "Generate"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* AI result: Post-Confirmation Card */}
+      {showTemplates && nlResult && (
+        <div className="mb-6 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-6">
+          <div className="flex items-start justify-between">
+            <h3 className="text-sm font-semibold text-gray-800">AI Generated Building</h3>
+            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
+              {Math.round(nlResult.confidence * 100)}% confidence
+            </span>
+          </div>
+
+          {(() => {
+            const bps = nlResult.bps as Record<string, Record<string, unknown>>;
+            const city = bps?.location?.city as string ?? "Seoul";
+            const floors = bps?.geometry?.num_floors_above;
+            const area = bps?.geometry?.total_floor_area_m2;
+            const hvac = bps?.hvac?.system_type as string;
+            const wallType = bps?.envelope?.wall_type as string;
+            const windowType = bps?.envelope?.window_type as string;
+            const wwr = bps?.geometry?.wwr;
+
+            return (
+              <>
+                <div className="mt-3 flex flex-wrap gap-2 text-sm text-gray-700">
+                  <span className={`rounded px-2 py-0.5 text-xs font-medium ${BUILDING_TYPE_COLORS[nlResult.building_type] ?? "bg-gray-100 text-gray-700"}`}>
+                    {nlResult.building_type.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-gray-500">{city}</span>
+                  {floors != null && <span>{String(floors)}F</span>}
+                  {area != null && <span>{Number(area).toLocaleString()} m²</span>}
+                  {hvac && <span className="text-blue-600">{HVAC_LABELS[hvac] ?? hvac}</span>}
+                </div>
+
+                <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
+                  {wallType && <span>{wallType.replace(/_/g, " ")}</span>}
+                  {windowType && <span>{windowType.replace(/_/g, " ")}</span>}
+                  {wwr != null && <span>WWR {Math.round(Number(wwr) * 100)}%</span>}
+                </div>
+              </>
+            );
+          })()}
+
+          {/* Defaults used */}
+          {nlResult.default_params.length > 0 && (
+            <div className="mt-4 rounded-lg bg-gray-50 p-3">
+              <p className="text-xs font-medium text-gray-500 mb-1">Using defaults for:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {nlResult.default_params.slice(0, 8).map((p) => (
+                  <span key={p} className="rounded bg-white px-1.5 py-0.5 text-xs text-gray-500 border border-gray-200">
+                    {p.replace(/_/g, " ")}
+                  </span>
+                ))}
+                {nlResult.default_params.length > 8 && (
+                  <span className="text-xs text-gray-400">+{nlResult.default_params.length - 8} more</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Warnings */}
+          {nlResult.warnings.length > 0 && (
+            <div className="mt-3 space-y-1">
+              {nlResult.warnings.map((w, i) => (
+                <p key={i} className="text-xs text-amber-600">{w}</p>
+              ))}
+            </div>
+          )}
+
+          {/* Building name */}
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Building Name</label>
+            <input
+              type="text"
+              value={nlBuildingName}
+              onChange={(e) => setNlBuildingName(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && nlBuildingName.trim()) {
+                  createBuilding.mutate({ name: nlBuildingName, bps: nlResult.bps });
+                }
+              }}
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="mt-4 flex gap-2">
+            <button
+              onClick={() => createBuilding.mutate({ name: nlBuildingName, bps: nlResult.bps })}
+              disabled={!nlBuildingName.trim() || createBuilding.isPending}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {createBuilding.isPending ? "Creating..." : "Create Building"}
+            </button>
+            <button
+              onClick={() => { setNlResult(null); }}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+            >
+              Back to Input
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Template selection (existing) */}
+      {showTemplates && createMode === "templates" && !selectedTemplate && !nlResult && templates && (
         <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {templates.map((tmpl: BuildingTemplate) => {
             const bps = tmpl.default_bps as Record<string, Record<string, unknown>>;
@@ -346,7 +544,16 @@ export default function ProjectDetail() {
                   setSelectedTemplate(tmpl);
                   setNewBuildingName(existingCount > 0 ? `${tmpl.name} (${existingCount + 1})` : tmpl.name);
                 }}
-                className="rounded-lg border border-gray-200 bg-white p-4 text-left hover:border-blue-400 hover:shadow transition-all"
+                className={`rounded-xl bg-white border border-gray-100 p-5 text-left hover:shadow-xl hover:-translate-y-1 hover:border-transparent transition-all duration-200 group ${
+                  ({
+                    medium_office: "hover:bg-gradient-to-br hover:from-blue-50 hover:to-white",
+                    large_office: "hover:bg-gradient-to-br hover:from-indigo-50 hover:to-white",
+                    small_office: "hover:bg-gradient-to-br hover:from-sky-50 hover:to-white",
+                    primary_school: "hover:bg-gradient-to-br hover:from-green-50 hover:to-white",
+                    hospital: "hover:bg-gradient-to-br hover:from-red-50 hover:to-white",
+                    standalone_retail: "hover:bg-gradient-to-br hover:from-amber-50 hover:to-white",
+                  } as Record<string, string>)[tmpl.building_type] ?? "hover:bg-gradient-to-br hover:from-gray-50 hover:to-white"
+                }`}
               >
                 <h4 className="font-medium text-gray-900">
                   {tmpl.name}
@@ -444,52 +651,24 @@ export default function ProjectDetail() {
 
       {/* Clone building confirmation */}
       {cloningBuildingId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900">Clone Building</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Enter a name for the cloned building.
-            </p>
-            <input
-              type="text"
-              placeholder="Building name (leave empty for default)"
-              className="mt-3 w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  cloneBuilding.mutate(cloningBuildingId);
-                  setCloningBuildingId(null);
-                }
-                if (e.key === "Escape") setCloningBuildingId(null);
-              }}
-            />
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => setCloningBuildingId(null)}
-                className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  cloneBuilding.mutate(cloningBuildingId);
-                  setCloningBuildingId(null);
-                }}
-                disabled={cloneBuilding.isPending}
-                className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                {cloneBuilding.isPending ? "Cloning..." : "Clone"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title="Clone Building"
+          message="Create a copy of this building with all its settings."
+          confirmLabel="Clone"
+          pending={cloneBuilding.isPending}
+          onConfirm={() => {
+            cloneBuilding.mutate(cloningBuildingId);
+            setCloningBuildingId(null);
+          }}
+          onCancel={() => setCloningBuildingId(null)}
+        />
       )}
 
       {/* Building list */}
       {buildingsLoading ? (
         <ListSkeleton rows={2} />
       ) : filteredBuildings.length === 0 && debouncedBuildingSearch ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
+        <div className="rounded-xl bg-white shadow-sm p-8 text-center">
           <p className="text-sm text-gray-500">No buildings matching "{debouncedBuildingSearch}"</p>
           <button
             onClick={() => setBuildingSearch("")}
@@ -545,7 +724,21 @@ export default function ProjectDetail() {
             return (
               <div
                 key={b.id}
-                className="rounded-lg border border-gray-200 bg-white p-5 hover:shadow-md transition-shadow"
+                className={`rounded-xl bg-white border border-gray-100 shadow-sm p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 border-l-4 ${
+                  ({
+                    medium_office: "border-l-blue-500",
+                    large_office: "border-l-indigo-500",
+                    small_office: "border-l-sky-500",
+                    primary_school: "border-l-green-500",
+                    secondary_school: "border-l-emerald-500",
+                    hospital: "border-l-red-500",
+                    retail: "border-l-amber-500",
+                    standalone_retail: "border-l-amber-500",
+                    hotel: "border-l-purple-500",
+                    warehouse: "border-l-gray-400",
+                    apartment: "border-l-teal-500",
+                  } as Record<string, string>)[b.building_type] ?? "border-l-gray-300"
+                }`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
@@ -613,7 +806,7 @@ export default function ProjectDetail() {
                       disabled={startSim.isPending}
                       className="rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
                     >
-                      Simulate
+                      {startSim.isPending && startSim.variables === b.id ? "Starting..." : "Simulate"}
                     </button>
                     <button
                       onClick={() => setDeletingBuildingId(b.id)}

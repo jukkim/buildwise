@@ -6,9 +6,10 @@ Create Date: 2026-02-18
 
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 # revision identifiers
 revision = "001"
@@ -28,9 +29,17 @@ def upgrade() -> None:
         sa.Column("plan", sa.Enum("free", "pro", "enterprise", name="userplan"), nullable=False, server_default="free"),
         sa.Column("plan_expires_at", sa.DateTime(timezone=True)),
         sa.Column("simulation_count_monthly", sa.Integer, nullable=False, server_default="0"),
-        sa.Column("simulation_count_reset_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "simulation_count_reset_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            onupdate=sa.func.now(),
+            nullable=False,
+        ),
     )
     op.create_index("ix_users_email", "users", ["email"])
 
@@ -38,8 +47,19 @@ def upgrade() -> None:
     op.create_table(
         "subscriptions",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False),
-        sa.Column("plan", sa.Enum("free", "pro", "enterprise", name="userplan", create_type=False), nullable=False, server_default="free"),
+        sa.Column(
+            "user_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            unique=True,
+            nullable=False,
+        ),
+        sa.Column(
+            "plan",
+            sa.Enum("free", "pro", "enterprise", name="userplan", create_type=False),
+            nullable=False,
+            server_default="free",
+        ),
         sa.Column("stripe_customer_id", sa.String(255)),
         sa.Column("stripe_subscription_id", sa.String(255)),
         sa.Column("started_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
@@ -52,34 +72,81 @@ def upgrade() -> None:
     op.create_table(
         "projects",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "user_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("name", sa.String(200), nullable=False),
         sa.Column("description", sa.Text),
-        sa.Column("status", sa.Enum("active", "archived", "deleted", name="projectstatus"), nullable=False, server_default="active"),
+        sa.Column(
+            "status",
+            sa.Enum("active", "archived", "deleted", name="projectstatus"),
+            nullable=False,
+            server_default="active",
+        ),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            onupdate=sa.func.now(),
+            nullable=False,
+        ),
     )
 
     # Buildings
     op.create_table(
         "buildings",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("project_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "project_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("projects.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("name", sa.String(200), nullable=False),
-        sa.Column("building_type", sa.Enum("large_office", "medium_office", "small_office", "standalone_retail", "primary_school", "hospital", name="buildingtype"), nullable=False),
+        sa.Column(
+            "building_type",
+            sa.Enum(
+                "large_office",
+                "medium_office",
+                "small_office",
+                "standalone_retail",
+                "primary_school",
+                "hospital",
+                name="buildingtype",
+            ),
+            nullable=False,
+        ),
         sa.Column("bps_json", postgresql.JSONB, nullable=False),
         sa.Column("bps_version", sa.Integer, nullable=False, server_default="1"),
         sa.Column("model_3d_url", sa.Text),
         sa.Column("thumbnail_url", sa.Text),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), onupdate=sa.func.now(), nullable=False),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            onupdate=sa.func.now(),
+            nullable=False,
+        ),
     )
 
     # Simulation Configs
     op.create_table(
         "simulation_configs",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("building_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("buildings.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "building_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("buildings.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("climate_city", sa.String(50), nullable=False),
         sa.Column("epw_file", sa.String(100), nullable=False),
         sa.Column("period_type", sa.String(20), nullable=False, server_default="1year"),
@@ -97,7 +164,13 @@ def upgrade() -> None:
     op.create_table(
         "simulation_runs",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("config_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("simulation_configs.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "config_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("simulation_configs.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("strategy", _sim_strategy, nullable=False),
         sa.Column("status", _sim_status, nullable=False, server_default="pending"),
         sa.Column("idf_url", sa.Text),
@@ -121,7 +194,13 @@ def upgrade() -> None:
     op.create_table(
         "energy_results",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("run_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("simulation_runs.id", ondelete="CASCADE"), unique=True, nullable=False),
+        sa.Column(
+            "run_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("simulation_runs.id", ondelete="CASCADE"),
+            unique=True,
+            nullable=False,
+        ),
         sa.Column("total_energy_kwh", sa.Float, nullable=False),
         sa.Column("hvac_energy_kwh", sa.Float),
         sa.Column("cooling_energy_kwh", sa.Float),
@@ -144,7 +223,13 @@ def upgrade() -> None:
     op.create_table(
         "comfort_results",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("run_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("simulation_runs.id", ondelete="CASCADE"), unique=True, nullable=False),
+        sa.Column(
+            "run_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("simulation_runs.id", ondelete="CASCADE"),
+            unique=True,
+            nullable=False,
+        ),
         sa.Column("mean_pmv", sa.Float),
         sa.Column("pmv_std_dev", sa.Float),
         sa.Column("unmet_hours_heating", sa.Float),
@@ -157,7 +242,13 @@ def upgrade() -> None:
     op.create_table(
         "zone_results",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("run_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("simulation_runs.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "run_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("simulation_runs.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("zone_name", sa.String(100), nullable=False),
         sa.Column("avg_temp_c", sa.Float),
         sa.Column("max_temp_c", sa.Float),

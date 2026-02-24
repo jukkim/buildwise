@@ -17,18 +17,18 @@ from app.models.simulation import (
 )
 from app.services.bps.validator import get_applicable_strategies
 
-# City → EPW file mapping
+# City → EPW file mapping (matches files in energyplus/weather/)
 CITY_EPW_MAP: dict[str, str] = {
-    "Seoul": "KOR_Seoul.Ws.108.epw",
-    "Busan": "KOR_Busan.159.epw",
-    "Daegu": "KOR_Daegu.143.epw",
-    "Daejeon": "KOR_Daejeon.133.epw",
-    "Gwangju": "KOR_Gwangju.156.epw",
-    "Incheon": "KOR_Incheon.112.epw",
-    "Gangneung": "KOR_Gangneung.105.epw",
-    "Jeju": "KOR_Jeju.184.epw",
-    "Cheongju": "KOR_Cheongju.131.epw",
-    "Ulsan": "KOR_Ulsan.152.epw",
+    "Seoul": "KOR_Seoul.epw",
+    "Busan": "KOR_Busan.epw",
+    "Daegu": "KOR_Daegu.epw",
+    "Daejeon": "KOR_Daejeon.epw",
+    "Gwangju": "KOR_Gwangju.epw",
+    "Incheon": "KOR_Incheon.epw",
+    "Gangneung": "KOR_Gangneung.epw",
+    "Jeju": "KOR_Jeju.epw",
+    "Cheongju": "KOR_Cheongju.epw",
+    "Ulsan": "KOR_Ulsan.epw",
 }
 
 
@@ -46,10 +46,14 @@ async def create_simulation(
     bps_json = building.bps_json
     hvac_type = bps_json.get("hvac", {}).get("system_type", "")
 
+    applicable = get_applicable_strategies(building.building_type.value, hvac_type)
+    applicable_set = set(applicable)
+
     if requested_strategies:
-        strategies = requested_strategies
+        # Filter out strategies not applicable to this building/HVAC
+        strategies = [s for s in requested_strategies if s in applicable_set]
     else:
-        strategies = get_applicable_strategies(building.building_type.value, hvac_type)
+        strategies = applicable
 
     # Always include baseline
     if "baseline" not in strategies:
@@ -86,9 +90,7 @@ async def get_simulation_progress(
 ) -> SimulationConfig | None:
     """Load config with all runs."""
     result = await db.execute(
-        select(SimulationConfig)
-        .options(selectinload(SimulationConfig.runs))
-        .where(SimulationConfig.id == config_id)
+        select(SimulationConfig).options(selectinload(SimulationConfig.runs)).where(SimulationConfig.id == config_id)
     )
     return result.scalar_one_or_none()
 
@@ -107,6 +109,7 @@ async def cancel_simulation_runs(config: SimulationConfig) -> int:
             if run.runner_id:
                 try:
                     from app.worker import celery_app
+
                     celery_app.control.revoke(run.runner_id, terminate=True, signal="SIGTERM")
                 except Exception:
                     logger.warning("Failed to revoke Celery task %s", run.runner_id)

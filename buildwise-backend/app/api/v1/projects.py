@@ -8,6 +8,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
 from app.db import get_db
@@ -40,12 +41,17 @@ async def list_projects(
     total = (await db.execute(select(func.count()).select_from(base.subquery()))).scalar_one()
 
     rows = (
-        await db.execute(
-            base.order_by(Project.created_at.desc())
-            .offset((page - 1) * per_page)
-            .limit(per_page)
+        (
+            await db.execute(
+                base.options(selectinload(Project.buildings))
+                .order_by(Project.created_at.desc())
+                .offset((page - 1) * per_page)
+                .limit(per_page)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     # buildings_count 주입
     projects = []

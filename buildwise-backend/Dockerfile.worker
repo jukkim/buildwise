@@ -1,0 +1,32 @@
+## Multi-stage: copy EnergyPlus from NREL image into Python worker
+FROM nrel/energyplus:24.1.0 AS energyplus
+
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install system deps (libgomp1 + X11 libs needed by EnergyPlus)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc libpq-dev curl libgomp1 \
+    libx11-6 libxext6 libxrender1 libxtst6 libxi6 libxft2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy EnergyPlus from NREL image (actual path in nrel/energyplus:24.1.0)
+ENV EP_DIR=/usr/local/EnergyPlus-24-1-0
+COPY --from=energyplus /EnergyPlus-24.1.0-9d7789a3ac-Linux-Ubuntu20.04-x86_64 ${EP_DIR}
+RUN ln -s ${EP_DIR}/energyplus /usr/local/bin/energyplus
+
+# Install Python deps (layer cache)
+COPY pyproject.toml ./
+COPY app/__init__.py ./app/
+RUN pip install --no-cache-dir .
+
+# Copy app code
+COPY . .
+
+# Run as non-root user
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+RUN mkdir -p /tmp/energyplus && chown appuser:appgroup /tmp/energyplus
+USER appuser
+
+CMD ["celery", "-A", "app.worker:celery_app", "worker", "--loglevel=info", "-Q", "simulation", "--concurrency=2"]

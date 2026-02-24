@@ -44,6 +44,7 @@ async def run_energyplus(
     idf_content: str,
     epw_file: str,
     run_id: str,
+    auxiliary_files: dict[str, bytes] | None = None,
 ) -> dict:
     """Execute EnergyPlus with the given IDF and EPW.
 
@@ -51,6 +52,8 @@ async def run_energyplus(
         idf_content: Complete IDF file string.
         epw_file: EPW filename (e.g. "KOR_Seoul.Ws.108.epw").
         run_id: Unique run identifier (must be valid UUID).
+        auxiliary_files: Optional dict of {filename: bytes} for Schedule:File
+            CSV references. Written alongside the IDF in the working directory.
 
     Returns:
         dict with keys: output_dir, exit_code, stdout, stderr
@@ -76,6 +79,29 @@ async def run_energyplus(
     idf_path = base_dir / "in.idf"
     idf_path.write_text(idf_content, encoding="utf-8")
 
+    # Write auxiliary files (CSV schedules for Schedule:File references)
+    # Files may include subdirectory paths (e.g. "pmv_schedules/file.csv")
+    if auxiliary_files:
+        for fname, fbytes in auxiliary_files.items():
+            rel_path = Path(fname)
+            # Reject absolute paths and parent traversal
+            if rel_path.is_absolute() or ".." in rel_path.parts:
+                logger.warning("Skipping suspicious auxiliary filename: %s", fname)
+                continue
+            # Only allow safe characters in each component
+            safe_parts = []
+            for part in rel_path.parts:
+                clean = Path(part).name  # strip any hidden separators
+                if clean != part:
+                    logger.warning("Skipping auxiliary file with unsafe component: %s", fname)
+                    break
+                safe_parts.append(clean)
+            else:
+                aux_path = base_dir / Path(*safe_parts)
+                aux_path.parent.mkdir(parents=True, exist_ok=True)
+                aux_path.write_bytes(fbytes)
+                logger.debug("Wrote auxiliary file: %s (%d bytes)", fname, len(fbytes))
+
     # Locate EPW file
     epw_search_paths = [
         Path(os.environ.get("BUILDWISE_EPW_DIR", "")) / safe_epw,
@@ -95,11 +121,17 @@ async def run_energyplus(
     # Run EnergyPlus
     ep_exe = os.environ.get("ENERGYPLUS_EXE", "energyplus")
 
+    ep_dir = os.environ.get("EP_DIR", "/usr/local/EnergyPlus-24-1-0")
+    idd_path = os.path.join(ep_dir, "Energy+.idd")
+
     cmd = [
         ep_exe,
-        "--idd", "/usr/local/EnergyPlus-24-1-0/Energy+.idd",
-        "--weather", str(epw_path),
-        "--output-directory", str(base_dir),
+        "--idd",
+        idd_path,
+        "--weather",
+        str(epw_path),
+        "--output-directory",
+        str(base_dir),
         "--readvars",
         str(idf_path),
     ]
@@ -141,9 +173,7 @@ async def run_energyplus(
                 proc.returncode,
                 stderr_tail[:500],
             )
-            raise RuntimeError(
-                f"EnergyPlus exit code {proc.returncode}"
-            )
+            raise RuntimeError(f"EnergyPlus exit code {proc.returncode}")
 
         logger.info("EnergyPlus completed: %s", base_dir)
         return result

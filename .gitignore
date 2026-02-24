@@ -35,6 +35,9 @@ NUL
 # Docker
 docker-compose.override.yml
 
+# EnergyPlus weather data (large files, download separately)
+energyplus/weather/*.epw
+
 # EnergyPlus outputs
 *.csv
 *.eio
@@ -52,6 +55,12 @@ htmlcov/
 
 # Build
 *.log
+tsconfig.tsbuildinfo
+buildwise-frontend/tsconfig.tsbuildinfo
+
+# Screenshots (capture scripts output)
+buildwise-frontend/screenshots/
+buildwise-frontend/public/screenshots/
 
 # Secrets
 credentials.json
