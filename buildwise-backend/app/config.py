@@ -7,6 +7,13 @@ class Settings(BaseSettings):
     # Database — override via DATABASE_URL env var or .env file for production
     database_url: str = "postgresql+asyncpg://buildwise:buildwise_dev@localhost:5432/buildwise"
 
+    def model_post_init(self, __context: object) -> None:
+        # Railway injects postgresql:// but asyncpg needs postgresql+asyncpg://
+        if self.database_url.startswith("postgresql://"):
+            object.__setattr__(self, "database_url", self.database_url.replace("postgresql://", "postgresql+asyncpg://", 1))
+        elif self.database_url.startswith("postgres://"):
+            object.__setattr__(self, "database_url", self.database_url.replace("postgres://", "postgresql+asyncpg://", 1))
+
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 
