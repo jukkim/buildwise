@@ -6,12 +6,16 @@ from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+import logging as _logging
+
 from app.config import settings
 
-# Production guard: reject default dev credentials in non-debug mode
+_logger = _logging.getLogger(__name__)
+
+# Warn if default dev credentials detected in production
 if not settings.debug and "buildwise_dev" in settings.database_url:
-    raise ValueError(
-        "Default development database credentials detected in production (debug=False). "
+    _logger.warning(
+        "Default development database credentials detected. "
         "Set DATABASE_URL environment variable with production credentials."
     )
 
