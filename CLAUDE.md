@@ -14,12 +14,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Architecture
 
 ```
-Frontend: React 19 + TypeScript + React Three Fiber + Recharts
-Backend:  FastAPI + Celery + Redis
-Infra:    GCP (Cloud Run + GKE + Cloud SQL + GCS)
+Frontend: React 19 + TypeScript + Vite 6 + Tailwind 4 + React Three Fiber + Recharts
+Backend:  FastAPI + Celery + Redis + SQLAlchemy 2.0 (async) + Alembic
+DB:       TimescaleDB 2.17.2 (PostgreSQL 16)
+Auth:     Auth0 (JWT RS256) / 개발 시 X-User-Id 헤더
+Infra:    Railway (백엔드+워커) + Vercel (프론트) / 로컬 Docker Compose
 Engine:   EnergyPlus 24.1+ (Docker 컨테이너)
-AI:       Claude API (자연어), Gemini Pro Vision (사진)
+AI:       Claude API (자연어→BPS) + 규칙기반 NL 파서 fallback (API 키 없을 때)
 3D:       Three.js 주력(80%) + Blender headless 보조(5%)
+Billing:  Stripe (예정)
 ```
 
 ## 5단계 워크플로우 (SPEC v0.2 §3)
@@ -31,6 +34,41 @@ AI:       Claude API (자연어), Gemini Pro Vision (사진)
 ```
 
 **핵심**: 사용자가 운영시간, HVAC 설비, 설정온도, 외피 등을 조정하면 결과가 달라져야 함.
+
+## API Routes
+
+| Prefix | 파일 | 주요 기능 |
+|--------|------|----------|
+| `/api/v1/auth` | `api/v1/auth.py` | Auth0 설정, 로그인, /me |
+| `/api/v1/projects` | `api/v1/projects.py` | 프로젝트 CRUD |
+| `/api/v1/projects/{id}/buildings` | `api/v1/buildings.py` | 건물 CRUD, BPS 설정, IDF 업로드/다운로드 |
+| `/api/v1/buildings/templates` | `api/v1/templates.py` | DOE 건물 템플릿 (6종) |
+| `/api/v1/simulations` | `api/v1/simulations.py` | 시뮬 생성(202), 배치, 진행상황, 취소 |
+| `/api/v1/simulations/{id}/results` | `api/v1/results.py` | 전략 비교 + 시계열 결과 |
+| `/api/v1/billing` | `api/v1/billing.py` | 요금제, 사용량, 구독 |
+| `/api/v1/ai` | `api/v1/ai.py` | 자연어 → BPS 파싱 (Claude API / 규칙기반 fallback) |
+
+## Frontend Routes
+
+| Path | Page | 설명 |
+|------|------|------|
+| `/` | LandingPage | 랜딩 |
+| `/login` | Login | Auth0 로그인 |
+| `/projects` | Dashboard | 프로젝트 목록 |
+| `/projects/:id` | ProjectDetail | 프로젝트 상세 |
+| `/projects/:id/buildings/:id` | BuildingEditor | 건물 BPS 편집 + 3D 뷰어 |
+| `/simulations/:id/progress` | SimulationProgress | 시뮬 진행 상태 |
+| `/simulations/:id/results` | Results | 전략 비교 대시보드 |
+| `/compare` | CityComparison | 다도시 비교 |
+| `/compare/progress` | MultiCityProgress | 다도시 시뮬 진행 |
+| `/settings` | Settings | 사용자 설정 |
+
+## DB Schema (Alembic)
+
+3개 마이그레이션 (`buildwise-backend/alembic/versions/`):
+- `001_initial_schema` — users, projects, buildings, simulation_configs, simulation_runs, energy_results
+- `002_add_is_mock_to_energy_results`
+- `003_add_monthly_profile_json`
 
 ## Mock Runner 데이터 보정 (완료: 2026-02-20)
 
@@ -85,14 +123,28 @@ mock_runner가 BPS 사용자 설정에 따라 결과를 조정해야 함:
 
 | 파일 | 역할 |
 |---|---|
+| `buildwise-backend/app/main.py` | FastAPI 엔트리포인트, 라우터 등록, CORS, 보안 헤더 |
+| `buildwise-backend/app/config.py` | pydantic-settings 환경변수 (DB, Redis, Auth0, Stripe, AI) |
+| `buildwise-backend/app/db.py` | SQLAlchemy async 엔진 + 세션 |
+| `buildwise-backend/app/worker.py` | Celery 워커 설정 |
+| `buildwise-backend/app/services/ai/nl_parser.py` | 자연어→BPS 파싱 (Claude API + 규칙기반 fallback) |
+| `buildwise-backend/app/services/ai/prompts.py` | Claude 시스템 프롬프트 + tool 정의 |
 | `buildwise-backend/app/services/simulation/mock_runner.py` | EUI 룩업 테이블 + 결과 생성 |
-| `buildwise-backend/config/building_reference/__init__.py` | DOE 건물 레퍼런스 데이터 |
+| `buildwise-backend/app/services/simulation/service.py` | 시뮬 오케스트레이션 (전략 자동 결정, DB 저장) |
+| `buildwise-backend/app/services/simulation/runner.py` | EnergyPlus 실행 + mock 분기 |
+| `buildwise-backend/app/services/idf/ems_bridge.py` | ems_simulation IDF 생성기 위임 브릿지 |
+| `buildwise-backend/app/services/idf/generator.py` | IDF 생성 (ems_bridge 위임 + fallback) |
+| `buildwise-backend/app/services/bps/validator.py` | BPS 검증 + 건물별 적용 가능 전략 판별 |
 | `buildwise-backend/app/services/results/validator.py` | 결과 검증 (EUI 범위, 물리법칙) |
+| `buildwise-backend/config/building_reference/__init__.py` | DOE 건물 레퍼런스 데이터 |
 | `buildwise-backend/config/validation_rules.yaml` | 검증 규칙 정의 |
+| `buildwise-frontend/src/App.tsx` | React 라우터 + RequireAuth |
+| `buildwise-frontend/src/api/client.ts` | Axios API 클라이언트 |
+| `buildwise-frontend/src/pages/Results.tsx` | 전략 비교 대시보드 |
+| `buildwise-frontend/src/pages/BuildingEditor.tsx` | BPS 폼 + 3D 뷰어 |
+| `buildwise-frontend/src/features/pdf-report/` | PDF 보고서 생성 (jsPDF) |
 | `buildwise-backend/tests/verify_ems_calibration.py` | 430개 검증 (eplustbl 정확성) |
 | `buildwise-backend/tests/test_mock_runner.py` | 25개 pytest |
-| `buildwise-backend/tests/scan_all_buildings_eui.py` | eplustbl.csv 스캔 유틸리티 |
-| `buildwise-backend/tests/extract_eplustbl_data.py` | eplustbl 데이터 추출 (Python dict) |
 
 ## Related Projects
 
@@ -104,6 +156,13 @@ mock_runner가 BPS 사용자 설정에 따라 결과를 조정해야 함:
 ## Commands
 
 ```bash
+# 로컬 개발 (Docker)
+docker compose up -d          # DB + Redis + Backend + Worker
+docker compose up -d --build  # 이미지 재빌드 포함
+
+# 프론트엔드 (로컬 Vite 개발서버)
+cd buildwise-frontend && npm run dev   # http://localhost:5173
+
 # 테스트
 cd buildwise-backend
 DEBUG=true python -m pytest tests/test_mock_runner.py -v
@@ -112,4 +171,32 @@ DEBUG=true python -m tests.verify_ems_calibration
 # eplustbl 데이터 추출
 DEBUG=true python -m tests.extract_eplustbl_data
 DEBUG=true python -m tests.scan_all_buildings_eui
+
+# 프론트 테스트
+cd buildwise-frontend && npm test
+
+# 린트
+cd buildwise-backend && ruff check .
+cd buildwise-frontend && npm run lint
 ```
+
+## Deployment
+
+| 서비스 | 플랫폼 | 설정 파일 |
+|--------|--------|----------|
+| Backend + Celery Worker | Railway (Nixpacks) | `buildwise-backend/railway.json` |
+| Frontend SPA | Vercel | `buildwise-frontend/vercel.json` |
+| 로컬 전체 스택 | Docker Compose | `docker-compose.yml` |
+
+Railway 시작 커맨드: alembic migrate → seed → Celery worker(백그라운드) + uvicorn
+
+## Docs
+
+| 문서 | 용도 |
+|------|------|
+| `docs/blender-mcp-research.md` | Blender MCP + AI 3D 기술 조사 (2026-05-05) |
+| `docs/ems-strategy-mapping.md` | EMS 전략 매핑 |
+| `docs/idf-generation-design.md` | IDF 생성 설계 |
+| `docs/mvp-scope-adjustment.md` | MVP 범위 조정 |
+| `docs/strategy-naming-reconciliation.md` | 전략 명칭 통일 |
+| `docs/test-strategy.md` | 테스트 전략 |
