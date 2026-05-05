@@ -15,7 +15,7 @@ from typing import Any
 from app.config import settings
 
 from .building_gen import bps_to_blender_commands, bps_to_zone_info
-from .client import BlenderConnectionError, BlenderPool, BlenderTimeoutError
+from .client import BlenderConnectionError, BlenderError, BlenderPool, BlenderTimeoutError
 from .exporter import export_gltf_url, get_scene_info
 from .idf_converter import blender_to_idf
 
@@ -82,7 +82,7 @@ async def generate_3d_from_bps(
             source="blender",
         )
 
-    except (BlenderConnectionError, BlenderTimeoutError) as exc:
+    except (BlenderConnectionError, BlenderTimeoutError, BlenderError) as exc:
         logger.warning(
             "Blender unavailable (%s), falling back to parametric", exc
         )
