@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   buildingsApi,
+  blender3dApi,
   projectsApi,
   simulationsApi,
   type SimulationHistoryItem,
@@ -45,6 +46,9 @@ export default function BuildingEditor() {
   const [viewer3dFullscreen, setViewer3dFullscreen] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [modelUrl, setModelUrl] = useState<string | null>(null);
+  const [model3dSource, setModel3dSource] = useState<string | null>(null);
+  const [modifyInput, setModifyInput] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const simDialogRef = useRef<HTMLDivElement>(null);
 
@@ -120,6 +124,36 @@ export default function BuildingEditor() {
       navigate(`/compare/progress?configs=${ids}`);
     },
     onError: () => showToast("Failed to start batch simulation"),
+  });
+
+  const generate3dMutation = useMutation({
+    mutationFn: (opts: { source?: "bps" | "natural_language"; prompt?: string } = {}) =>
+      blender3dApi.generate(projectId!, buildingId!, opts),
+    onSuccess: (res) => {
+      setModelUrl(res.data.model_url);
+      setModel3dSource(res.data.source);
+      queryClient.invalidateQueries({ queryKey: ["building", buildingId] });
+      showToast(
+        res.data.source === "blender"
+          ? `3D model generated (${res.data.zone_count} zones)`
+          : "3D model (parametric fallback)",
+        "success",
+      );
+    },
+    onError: () => showToast("3D generation failed"),
+  });
+
+  const modify3dMutation = useMutation({
+    mutationFn: (instruction: string) =>
+      blender3dApi.modify(projectId!, buildingId!, instruction),
+    onSuccess: (res) => {
+      setModelUrl(res.data.model_url);
+      setModel3dSource(res.data.source);
+      setModifyInput("");
+      queryClient.invalidateQueries({ queryKey: ["building", buildingId] });
+      showToast("3D model updated", "success");
+    },
+    onError: () => showToast("3D modification failed"),
   });
 
   if (isLoading || !building) return (
@@ -653,9 +687,35 @@ export default function BuildingEditor() {
             : "rounded-xl bg-white shadow-sm overflow-hidden"
           }>
             <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
-              <h3 className="font-semibold text-gray-800">3D Preview</h3>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">Drag to rotate · Scroll to zoom</span>
+                <h3 className="font-semibold text-gray-800">3D Preview</h3>
+                {model3dSource && (
+                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+                    model3dSource === "blender"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-gray-100 text-gray-500"
+                  }`}>
+                    {model3dSource === "blender" ? "Blender" : "Parametric"}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => generate3dMutation.mutate({})}
+                  disabled={generate3dMutation.isPending}
+                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {generate3dMutation.isPending ? (
+                    <span className="flex items-center gap-1">
+                      <svg className="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Generating...
+                    </span>
+                  ) : "Generate 3D"}
+                </button>
+                <span className="text-xs text-gray-400">Drag to rotate</span>
                 <button
                   onClick={() => setViewer3dFullscreen((v) => !v)}
                   className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
@@ -686,8 +746,32 @@ export default function BuildingEditor() {
                 <BuildingViewer3D
                   geometry={bps.geometry as BuildingViewerProps["geometry"]}
                   buildingType={building.building_type}
+                  modelUrl={modelUrl ?? (typeof bps.model_url === "string" ? bps.model_url : undefined)}
                 />
               </Suspense>
+            </div>
+            {/* NL modify input */}
+            <div className="flex items-center gap-2 border-t border-gray-100 px-4 py-2">
+              <input
+                type="text"
+                value={modifyInput}
+                onChange={(e) => setModifyInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && modifyInput.trim()) {
+                    modify3dMutation.mutate(modifyInput.trim());
+                  }
+                }}
+                placeholder="Modify with natural language (e.g. 'change WWR to 60%')"
+                className="flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm placeholder-gray-400 focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200"
+                disabled={modify3dMutation.isPending}
+              />
+              <button
+                onClick={() => modifyInput.trim() && modify3dMutation.mutate(modifyInput.trim())}
+                disabled={!modifyInput.trim() || modify3dMutation.isPending}
+                className="rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-100 disabled:opacity-50"
+              >
+                {modify3dMutation.isPending ? "..." : "Apply"}
+              </button>
             </div>
           </div>
         </div>

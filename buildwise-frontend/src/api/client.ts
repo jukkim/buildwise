@@ -302,6 +302,34 @@ export const aiApi = {
     api.post<NLParseResponse>("/ai/parse-building", { text }, { timeout: 60_000 }),
 };
 
+// ---- 3D Generation types ----
+
+export interface Generate3DResponse {
+  model_url: string;
+  zone_count: number;
+  idf_ready: boolean;
+  source: "blender" | "fallback";
+}
+
+export const blender3dApi = {
+  generate: (
+    projectId: string,
+    buildingId: string,
+    opts: { source?: "bps" | "natural_language"; prompt?: string; city?: string } = {},
+  ) =>
+    api.post<Generate3DResponse>(
+      `/projects/${projectId}/buildings/${buildingId}/generate-3d`,
+      { source: opts.source ?? "bps", prompt: opts.prompt, city: opts.city ?? "Seoul" },
+      { timeout: 60_000 },
+    ),
+  modify: (projectId: string, buildingId: string, instruction: string) =>
+    api.patch<Generate3DResponse>(
+      `/projects/${projectId}/buildings/${buildingId}/modify-3d`,
+      { instruction },
+      { timeout: 60_000 },
+    ),
+};
+
 export const simulationsApi = {
   start: (buildingId: string, climateCity = "Seoul", periodType = "1year") =>
     api.post<SimulationProgress>("/simulations", {

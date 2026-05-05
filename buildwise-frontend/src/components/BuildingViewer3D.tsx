@@ -1,6 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Environment, Grid, Line } from "@react-three/drei";
+import { OrbitControls, Environment, Grid, Line, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 
 export interface BuildingViewerProps {
@@ -13,6 +13,7 @@ export interface BuildingViewerProps {
     orientation_deg?: number;
   };
   buildingType?: string;
+  modelUrl?: string;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -138,9 +139,29 @@ function Building({ geometry, buildingType }: BuildingViewerProps) {
   );
 }
 
-export default function BuildingViewer3D({ geometry, buildingType }: BuildingViewerProps) {
+function GLTFModel({ url }: { url: string }) {
+  const { scene } = useGLTF(url);
+
+  const centered = useMemo(() => {
+    const clone = scene.clone();
+    const box = new THREE.Box3().setFromObject(clone);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const scale = maxDim > 0 ? 8 / maxDim : 1;
+
+    clone.position.sub(center);
+    clone.scale.setScalar(scale);
+    return clone;
+  }, [scene]);
+
+  return <primitive object={centered} />;
+}
+
+export default function BuildingViewer3D({ geometry, buildingType, modelUrl }: BuildingViewerProps) {
   const floors = geometry.num_floors_above ?? 3;
   const camDist = floors > 10 ? 18 : floors > 5 ? 14 : 12;
+  const hasGLTF = !!modelUrl;
 
   return (
     <div className="h-full w-full min-h-[300px] rounded-lg overflow-hidden bg-gradient-to-b from-sky-100 to-sky-50">
@@ -152,7 +173,13 @@ export default function BuildingViewer3D({ geometry, buildingType }: BuildingVie
         <directionalLight position={[10, 15, 10]} intensity={1} castShadow />
         <directionalLight position={[-5, 8, -5]} intensity={0.3} />
 
-        <Building geometry={geometry} buildingType={buildingType} />
+        {hasGLTF ? (
+          <Suspense fallback={<Building geometry={geometry} buildingType={buildingType} />}>
+            <GLTFModel url={modelUrl} />
+          </Suspense>
+        ) : (
+          <Building geometry={geometry} buildingType={buildingType} />
+        )}
 
         <Grid
           args={[30, 30]}
