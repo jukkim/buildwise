@@ -136,18 +136,8 @@ bm.free()
 # Assign concrete material
 obj.data.materials.append(concrete_mat)
 
-# ── Window planes (glass panels flush with walls) ────
-def add_window_strip(name, cx, cy, cz, sx, sy, rot_z=0):
-    bpy.ops.mesh.primitive_plane_add(size=1, location=(cx, cy, cz))
-    win = bpy.context.active_object
-    win.name = name
-    win.scale = (sx, sy, 1.0)
-    if rot_z != 0:
-        win.rotation_euler = (math.pi/2, 0, rot_z)
-    else:
-        win.rotation_euler = (math.pi/2, 0, 0)
-    win.data.materials.append(glass_mat)
-    return win
+# ── Windows (thin glass cubes protruding from walls) ──
+WIN_THICK = 0.03
 
 win_count = 0
 for i in range(FLOORS):
@@ -155,26 +145,17 @@ for i in range(FLOORS):
     win_w = LENGTH * 0.9
     win_w_side = WIDTH * 0.9
 
-    # North face (Y+)
-    add_window_strip(
-        f"Win_F{i+1}_N", 0, hy + 0.005, z,
-        win_w / 2, WIN_HEIGHT / 2, 0
-    )
-    # South face (Y-)
-    add_window_strip(
-        f"Win_F{i+1}_S", 0, -hy - 0.005, z,
-        win_w / 2, WIN_HEIGHT / 2, 0
-    )
-    # East face (X+)
-    add_window_strip(
-        f"Win_F{i+1}_E", hx + 0.005, 0, z,
-        win_w_side / 2, WIN_HEIGHT / 2, math.pi / 2
-    )
-    # West face (X-)
-    add_window_strip(
-        f"Win_F{i+1}_W", -hx - 0.005, 0, z,
-        win_w_side / 2, WIN_HEIGHT / 2, math.pi / 2
-    )
+    for name_suffix, cx, cy, sx, sy, sz in [
+        ("N", 0, hy + WIN_THICK, win_w / 2, WIN_THICK, WIN_HEIGHT / 2),
+        ("S", 0, -hy - WIN_THICK, win_w / 2, WIN_THICK, WIN_HEIGHT / 2),
+        ("E", hx + WIN_THICK, 0, WIN_THICK, win_w_side / 2, WIN_HEIGHT / 2),
+        ("W", -hx - WIN_THICK, 0, WIN_THICK, win_w_side / 2, WIN_HEIGHT / 2),
+    ]:
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(cx, cy, z))
+        win = bpy.context.active_object
+        win.name = f"Win_F{i+1}_{name_suffix}"
+        win.scale = (sx, sy, sz)
+        win.data.materials.append(glass_mat)
     win_count += 4
 
 # ── Roof slab ────────────────────────────────────────

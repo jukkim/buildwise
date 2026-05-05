@@ -217,22 +217,22 @@ def bps_to_bmesh_script(bps: dict) -> str:
         bm.free()
         obj.data.materials.append(wall_mat)
 
-        # ── Windows (glass planes flush with walls) ───
+        # ── Windows (thin glass cubes protruding from walls) ──
+        WIN_THICK = 0.03
         for i in range(FLOORS):
             z = i * FH + WIN_SILL + WIN_H / 2
             wl = LENGTH * 0.9
             ww = WIDTH * 0.9
-            for name_suffix, cx, cy, sx, sy, rz in [
-                ("N", 0, HY + 0.005, wl/2, WIN_H/2, 0),
-                ("S", 0, -HY - 0.005, wl/2, WIN_H/2, 0),
-                ("E", HX + 0.005, 0, ww/2, WIN_H/2, math.pi/2),
-                ("W", -HX - 0.005, 0, ww/2, WIN_H/2, math.pi/2),
+            for name_suffix, cx, cy, sx, sy, sz in [
+                ("N", 0, HY + WIN_THICK, wl/2, WIN_THICK, WIN_H/2),
+                ("S", 0, -HY - WIN_THICK, wl/2, WIN_THICK, WIN_H/2),
+                ("E", HX + WIN_THICK, 0, WIN_THICK, ww/2, WIN_H/2),
+                ("W", -HX - WIN_THICK, 0, WIN_THICK, ww/2, WIN_H/2),
             ]:
-                bpy.ops.mesh.primitive_plane_add(size=1, location=(cx, cy, z))
+                bpy.ops.mesh.primitive_cube_add(size=1, location=(cx, cy, z))
                 win = bpy.context.active_object
                 win.name = f"Win_F{{i+1}}_{{name_suffix}}"
-                win.scale = (sx, sy, 1.0)
-                win.rotation_euler = (math.pi/2, 0, rz)
+                win.scale = (sx, sy, sz)
                 win.data.materials.append(glass_mat)
 
         # ── Roof slab ─────────────────────────────────
