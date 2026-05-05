@@ -334,9 +334,10 @@ async def generate_3d_model(
     bps = dict(building.bps_json)
 
     if body.source == "natural_language" and body.prompt:
-        from app.services.ai.nl_parser import parse_building_description
+        from app.services.ai.nl_parser import parse_building_from_text
 
-        bps = await parse_building_description(body.prompt, base_bps=bps)
+        nl_result = await parse_building_from_text(body.prompt)
+        bps = {**bps, **nl_result.bps}
 
     from app.services.blender.service import generate_3d_from_bps
 
@@ -383,9 +384,9 @@ async def modify_3d_model(
         building_id=str(building_id),
     )
 
-    bps = dict(building.bps_json)
-    bps["model_url"] = result.model_url
-    building.bps_json = bps
+    updated_bps = dict(building.bps_json)
+    updated_bps["model_url"] = result.model_url
+    building.bps_json = updated_bps
     await db.flush()
 
     return {

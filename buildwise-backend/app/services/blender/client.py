@@ -2,7 +2,7 @@
 
 Manages connections to one or more headless Blender instances running the
 blender-mcp addon (TCP socket on port 9876).  Commands are JSON objects
-sent over the socket; responses are single-line JSON.
+sent over the socket; responses are JSON (no trailing newline guaranteed).
 """
 
 from __future__ import annotations
@@ -74,15 +74,13 @@ class BlenderPool:
         conn = await self._acquire()
         try:
             payload = json.dumps(command, ensure_ascii=False).encode() + b"\n"
-            assert conn.writer is not None and conn.reader is not None
+            if conn.writer is None or conn.reader is None:
+                raise BlenderConnectionError("Connection not established")
             conn.writer.write(payload)
             await conn.writer.drain()
 
-            raw = await asyncio.wait_for(conn.reader.readline(), timeout=self.timeout)
-            if not raw:
-                raise BlenderConnectionError("Blender closed the connection")
-
-            result = json.loads(raw.decode())
+            raw = await self._read_json_response(conn.reader)
+            result = json.loads(raw)
             if result.get("status") == "error":
                 raise BlenderError(result.get("message", "unknown error"))
             return result
@@ -104,6 +102,26 @@ class BlenderPool:
         self._connections.clear()
 
     # -- internal -----------------------------------------------------------
+
+    async def _read_json_response(self, reader: asyncio.StreamReader) -> str:
+        """Read until a complete JSON object is received.
+
+        The blender-mcp addon sends JSON without a trailing newline,
+        so we accumulate bytes and try to parse after each chunk.
+        """
+        buf = b""
+        while True:
+            chunk = await asyncio.wait_for(
+                reader.read(8192), timeout=self.timeout
+            )
+            if not chunk:
+                raise BlenderConnectionError("Blender closed the connection")
+            buf += chunk
+            try:
+                json.loads(buf.decode())
+                return buf.decode()
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
 
     async def _acquire(self) -> _Connection:
         async with self._lock:

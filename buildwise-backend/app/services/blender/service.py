@@ -10,18 +10,16 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
 
 from app.config import settings
 
-from .building_gen import bps_to_blender_commands, bps_to_zone_info
+from .building_gen import bps_to_blender_commands, bps_to_bmesh_script, bps_to_zone_info
 from .client import BlenderConnectionError, BlenderError, BlenderPool, BlenderTimeoutError
-from .exporter import export_gltf_url, get_scene_info
+from .exporter import export_gltf_url
 from .idf_converter import blender_to_idf
 
 logger = logging.getLogger(__name__)
 
-# Lazy singleton pool
 _pool: BlenderPool | None = None
 
 
@@ -31,9 +29,16 @@ def _get_pool() -> BlenderPool:
         hosts_str = getattr(settings, "blender_hosts", "localhost:9876")
         hosts = []
         for h in hosts_str.split(","):
-            parts = h.strip().split(":")
+            h = h.strip()
+            if not h:
+                continue
+            parts = h.split(":")
             host = parts[0]
-            port = int(parts[1]) if len(parts) > 1 else 9876
+            try:
+                port = int(parts[1]) if len(parts) > 1 else 9876
+            except ValueError:
+                logger.warning("Invalid port in blender_hosts: %s, using 9876", h)
+                port = 9876
             hosts.append((host, port))
         _pool = BlenderPool(hosts=hosts, timeout=60.0)
     return _pool
@@ -60,18 +65,11 @@ async def generate_3d_from_bps(
     pool = _get_pool()
 
     try:
-        # 1. Generate 3D in Blender
-        commands = bps_to_blender_commands(bps)
-        for cmd in commands:
-            await pool.execute(cmd)
+        script = bps_to_bmesh_script(bps)
+        await pool.execute({"type": "execute_code", "params": {"code": script}})
 
-        # 2. Export glTF
         model_url = await export_gltf_url(pool, building_id)
-
-        # 3. Extract zones
         zones = bps_to_zone_info(bps)
-
-        # 4. Generate IDF
         idf_content = await blender_to_idf(pool, bps, strategy, city)
 
         logger.info("Blender 3D generation succeeded for building %s", building_id)
@@ -96,14 +94,12 @@ async def modify_3d_from_instruction(
 ) -> GenerationResult:
     """Modify an existing 3D model using a natural language instruction.
 
-    Uses Claude API to translate the instruction into Blender commands,
-    then executes them via MCP.
+    Parses the instruction into BPS updates, then regenerates 3D.
     """
-    pool = _get_pool()
+    from app.services.ai.nl_parser import parse_building_from_text
 
-    from app.services.ai.nl_parser import parse_building_description
-
-    updated_bps = await parse_building_description(instruction, base_bps=bps)
+    result = await parse_building_from_text(instruction)
+    updated_bps = {**bps, **result.bps}
 
     return await generate_3d_from_bps(updated_bps, building_id)
 

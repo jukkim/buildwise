@@ -53,6 +53,7 @@ services:
       PYTHONPATH: /app
     volumes:
       - ./buildwise-backend:/app
+      - blender-export:/tmp/blender-export
     depends_on:
       db:
         condition: service_healthy
@@ -113,7 +114,7 @@ services:
     ports:
       - "9876"
     volumes:
-      - blender-export:/tmp/export
+      - blender-export:/tmp/blender-export
     healthcheck:
       test: ["CMD", "python3", "-c", "import socket; s=socket.socket(); s.connect(('localhost',9876)); s.close()"]
       interval: 10s
