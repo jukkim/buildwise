@@ -5,20 +5,19 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
+from app.api.v1.billing import _PLANS
 from app.db import get_db
 from app.models.project import Building, BuildingType, Project, ProjectStatus
 from app.models.simulation import SimulationConfig, SimulationStatus
 from app.models.user import User
-from pydantic import BaseModel
-
 from app.schemas.api import BuildingCreate, BuildingResponse, BuildingUpdate, SimulationHistoryItem
 from app.schemas.bps import BPS, BPSPatch
-from app.api.v1.billing import _PLANS
 from app.services.bps.validator import validate_bps
 
 router = APIRouter()

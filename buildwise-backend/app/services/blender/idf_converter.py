@@ -9,9 +9,7 @@ geometry extracted here.
 from __future__ import annotations
 
 import logging
-import math
 
-from .building_gen import bps_to_zone_info
 from .client import BlenderPool
 
 logger = logging.getLogger(__name__)

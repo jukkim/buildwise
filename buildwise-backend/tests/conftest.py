@@ -75,6 +75,12 @@ def mock_db():
 
     session.flush = AsyncMock(side_effect=_fake_flush)
     session.refresh = AsyncMock(side_effect=_fake_refresh)
+
+    exec_result = MagicMock()
+    exec_result.scalar.return_value = 0
+    exec_result.scalars.return_value = MagicMock(all=MagicMock(return_value=[]))
+    session.execute = AsyncMock(return_value=exec_result)
+
     return session
 
 

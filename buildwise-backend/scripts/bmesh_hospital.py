@@ -3,9 +3,11 @@
 Single mesh with extruded floors, window cutouts, PBR materials, lighting.
 Sent to Blender via execute_code over MCP TCP.
 """
-import bpy
-import bmesh
 import math
+
+import bmesh
+import bpy
+from mathutils import Vector
 
 # ── Clear scene ──────────────────────────────────────
 bpy.ops.object.select_all(action='SELECT')
@@ -228,7 +230,6 @@ bpy.ops.object.camera_add(
 cam = bpy.context.active_object
 cam.name = "BuildingCam"
 # Point at building center
-from mathutils import Vector
 direction = Vector((0, 0, total_h * 0.4)) - cam.location
 rot = direction.to_track_quat('-Z', 'Y')
 cam.rotation_euler = rot.to_euler()

@@ -2,19 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
-import json
-import math
 import pytest
 
 from app.services.blender.building_gen import bps_to_blender_commands, bps_to_zone_info
 from app.services.blender.client import (
     BlenderConnectionError,
-    BlenderError,
     BlenderPool,
-    BlenderTimeoutError,
 )
-
 
 # ── BPS fixtures ──────────────────────────────────────────────────────
 
@@ -63,7 +57,10 @@ class TestBPSToBlenderCommands:
 
     def test_floor_names_sequential(self):
         commands = bps_to_blender_commands(_LARGE_OFFICE_BPS)
-        floor_commands = [c for c in commands if c["type"] == "create_object" and c["params"]["name"].startswith("Floor_")]
+        floor_commands = [
+            c for c in commands
+            if c["type"] == "create_object" and c["params"]["name"].startswith("Floor_")
+        ]
         assert len(floor_commands) == 12
         for i, cmd in enumerate(floor_commands):
             assert cmd["params"]["name"] == f"Floor_{i + 1}"

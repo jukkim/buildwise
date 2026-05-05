@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -34,6 +33,7 @@ def mock_settings():
 def _reset_singleton():
     """Reset the singleton client between tests."""
     import app.services.ai.nl_parser as mod
+
     mod._client = None
     yield
     mod._client = None
@@ -41,10 +41,12 @@ def _reset_singleton():
 
 @pytest.fixture
 def mock_client(mock_settings):
-    """Patch AsyncAnthropic to return controlled responses."""
-    with patch("app.services.ai.nl_parser.anthropic.AsyncAnthropic") as cls:
-        client_instance = AsyncMock()
-        cls.return_value = client_instance
+    """Patch AsyncAnthropic via the lazy import inside _get_client."""
+    mock_anthropic = MagicMock()
+    client_instance = AsyncMock()
+    mock_anthropic.AsyncAnthropic.return_value = client_instance
+
+    with patch.dict("sys.modules", {"anthropic": mock_anthropic}):
         yield client_instance
 
 
@@ -80,7 +82,6 @@ async def test_parse_large_office_korean(mock_client):
     assert result.bps["geometry"]["total_floor_area_m2"] == 46320
     assert result.bps["envelope"]["wall_type"] == "curtain_wall"
     assert result.bps["geometry"]["wwr"] == 0.6
-    # HVAC must match building_type
     assert result.bps["hvac"]["system_type"] == "vav_chiller_boiler"
     assert "building_type" in result.extracted_params
     assert "city" in result.extracted_params
@@ -185,7 +186,9 @@ async def test_setpoint_override(mock_client):
         })
     )
 
-    result = await parse_building_from_text("office with 22C cooling and heating")
+    result = await parse_building_from_text(
+        "office with 22C cooling and heating"
+    )
 
     assert result.bps["setpoints"]["cooling_occupied"] == 22.0
     assert result.bps["setpoints"]["heating_occupied"] == 22.0
@@ -207,7 +210,9 @@ async def test_window_and_orientation(mock_client):
         })
     )
 
-    result = await parse_building_from_text("L-shaped south-facing office with triple glazing")
+    result = await parse_building_from_text(
+        "L-shaped south-facing office with triple glazing"
+    )
 
     assert result.bps["envelope"]["window_type"] == "triple_low_e"
     assert result.bps["geometry"]["orientation_deg"] == 180
@@ -237,7 +242,7 @@ async def test_default_params_tracking(mock_client):
     assert "total_area_m2" in result.default_params
     assert "wall_type" in result.default_params
     assert "operating_hours" in result.default_params
-    assert "building_type" not in result.default_params  # was extracted
+    assert "building_type" not in result.default_params
 
 
 # ---------------------------------------------------------------------------
@@ -263,32 +268,35 @@ async def test_bps_passes_pydantic_validation(mock_client):
 
     result = await parse_building_from_text("Seoul 10-story office")
 
-    # Should not raise
     validated = BPS.model_validate(result.bps)
     assert validated.geometry.building_type == "large_office"
     assert validated.location.city == "Seoul"
 
 
 # ---------------------------------------------------------------------------
-# Error handling
+# Fallback behavior
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_no_api_key_raises():
-    """Should raise ValueError when ANTHROPIC_API_KEY is not set."""
+async def test_no_api_key_uses_rule_based_fallback():
+    """Should use rule-based parser when ANTHROPIC_API_KEY is not set."""
     with patch("app.services.ai.nl_parser.settings") as mock:
         mock.anthropic_api_key = ""
-        with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
-            await parse_building_from_text("some building")
+        result = await parse_building_from_text("서울 10층 대형 오피스")
+
+    assert isinstance(result, NLParseResult)
+    assert result.building_type is not None
+    assert result.confidence < 1.0
 
 
 @pytest.mark.asyncio
-async def test_no_tool_use_in_response_raises(mock_client):
-    """Should raise ValueError when AI doesn't return tool_use block."""
+async def test_no_tool_use_falls_back_to_rule_based(mock_client):
+    """Should fall back to rule-based when AI doesn't return tool_use."""
     response = MagicMock()
-    response.content = []  # No tool_use blocks
+    response.content = []
     mock_client.messages.create = AsyncMock(return_value=response)
 
-    with pytest.raises(ValueError, match="structured building parameters"):
-        await parse_building_from_text("some building")
+    result = await parse_building_from_text("some building")
+    assert isinstance(result, NLParseResult)
+    assert result.building_type is not None

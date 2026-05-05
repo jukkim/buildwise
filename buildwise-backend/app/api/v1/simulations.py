@@ -136,7 +136,11 @@ async def start_simulation_batch(
     if user.simulation_count_monthly + needed > plan_limit:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Need {needed} simulation credits but only {plan_limit - user.simulation_count_monthly} remaining. Upgrade your plan.",
+            detail=(
+                f"Need {needed} simulation credits but only "
+                f"{plan_limit - user.simulation_count_monthly} remaining. "
+                "Upgrade your plan."
+            ),
         )
 
     # Verify building exists and belongs to user

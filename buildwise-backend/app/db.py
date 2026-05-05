@@ -1,12 +1,11 @@
 """Database session management."""
 
+import logging as _logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
-
-import logging as _logging
 
 from app.config import settings
 

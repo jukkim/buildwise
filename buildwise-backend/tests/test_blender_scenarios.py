@@ -17,14 +17,11 @@ Formulas reference (building_gen.py):
 
 from __future__ import annotations
 
-import math
-
 import pytest
 
 from app.services.blender.building_gen import bps_to_blender_commands, bps_to_zone_info
 from app.services.blender.idf_converter import _zones_to_idf_objects
 from app.services.blender.service import _fallback_parametric
-
 
 # ── Tolerance ────────────────────────────────────────────────────────────
 
@@ -36,7 +33,7 @@ _ABS_TOL = 0.01  # 0.01 m2 for area, 0.01 m for height/position
 # ══════════════════════════════════════════════════════════════════════════
 
 
-class TestGroupA_BuildingTypeDiversity:
+class TestGroupABuildingTypeDiversity:
     """A1-A4: Verify zone/command generation for each major building type."""
 
     # ── A1: Large office 12F (core+perimeter = 60 zones) ─────────────
@@ -273,7 +270,7 @@ class TestGroupA_BuildingTypeDiversity:
 # ══════════════════════════════════════════════════════════════════════════
 
 
-class TestGroupB_EdgeCases:
+class TestGroupBEdgeCases:
     """B5-B9: Edge cases that stress defaults and boundary conditions."""
 
     # ── B5: Minimum viable BPS (only building_type) ──────────────────
@@ -458,7 +455,7 @@ class TestGroupB_EdgeCases:
 # ══════════════════════════════════════════════════════════════════════════
 
 
-class TestGroupC_PhysicalConsistency:
+class TestGroupCPhysicalConsistency:
     """C10-C13: Invariants that must hold for any valid BPS."""
 
     # Shared BPS set for multi-type validation
@@ -584,7 +581,7 @@ class TestGroupC_PhysicalConsistency:
 # ══════════════════════════════════════════════════════════════════════════
 
 
-class TestGroupD_FallbackPath:
+class TestGroupDFallbackPath:
     """D14-D15: Fallback behavior when Blender is unreachable."""
 
     _D_BPS = {
@@ -637,7 +634,7 @@ class TestGroupD_FallbackPath:
 # ══════════════════════════════════════════════════════════════════════════
 
 
-class TestGroupE_IDFConverter:
+class TestGroupEIDFConverter:
     """E16-E19: _zones_to_idf_objects generates correct IDF Zone entries."""
 
     def test_e16_idf_zone_count_large_office(self):
@@ -712,7 +709,7 @@ class TestGroupE_IDFConverter:
 # ══════════════════════════════════════════════════════════════════════════
 
 
-class TestGroupF_SpecialZoneLogic:
+class TestGroupFSpecialZoneLogic:
     """F20-F24: Core+perimeter threshold and edge behavior."""
 
     def test_f20_large_office_below_threshold_gets_single_zone(self):
@@ -793,7 +790,7 @@ class TestGroupF_SpecialZoneLogic:
 # ══════════════════════════════════════════════════════════════════════════
 
 
-class TestGroupG_CommandStructure:
+class TestGroupGCommandStructure:
     """G25-G30: Command ordering and type-specific content."""
 
     _G_BPS = {

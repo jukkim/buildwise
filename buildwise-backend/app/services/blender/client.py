@@ -85,7 +85,7 @@ class BlenderPool:
                 raise BlenderError(result.get("message", "unknown error"))
             return result
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             await conn.close()
             raise BlenderTimeoutError(
                 f"Blender command timed out after {self.timeout}s"
@@ -136,7 +136,7 @@ class BlenderPool:
                 conn = _Connection(host=host, port=port)
                 try:
                     await asyncio.wait_for(conn.connect(), timeout=5.0)
-                except (OSError, asyncio.TimeoutError):
+                except (TimeoutError, OSError):
                     logger.debug("Blender at %s:%d unreachable", host, port)
                     continue
                 conn.busy = True

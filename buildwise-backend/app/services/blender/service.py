@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 from app.config import settings
 
-from .building_gen import bps_to_blender_commands, bps_to_bmesh_script, bps_to_zone_info
+from .building_gen import bps_to_bmesh_script, bps_to_zone_info
 from .client import BlenderConnectionError, BlenderError, BlenderPool, BlenderTimeoutError
 from .exporter import export_gltf_url
 from .idf_converter import blender_to_idf

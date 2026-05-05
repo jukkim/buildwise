@@ -14,7 +14,7 @@ async def test_list_plans(client):
 
     free = next(p for p in data if p["plan"] == "free")
     assert free["price_monthly_usd"] == 0.0
-    assert free["max_buildings"] == 3
+    assert free["max_buildings"] == 50
     assert free["has_pdf_export"] is False
 
     pro = next(p for p in data if p["plan"] == "pro")
@@ -29,7 +29,7 @@ async def test_get_usage(client):
     data = resp.json()
     assert data["plan"] == "free"
     assert data["simulations_used"] == 0
-    assert data["simulations_limit"] == 5
+    assert data["simulations_limit"] == 500
 
 
 @pytest.mark.asyncio

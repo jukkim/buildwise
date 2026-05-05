@@ -12,7 +12,6 @@ import pytest
 from app.services.blender.building_gen import bps_to_blender_commands, bps_to_zone_info
 from app.services.blender.idf_converter import _zones_to_idf_objects
 
-
 # ── Test BPS fixtures (all 6 DOE building types) ─────────────────────
 
 _BPS_FIXTURES: dict[str, dict] = {

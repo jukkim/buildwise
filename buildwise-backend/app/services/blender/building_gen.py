@@ -11,7 +11,6 @@ import math
 import textwrap
 from typing import Any
 
-
 _ASPECT_RATIOS: dict[str, float] = {
     "large_office": 1.5,
     "medium_office": 1.5,
@@ -310,7 +309,11 @@ def bps_to_bmesh_script(bps: dict) -> str:
         bpy.context.scene.render.resolution_y = 1080
 
         obj_count = len(bpy.data.objects)
-        print(f"{{'{p['building_type']}'}} generated: {{obj_count}} objects, {{FLOORS}} floors, {{LENGTH:.1f}}x{{WIDTH:.1f}}m")
+        print(
+            f"{{'{p['building_type']}'}} generated: "
+            f"{{obj_count}} objects, {{FLOORS}} floors, "
+            f"{{LENGTH:.1f}}x{{WIDTH:.1f}}m"
+        )
     """)
 
 

@@ -1,9 +1,9 @@
 """Send a Python script to Blender via MCP TCP (execute_code)."""
-import sys
 import json
-import socket
-import time
 import select
+import socket
+import sys
+import time
 
 
 def send_code(host, port, code, timeout=120):
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     host = sys.argv[2] if len(sys.argv) > 2 else "localhost"
     port = int(sys.argv[3]) if len(sys.argv) > 3 else 9876
 
-    with open(script_path, "r", encoding="utf-8") as f:
+    with open(script_path, encoding="utf-8") as f:
         code = f.read()
 
     print(f"Sending {script_path} to Blender at {host}:{port}...")

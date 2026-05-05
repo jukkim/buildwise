@@ -1,11 +1,12 @@
 """Test BMesh generation for all 6 DOE building types against live Blender."""
 import sys
+
 sys.path.insert(0, ".")
 
-import socket
 import json
-import time
 import select
+import socket
+import time
 
 from app.services.blender.building_gen import bps_to_bmesh_script
 
@@ -62,7 +63,10 @@ print(f'{obj_count}|{mat_count}|{len(wins)}|{main_name}|{dims_str}')
     return resp.get("result", {}).get("result", "").strip() if resp.get("status") == "success" else ""
 
 
-print(f"{'Type':<20} {'F':>2} {'Area':>7} {'Obj':>4} {'Mat':>4} {'Win':>4} {'Main':>20} {'Dims':>25} {'Time':>6} Status")
+print(
+    f"{'Type':<20} {'F':>2} {'Area':>7} {'Obj':>4} {'Mat':>4} {'Win':>4}"
+    f" {'Main':>20} {'Dims':>25} {'Time':>6} Status"
+)
 print("-" * 110)
 
 passed = 0
@@ -87,7 +91,10 @@ for b in BUILDINGS:
         if resp.get("status") == "error":
             status = f"FAIL: {resp.get('message', 'unknown')[:40]}"
             failed += 1
-            print(f"{b['building_type']:<20} {b['floors']:>2} {b['floor_area_m2']:>7.0f} {'':>4} {'':>4} {'':>4} {'':>20} {'':>25} {dt:>5.1f}s {status}")
+            print(
+                f"{b['building_type']:<20} {b['floors']:>2} {b['floor_area_m2']:>7.0f}"
+                f" {'':>4} {'':>4} {'':>4} {'':>20} {'':>25} {dt:>5.1f}s {status}"
+            )
         else:
             stats = get_scene_stats()
             parts = stats.split("|") if stats else []
@@ -99,11 +106,18 @@ for b in BUILDINGS:
                 objs = mats = wins = name = dims = "?"
                 status = "WARN"
                 failed += 1
-            print(f"{b['building_type']:<20} {b['floors']:>2} {b['floor_area_m2']:>7.0f} {objs:>4} {mats:>4} {wins:>4} {name:>20} {dims:>25} {dt:>5.1f}s {status}")
+            print(
+                f"{b['building_type']:<20} {b['floors']:>2} {b['floor_area_m2']:>7.0f}"
+                f" {objs:>4} {mats:>4} {wins:>4} {name:>20} {dims:>25}"
+                f" {dt:>5.1f}s {status}"
+            )
 
     except Exception as e:
         failed += 1
-        print(f"{b['building_type']:<20} {b['floors']:>2} {b['floor_area_m2']:>7.0f} {'':>4} {'':>4} {'':>4} {'':>20} {'':>25} {'':>6} FAIL: {e}")
+        print(
+            f"{b['building_type']:<20} {b['floors']:>2} {b['floor_area_m2']:>7.0f}"
+            f" {'':>4} {'':>4} {'':>4} {'':>20} {'':>25} {'':>6} FAIL: {e}"
+        )
 
 print("-" * 110)
 print(f"Total: {passed} PASS, {failed} FAIL out of {len(BUILDINGS)}")

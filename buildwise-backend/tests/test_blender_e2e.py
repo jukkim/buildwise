@@ -7,20 +7,18 @@ verify orchestration and fallback behaviour.
 
 from __future__ import annotations
 
-import asyncio
-import math
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.services.blender.building_gen import bps_to_blender_commands, bps_to_zone_info
+from app.services.blender.client import BlenderConnectionError, BlenderError, BlenderTimeoutError
 from app.services.blender.idf_converter import _zones_to_idf_objects
 from app.services.blender.service import (
     GenerationResult,
-    generate_3d_from_bps,
     _fallback_parametric,
+    generate_3d_from_bps,
 )
-from app.services.blender.client import BlenderConnectionError, BlenderError, BlenderTimeoutError
-
 
 # ── Full data pipeline (no mocks) ─────────────────────────────────────
 
@@ -100,7 +98,7 @@ class TestFullDataPipeline:
         """Zone origins must increase per floor."""
         bps = _FULL_PIPELINE_BPS["large_office"]
         zones = bps_to_zone_info(bps)
-        idf_text = _zones_to_idf_objects(zones)
+        _zones_to_idf_objects(zones)  # verify no crash
 
         z_values = []
         for zone in zones:
