@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     # AI (Claude API for NL → BPS parsing)
     anthropic_api_key: str = ""
 
+    # Blender MCP (headless 3D generation)
+    blender_hosts: str = "localhost:9876"  # comma-separated host:port
+
     # App
     debug: bool = False
     log_level: str = "INFO"

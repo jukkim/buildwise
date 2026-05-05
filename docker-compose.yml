@@ -44,6 +44,8 @@ services:
       CORS_ORIGINS: "http://localhost:5173,http://localhost:3000"
       # AI (Claude API for natural language building generation)
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # Blender MCP (3D building generation)
+      BLENDER_HOSTS: "blender:9876"
       # Auth0 (uncomment to enable JWT auth instead of dev X-User-Id)
       # AUTH0_DOMAIN: "your-tenant.auth0.com"
       # AUTH0_CLIENT_ID: "your-client-id"
@@ -103,6 +105,26 @@ services:
     profiles:
       - frontend
 
+  # Blender headless (MCP 3D 건물 생성) — `docker compose --profile blender up`
+  blender:
+    build:
+      context: ./blender-service
+      dockerfile: Dockerfile
+    ports:
+      - "9876"
+    volumes:
+      - blender-export:/tmp/export
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; s=socket.socket(); s.connect(('localhost',9876)); s.close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      replicas: 1
+    profiles:
+      - blender
+
   # EnergyPlus (시뮬레이션 엔진) — `docker compose --profile energyplus up`
   energyplus:
     build:
@@ -121,3 +143,4 @@ services:
 volumes:
   pgdata:
   ep-workdir:
+  blender-export:

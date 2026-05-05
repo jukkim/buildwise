@@ -14,6 +14,8 @@ from app.db import get_db
 from app.models.project import Building, BuildingType, Project, ProjectStatus
 from app.models.simulation import SimulationConfig, SimulationStatus
 from app.models.user import User
+from pydantic import BaseModel
+
 from app.schemas.api import BuildingCreate, BuildingResponse, BuildingUpdate, SimulationHistoryItem
 from app.schemas.bps import BPS, BPSPatch
 from app.api.v1.billing import _PLANS
@@ -291,3 +293,104 @@ async def list_building_simulations(
         )
 
     return items
+
+
+# ── Blender MCP 3D generation ─────────────────────────────────────────
+
+
+class Generate3DRequest(BaseModel):
+    source: str = "bps"  # "bps" or "natural_language"
+    prompt: str | None = None
+    strategy: str = "baseline"
+    city: str = "Seoul"
+
+
+class Generate3DResponse(BaseModel):
+    model_url: str
+    zone_count: int
+    idf_ready: bool
+    source: str  # "blender" or "fallback"
+
+
+class Modify3DRequest(BaseModel):
+    instruction: str
+
+
+@router.post(
+    "/{project_id}/buildings/{building_id}/generate-3d",
+    response_model=Generate3DResponse,
+)
+async def generate_3d_model(
+    project_id: uuid.UUID,
+    building_id: uuid.UUID,
+    body: Generate3DRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """POST — BPS 또는 자연어로 3D 모델 생성."""
+    await _get_project_or_404(project_id, user, db)
+    building = await _get_building_or_404(building_id, project_id, db)
+
+    bps = dict(building.bps_json)
+
+    if body.source == "natural_language" and body.prompt:
+        from app.services.ai.nl_parser import parse_building_description
+
+        bps = await parse_building_description(body.prompt, base_bps=bps)
+
+    from app.services.blender.service import generate_3d_from_bps
+
+    result = await generate_3d_from_bps(
+        bps=bps,
+        building_id=str(building_id),
+        strategy=body.strategy,
+        city=body.city,
+    )
+
+    # Store model URL in building record
+    bps["model_url"] = result.model_url
+    building.bps_json = bps
+    await db.flush()
+
+    return {
+        "model_url": result.model_url,
+        "zone_count": len(result.zones),
+        "idf_ready": result.idf_content is not None,
+        "source": result.source,
+    }
+
+
+@router.patch(
+    "/{project_id}/buildings/{building_id}/modify-3d",
+    response_model=Generate3DResponse,
+)
+async def modify_3d_model(
+    project_id: uuid.UUID,
+    building_id: uuid.UUID,
+    body: Modify3DRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """PATCH — 자연어로 기존 3D 모델 수정."""
+    await _get_project_or_404(project_id, user, db)
+    building = await _get_building_or_404(building_id, project_id, db)
+
+    from app.services.blender.service import modify_3d_from_instruction
+
+    result = await modify_3d_from_instruction(
+        instruction=body.instruction,
+        bps=dict(building.bps_json),
+        building_id=str(building_id),
+    )
+
+    bps = dict(building.bps_json)
+    bps["model_url"] = result.model_url
+    building.bps_json = bps
+    await db.flush()
+
+    return {
+        "model_url": result.model_url,
+        "zone_count": len(result.zones),
+        "idf_ready": result.idf_content is not None,
+        "source": result.source,
+    }
