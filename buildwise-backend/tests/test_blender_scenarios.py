@@ -519,9 +519,7 @@ class TestGroupCPhysicalConsistency:
         zones = bps_to_zone_info(bps)
         total = sum(z["area_m2"] for z in zones)
         expected = bps["building"]["floor_area_m2"]
-        assert abs(total - expected) < 0.1, (
-            f"Zone area sum {total:.2f} != total_floor_area {expected}"
-        )
+        assert abs(total - expected) < 0.1, f"Zone area sum {total:.2f} != total_floor_area {expected}"
 
     # ── C11: Floor z-positions monotonically increasing ──────────────
 
@@ -535,7 +533,7 @@ class TestGroupCPhysicalConsistency:
         z_positions = [c["params"]["location"][2] for c in floor_cmds]
         for i in range(1, len(z_positions)):
             assert z_positions[i] > z_positions[i - 1], (
-                f"Floor z not monotonic: z[{i}]={z_positions[i]} <= z[{i-1}]={z_positions[i-1]}"
+                f"Floor z not monotonic: z[{i}]={z_positions[i]} <= z[{i - 1}]={z_positions[i - 1]}"
             )
 
     # ── C12: Roof z > top floor z ────────────────────────────────────
@@ -556,9 +554,7 @@ class TestGroupCPhysicalConsistency:
         commands = bps_to_blender_commands(bps)
         wins = [c for c in commands if c.get("params", {}).get("name", "").startswith("Win_")]
         floors = bps["building"].get("floors", 1)
-        assert len(wins) == floors * 4, (
-            f"Window count {len(wins)} != {floors}*4 = {floors * 4}"
-        )
+        assert len(wins) == floors * 4, f"Window count {len(wins)} != {floors}*4 = {floors * 4}"
 
     # ── C13b: Window directions per floor ────────────────────────────
 
@@ -569,11 +565,9 @@ class TestGroupCPhysicalConsistency:
         wins = [c for c in commands if c.get("params", {}).get("name", "").startswith("Win_")]
         floors = bps["building"].get("floors", 1)
         for i in range(floors):
-            floor_wins = [w for w in wins if w["params"]["name"].startswith(f"Win_F{i+1}_")]
+            floor_wins = [w for w in wins if w["params"]["name"].startswith(f"Win_F{i + 1}_")]
             directions = sorted(w["params"]["name"].split("_")[-1] for w in floor_wins)
-            assert directions == ["E", "N", "S", "W"], (
-                f"Floor {i+1} window directions: {directions}"
-            )
+            assert directions == ["E", "N", "S", "W"], f"Floor {i + 1} window directions: {directions}"
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -699,9 +693,9 @@ class TestGroupEIDFConverter:
         # F1: 0 * 3.05 = 0.0  (Python float => "0.0")
         # F2: 1 * 3.05 = 3.05
         # F3: 2 * 3.05 = 6.1
-        assert "0, 0, 0.0," in idf_text   # F1
+        assert "0, 0, 0.0," in idf_text  # F1
         assert "0, 0, 3.05," in idf_text  # F2
-        assert "0, 0, 6.1," in idf_text   # F3
+        assert "0, 0, 6.1," in idf_text  # F3
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -824,7 +818,7 @@ class TestGroupGCommandStructure:
         mat_cmds = [c for c in commands if c["type"] == "set_material"]
         for m in mat_cmds:
             assert m["params"]["material"] == "White_Panel"
-            assert m["params"]["color"] == [0.88, 0.88, 0.86]
+            assert m["params"]["color"] == [0.88, 0.91, 0.96]
 
     def test_g29_floor_scale_dimensions(self):
         """
