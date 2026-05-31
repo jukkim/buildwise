@@ -189,3 +189,62 @@ render.resolution_x = 3840  # 4K
 - [BMesh Operators](https://docs.blender.org/api/current/bmesh.ops.html)
 - [Coding Blender Materials](https://behreajj.medium.com/coding-blender-materials-with-nodes-python-66d950c0bc02)
 - [Gaudi Geometry (EscherMath)](https://eschermath.org/wiki/The_Geometry_of_Antoni_Gaudi.html)
+
+## Background-Mode 패턴 (2026-05-31 추가)
+
+Blender를 `--background` (headless, no UI) 로 띄운 MCP 서버에서 빌더 코드가 무음으로 실패하거나 빈 결과만 내는 경우의 원인·우회법. 매번 같은 트랩에 빠지므로 다음 세션이 즉시 참고할 수 있게 정리.
+
+### 1. `bpy.ops.*` 대신 `bmesh.ops` 사용
+
+`bpy.ops.mesh.primitive_*_add()` 류는 active 3D 뷰포트 컨텍스트를 가정한다. background 모드에서는 컨텍스트가 없어 일부 ops가 silent fail 하거나 객체가 어디에도 연결되지 않는다.
+
+**우회**: `bmesh.new()` → `bmesh.ops.create_*` → `bm.to_mesh(mesh)` → `bpy.data.objects.new()` → `scene.collection.objects.link(obj)` 의 명시 경로.
+
+| 안 됨 (background) | 됨 (background) |
+|--------------------|-----------------|
+| `bpy.ops.mesh.primitive_cube_add(size=2)` | `bmesh.ops.create_cube(bm, size=2.0)` |
+| `bpy.ops.mesh.primitive_cylinder_add(...)` | `bmesh.ops.create_cone(bm, segments=32, radius1=1, radius2=1, depth=2)` |
+| `bpy.ops.mesh.primitive_plane_add(size=2)` | `bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=1.0)` |
+
+구현 위치: `blender-service/blender_scripts/start_mcp_server.py` `_create_object()`.
+
+### 2. `bpy.ops.export_scene.gltf(...)` 대신 수동 GLB 작성
+
+GLTF/GLB exporter는 background 에서 호출하면 컨텍스트 부재로 실패한다. 우회: `mesh.vertices` + `mesh.calc_loop_triangles()` 를 직접 순회하여 GLB binary 구조 (header + JSON chunk + BIN chunk) 를 `struct.pack` 으로 직접 생성한다. OBJ도 동일 패턴.
+
+구현 위치: `start_mcp_server.py` `_export_glb_manual()`.
+
+### 3. Healthcheck Python 경로
+
+`nytimes/blender:latest` 같이 핀이 안 된 베이스 이미지는 Blender 번들 Python 경로가 갱신 시 바뀐다. healthcheck 명령에 절대 경로 (`/bin/3.3/python/bin/python3.10`) 하드코딩 시 베이스 업데이트만으로 healthcheck 가 깨진다. 가능하면 베이스 이미지 태그를 명시적으로 핀하고 (`nytimes/blender:4.2-cpu` 등) PATH 의 `python3` 를 사용한다.
+
+위치: `docker-compose.yml` `blender` 서비스 healthcheck.
+
+### 4. 대용량 스크립트는 file-based exec
+
+TCP 소켓 한 번에 50KB+ 코드를 보내면 버퍼 잘림이 생긴다 (기존 4.1.6 항목 재확인). `send_large_to_blender.py` 처럼 파일을 컨테이너에 복사한 뒤 `exec(open(path).read())` 를 작은 명령으로 보낸다.
+
+### 5. addon 사전설치 의존 제거
+
+이전엔 베이스 이미지에 `blender_mcp_addon.py` 를 복사해 활성화했으나, MCP 서버 자체를 `blender --python start_mcp_server.py --background -- ...` 로 직접 띄우면 addon 의존이 사라진다. 베이스 이미지 버전 변경에 강해진다.
+
+### 6. 위 1·2·5 검증법
+
+```bash
+# 컨테이너 안에서
+blender --background --python start_mcp_server.py -- --port 9876 &
+sleep 3
+python3 -c "
+import socket, json
+s = socket.socket()
+s.connect(('localhost', 9876))
+s.sendall(json.dumps({'type':'create_object','params':{'type':'cube','name':'T'}}).encode() + b'\\n')
+print(s.recv(4096))
+"
+# 'status':'ok' + name 반환되면 1번 통과
+# 이어서 export 명령으로 GLB size_bytes > 0 확인하면 2번 통과
+```
+
+### 적용 이력
+
+- 2026-05-31 `feat(blender): MCP background-mode refactor` (167f5ad) — start_mcp_server.py 184 줄 변경에서 1·2·5 한꺼번에 적용.
