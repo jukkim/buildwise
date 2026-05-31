@@ -87,9 +87,7 @@ class BlenderPool:
 
         except TimeoutError:
             await conn.close()
-            raise BlenderTimeoutError(
-                f"Blender command timed out after {self.timeout}s"
-            )
+            raise BlenderTimeoutError(f"Blender command timed out after {self.timeout}s")
         except (ConnectionError, OSError) as exc:
             await conn.close()
             raise BlenderConnectionError(str(exc)) from exc
@@ -111,9 +109,7 @@ class BlenderPool:
         """
         buf = b""
         while True:
-            chunk = await asyncio.wait_for(
-                reader.read(8192), timeout=self.timeout
-            )
+            chunk = await asyncio.wait_for(reader.read(8192), timeout=self.timeout)
             if not chunk:
                 raise BlenderConnectionError("Blender closed the connection")
             buf += chunk
@@ -143,6 +139,4 @@ class BlenderPool:
                 self._connections.append(conn)
                 return conn
 
-        raise BlenderConnectionError(
-            f"No reachable Blender instances among {self.hosts}"
-        )
+        raise BlenderConnectionError(f"No reachable Blender instances among {self.hosts}")

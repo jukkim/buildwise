@@ -1,4 +1,5 @@
 """Test BMesh generation for all 6 DOE building types against live Blender."""
+
 import sys
 
 sys.path.insert(0, ".")
@@ -64,8 +65,7 @@ print(f'{obj_count}|{mat_count}|{len(wins)}|{main_name}|{dims_str}')
 
 
 print(
-    f"{'Type':<20} {'F':>2} {'Area':>7} {'Obj':>4} {'Mat':>4} {'Win':>4}"
-    f" {'Main':>20} {'Dims':>25} {'Time':>6} Status"
+    f"{'Type':<20} {'F':>2} {'Area':>7} {'Obj':>4} {'Mat':>4} {'Win':>4} {'Main':>20} {'Dims':>25} {'Time':>6} Status"
 )
 print("-" * 110)
 

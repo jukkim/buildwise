@@ -83,11 +83,7 @@ class TestFullDataPipeline:
         expected_floors = bps["building"]["floors"]
 
         commands = bps_to_blender_commands(bps)
-        floor_cmds = [
-            c for c in commands
-            if c["type"] == "create_object"
-            and c["params"]["name"].startswith("Floor_")
-        ]
+        floor_cmds = [c for c in commands if c["type"] == "create_object" and c["params"]["name"].startswith("Floor_")]
         assert len(floor_cmds) == expected_floors
 
         zones = bps_to_zone_info(bps)
@@ -132,13 +128,9 @@ class TestFallbackBehavior:
         bps = _FULL_PIPELINE_BPS["large_office"]
 
         mock_pool = MagicMock()
-        mock_pool.execute = AsyncMock(
-            side_effect=BlenderConnectionError("No Blender instances")
-        )
+        mock_pool.execute = AsyncMock(side_effect=BlenderConnectionError("No Blender instances"))
 
-        with patch(
-            "app.services.blender.service._get_pool", return_value=mock_pool
-        ):
+        with patch("app.services.blender.service._get_pool", return_value=mock_pool):
             result = await generate_3d_from_bps(bps, "test-building-id")
 
         assert result.source == "fallback"
@@ -151,13 +143,9 @@ class TestFallbackBehavior:
         bps = _FULL_PIPELINE_BPS["medium_office"]
 
         mock_pool = MagicMock()
-        mock_pool.execute = AsyncMock(
-            side_effect=BlenderTimeoutError("Command timed out after 60s")
-        )
+        mock_pool.execute = AsyncMock(side_effect=BlenderTimeoutError("Command timed out after 60s"))
 
-        with patch(
-            "app.services.blender.service._get_pool", return_value=mock_pool
-        ):
+        with patch("app.services.blender.service._get_pool", return_value=mock_pool):
             result = await generate_3d_from_bps(bps, "timeout-test")
 
         assert result.source == "fallback"
@@ -169,13 +157,9 @@ class TestFallbackBehavior:
         bps = _FULL_PIPELINE_BPS["hospital"]
 
         mock_pool = MagicMock()
-        mock_pool.execute = AsyncMock(
-            side_effect=BlenderError("Script execution failed")
-        )
+        mock_pool.execute = AsyncMock(side_effect=BlenderError("Script execution failed"))
 
-        with patch(
-            "app.services.blender.service._get_pool", return_value=mock_pool
-        ):
+        with patch("app.services.blender.service._get_pool", return_value=mock_pool):
             result = await generate_3d_from_bps(bps, "error-test")
 
         assert result.source == "fallback"
@@ -187,13 +171,9 @@ class TestFallbackBehavior:
         bps = _FULL_PIPELINE_BPS["hospital"]
 
         mock_pool = MagicMock()
-        mock_pool.execute = AsyncMock(
-            side_effect=BlenderConnectionError("unreachable")
-        )
+        mock_pool.execute = AsyncMock(side_effect=BlenderConnectionError("unreachable"))
 
-        with patch(
-            "app.services.blender.service._get_pool", return_value=mock_pool
-        ):
+        with patch("app.services.blender.service._get_pool", return_value=mock_pool):
             result = await generate_3d_from_bps(bps, "hospital-1")
 
         direct_zones = bps_to_zone_info(bps)
@@ -216,14 +196,9 @@ class TestPhysicalConsistency:
         wwr = bps["envelope"]["wwr"]
         commands = bps_to_blender_commands(bps)
 
-        floor_cmd = next(
-            c for c in commands
-            if c["type"] == "create_object" and c["params"]["name"] == "Floor_1"
-        )
+        floor_cmd = next(c for c in commands if c["type"] == "create_object" and c["params"]["name"] == "Floor_1")
         win_cmds_f1 = [
-            c for c in commands
-            if c["type"] == "create_object"
-            and c["params"]["name"].startswith("Win_F1_")
+            c for c in commands if c["type"] == "create_object" and c["params"]["name"].startswith("Win_F1_")
         ]
 
         floor_height = bps["building"]["floor_height_m"]
@@ -251,13 +226,9 @@ class TestPhysicalConsistency:
             fh = bps["building"]["floor_height_m"]
 
             floor_cmds = [
-                c for c in commands
-                if c["type"] == "create_object" and c["params"]["name"].startswith("Floor_")
+                c for c in commands if c["type"] == "create_object" and c["params"]["name"].startswith("Floor_")
             ]
-            roof_cmd = next(
-                c for c in commands
-                if c["type"] == "create_object" and c["params"]["name"] == "Roof"
-            )
+            roof_cmd = next(c for c in commands if c["type"] == "create_object" and c["params"]["name"] == "Roof")
 
             top_floor_z = floor_cmds[-1]["params"]["location"][2]
             expected_top = (floors - 1) * fh + fh / 2
@@ -272,10 +243,7 @@ class TestPhysicalConsistency:
         commands = bps_to_blender_commands(bps)
         zones = bps_to_zone_info(bps)
 
-        floor_cmds = [
-            c for c in commands
-            if c["type"] == "create_object" and c["params"]["name"].startswith("Floor_")
-        ]
+        floor_cmds = [c for c in commands if c["type"] == "create_object" and c["params"]["name"].startswith("Floor_")]
         cmd_volume = 0
         for fc in floor_cmds:
             sx, sy, sz = fc["params"]["scale"]
@@ -306,10 +274,7 @@ class TestEdgeCases:
         commands = bps_to_blender_commands(bps)
         zones = bps_to_zone_info(bps)
 
-        floor_cmds = [
-            c for c in commands
-            if c["type"] == "create_object" and c["params"]["name"].startswith("Floor_")
-        ]
+        floor_cmds = [c for c in commands if c["type"] == "create_object" and c["params"]["name"].startswith("Floor_")]
         assert len(floor_cmds) == 1
         assert len(zones) == 1
         assert zones[0]["type"] == "single"
@@ -353,8 +318,5 @@ class TestEdgeCases:
             },
         }
         commands = bps_to_blender_commands(bps)
-        win_cmds = [
-            c for c in commands
-            if c["type"] == "create_object" and c["params"]["name"].startswith("Win_")
-        ]
+        win_cmds = [c for c in commands if c["type"] == "create_object" and c["params"]["name"].startswith("Win_")]
         assert len(win_cmds) == 3 * 4  # 3 floors × 4 directions

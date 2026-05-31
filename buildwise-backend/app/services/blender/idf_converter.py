@@ -64,7 +64,9 @@ def _zones_to_idf_objects(zones: list[dict]) -> str:
         floor_idx = zone["floor"] - 1
         z_base = floor_idx * height
 
-        lines.append(f"\nZone,\n  {name},  !- Name\n  0,  !- Direction\n"
-                      f"  0, 0, {z_base},  !- Origin\n  ,  !- Type\n  1;  !- Multiplier\n")
+        lines.append(
+            f"\nZone,\n  {name},  !- Name\n  0,  !- Direction\n"
+            f"  0, 0, {z_base},  !- Origin\n  ,  !- Type\n  1;  !- Multiplier\n"
+        )
 
     return "\n".join(lines)

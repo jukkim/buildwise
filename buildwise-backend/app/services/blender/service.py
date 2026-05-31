@@ -81,9 +81,7 @@ async def generate_3d_from_bps(
         )
 
     except (BlenderConnectionError, BlenderTimeoutError, BlenderError) as exc:
-        logger.warning(
-            "Blender unavailable (%s), falling back to parametric", exc
-        )
+        logger.warning("Blender unavailable (%s), falling back to parametric", exc)
         return _fallback_parametric(bps, building_id)
 
 

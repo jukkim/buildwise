@@ -58,8 +58,7 @@ class TestBPSToBlenderCommands:
     def test_floor_names_sequential(self):
         commands = bps_to_blender_commands(_LARGE_OFFICE_BPS)
         floor_commands = [
-            c for c in commands
-            if c["type"] == "create_object" and c["params"]["name"].startswith("Floor_")
+            c for c in commands if c["type"] == "create_object" and c["params"]["name"].startswith("Floor_")
         ]
         assert len(floor_commands) == 12
         for i, cmd in enumerate(floor_commands):

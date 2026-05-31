@@ -1,0 +1,6 @@
+.vercel
+
+# Local Playwright screenshot helpers (developer-only)
+capture_results.py
+screenshots.py
+screenshots/

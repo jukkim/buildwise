@@ -1,4 +1,5 @@
 """Send a Python script to Blender via MCP TCP (execute_code)."""
+
 import json
 import select
 import socket

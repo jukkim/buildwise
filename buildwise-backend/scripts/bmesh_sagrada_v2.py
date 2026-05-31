@@ -12,11 +12,10 @@ This version uses proper parametric equations, not primitive boxes.
 
 import math
 import random
-from functools import lru_cache
 
 import bmesh
 import bpy
-from mathutils import Vector, Matrix, Euler
+from mathutils import Vector
 
 random.seed(42)
 

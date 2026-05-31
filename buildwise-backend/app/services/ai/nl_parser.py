@@ -27,6 +27,7 @@ def _get_client():
     global _client
     if _client is None:
         import anthropic
+
         _client = anthropic.AsyncAnthropic(
             api_key=settings.anthropic_api_key,
             timeout=30.0,
@@ -46,24 +47,37 @@ _HVAC_MAP: dict[str, str] = {
 
 # 도시 매핑 (한국어 → 영어)
 _CITY_KO: dict[str, str] = {
-    "서울": "Seoul", "seoul": "Seoul",
-    "부산": "Busan", "busan": "Busan",
-    "대구": "Daegu", "daegu": "Daegu",
-    "대전": "Daejeon", "daejeon": "Daejeon",
-    "광주": "Gwangju", "gwangju": "Gwangju",
-    "인천": "Incheon", "incheon": "Incheon",
-    "강릉": "Gangneung", "gangneung": "Gangneung",
-    "제주": "Jeju", "제주도": "Jeju", "jeju": "Jeju",
-    "청주": "Cheongju", "cheongju": "Cheongju",
-    "울산": "Ulsan", "ulsan": "Ulsan",
+    "서울": "Seoul",
+    "seoul": "Seoul",
+    "부산": "Busan",
+    "busan": "Busan",
+    "대구": "Daegu",
+    "daegu": "Daegu",
+    "대전": "Daejeon",
+    "daejeon": "Daejeon",
+    "광주": "Gwangju",
+    "gwangju": "Gwangju",
+    "인천": "Incheon",
+    "incheon": "Incheon",
+    "강릉": "Gangneung",
+    "gangneung": "Gangneung",
+    "제주": "Jeju",
+    "제주도": "Jeju",
+    "jeju": "Jeju",
+    "청주": "Cheongju",
+    "cheongju": "Cheongju",
+    "울산": "Ulsan",
+    "ulsan": "Ulsan",
 }
 
 # 건물 유형별 한국어/영어 키워드
 _BLDG_KEYWORDS: list[tuple[str, list[str]]] = [
-    ("hospital",          ["병원", "의원", "클리닉", "clinic", "hospital", "medical"]),
-    ("primary_school",    ["학교", "초등학교", "중학교", "고등학교", "school"]),
-    ("standalone_retail", ["소매", "매장", "쇼핑", "편의점", "마트", "상점", "리테일",
-                           "retail", "shop", "store", "mart", "supermarket"]),
+    ("hospital", ["병원", "의원", "클리닉", "clinic", "hospital", "medical"]),
+    ("primary_school", ["학교", "초등학교", "중학교", "고등학교", "school"]),
+    (
+        "standalone_retail",
+        ["소매", "매장", "쇼핑", "편의점", "마트", "상점", "리테일", "retail", "shop", "store", "mart", "supermarket"],
+    ),
 ]
 
 # 오피스 관련 키워드 (크기 판별 별도)
@@ -93,6 +107,7 @@ class NLParseResult(BaseModel):
 # ─────────────────────────────────────────────
 # 규칙 기반 파서 (API 키 없을 때 폴백)
 # ─────────────────────────────────────────────
+
 
 def _detect_city(text: str) -> str | None:
     """텍스트에서 도시 이름 추출."""
@@ -219,8 +234,7 @@ def _rule_based_parse(text: str) -> NLParseResult:
     """
     extracted: list[str] = []
     warnings: list[str] = [
-        "규칙 기반 파서 사용 (ANTHROPIC_API_KEY 미설정). "
-        "정확도가 낮을 수 있으며 일부 파라미터는 기본값이 적용됩니다."
+        "규칙 기반 파서 사용 (ANTHROPIC_API_KEY 미설정). 정확도가 낮을 수 있으며 일부 파라미터는 기본값이 적용됩니다."
     ]
 
     city = _detect_city(text)
@@ -249,8 +263,12 @@ def _rule_based_parse(text: str) -> NLParseResult:
         # 층수에서 면적 미입력 시 추정
         if area is None:
             per_floor = {
-                "large_office": 3860, "medium_office": 1660, "small_office": 500,
-                "standalone_retail": 2294, "primary_school": 6871, "hospital": 4484,
+                "large_office": 3860,
+                "medium_office": 1660,
+                "small_office": 500,
+                "standalone_retail": 2294,
+                "primary_school": 6871,
+                "hospital": 4484,
             }.get(building_type, 1000)
             area = floors * per_floor
 
@@ -278,10 +296,20 @@ def _rule_based_parse(text: str) -> NLParseResult:
         logger.warning("Rule-based BPS validation issue: %s", e)
 
     all_params = [
-        "city", "num_floors", "total_area_m2", "wall_type", "window_type",
-        "wwr", "footprint_shape", "orientation_deg", "cooling_setpoint",
-        "heating_setpoint", "operating_hours", "equipment_power_density",
-        "lighting_power_density", "people_density",
+        "city",
+        "num_floors",
+        "total_area_m2",
+        "wall_type",
+        "window_type",
+        "wwr",
+        "footprint_shape",
+        "orientation_deg",
+        "cooling_setpoint",
+        "heating_setpoint",
+        "operating_hours",
+        "equipment_power_density",
+        "lighting_power_density",
+        "people_density",
     ]
     default_params = [p for p in all_params if p not in extracted]
 
@@ -304,6 +332,7 @@ def _rule_based_parse(text: str) -> NLParseResult:
 # ─────────────────────────────────────────────
 # 메인 파서 (Claude API → 규칙 기반 폴백)
 # ─────────────────────────────────────────────
+
 
 async def parse_building_from_text(text: str) -> NLParseResult:
     """자연어 → BPS JSON 변환.
@@ -416,10 +445,20 @@ async def parse_building_from_text(text: str) -> NLParseResult:
 
     # Determine which params used template defaults
     all_params = [
-        "city", "num_floors", "total_area_m2", "wall_type", "window_type",
-        "wwr", "footprint_shape", "orientation_deg", "cooling_setpoint",
-        "heating_setpoint", "operating_hours", "equipment_power_density",
-        "lighting_power_density", "people_density",
+        "city",
+        "num_floors",
+        "total_area_m2",
+        "wall_type",
+        "window_type",
+        "wwr",
+        "footprint_shape",
+        "orientation_deg",
+        "cooling_setpoint",
+        "heating_setpoint",
+        "operating_hours",
+        "equipment_power_density",
+        "lighting_power_density",
+        "people_density",
     ]
     default_params = [p for p in all_params if p not in extracted]
 

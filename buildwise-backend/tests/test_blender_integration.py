@@ -175,10 +175,7 @@ class TestBlenderCommandGeometry:
     def test_floor_heights_ascending(self):
         bps = _BPS_FIXTURES["large_office"]
         commands = bps_to_blender_commands(bps)
-        floors = [
-            c for c in commands
-            if c["type"] == "create_object" and c["params"]["name"].startswith("Floor_")
-        ]
+        floors = [c for c in commands if c["type"] == "create_object" and c["params"]["name"].startswith("Floor_")]
         z_positions = [f["params"]["location"][2] for f in floors]
         assert z_positions == sorted(z_positions)
         assert z_positions[0] > 0
@@ -187,8 +184,7 @@ class TestBlenderCommandGeometry:
         bps = _BPS_FIXTURES["medium_office"]
         commands = bps_to_blender_commands(bps)
         floor1_wins = [
-            c for c in commands
-            if c["type"] == "create_object" and c["params"]["name"].startswith("Win_F1_")
+            c for c in commands if c["type"] == "create_object" and c["params"]["name"].startswith("Win_F1_")
         ]
         directions = {c["params"]["name"].split("_")[-1] for c in floor1_wins}
         assert directions == {"N", "S", "E", "W"}
@@ -196,14 +192,8 @@ class TestBlenderCommandGeometry:
     def test_roof_above_top_floor(self):
         bps = _BPS_FIXTURES["hospital"]
         commands = bps_to_blender_commands(bps)
-        floors = [
-            c for c in commands
-            if c["type"] == "create_object" and c["params"]["name"].startswith("Floor_")
-        ]
-        roof = [
-            c for c in commands
-            if c["type"] == "create_object" and c["params"]["name"] == "Roof"
-        ]
+        floors = [c for c in commands if c["type"] == "create_object" and c["params"]["name"].startswith("Floor_")]
+        roof = [c for c in commands if c["type"] == "create_object" and c["params"]["name"] == "Roof"]
         top_floor_z = floors[-1]["params"]["location"][2]
         roof_z = roof[0]["params"]["location"][2]
         assert roof_z > top_floor_z

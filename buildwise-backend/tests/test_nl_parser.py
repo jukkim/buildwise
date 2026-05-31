@@ -59,16 +59,18 @@ def mock_client(mock_settings):
 async def test_parse_large_office_korean(mock_client):
     """한국어 입력: '서울 12층 유리 오피스' → large_office."""
     mock_client.messages.create = AsyncMock(
-        return_value=_make_mock_response({
-            "building_type": "large_office",
-            "name": "서울 유리 오피스",
-            "confidence": 0.85,
-            "city": "Seoul",
-            "num_floors": 12,
-            "total_area_m2": 46320,
-            "wall_type": "curtain_wall",
-            "wwr": 0.6,
-        })
+        return_value=_make_mock_response(
+            {
+                "building_type": "large_office",
+                "name": "서울 유리 오피스",
+                "confidence": 0.85,
+                "city": "Seoul",
+                "num_floors": 12,
+                "total_area_m2": 46320,
+                "wall_type": "curtain_wall",
+                "wwr": 0.6,
+            }
+        )
     )
 
     result = await parse_building_from_text("서울 12층 유리 오피스")
@@ -92,13 +94,15 @@ async def test_parse_large_office_korean(mock_client):
 async def test_parse_small_retail_jeju(mock_client):
     """영어 입력: 'small retail shop in Jeju' → standalone_retail."""
     mock_client.messages.create = AsyncMock(
-        return_value=_make_mock_response({
-            "building_type": "standalone_retail",
-            "name": "Jeju Retail Shop",
-            "confidence": 0.7,
-            "city": "Jeju",
-            "num_floors": 1,
-        })
+        return_value=_make_mock_response(
+            {
+                "building_type": "standalone_retail",
+                "name": "Jeju Retail Shop",
+                "confidence": 0.7,
+                "city": "Jeju",
+                "num_floors": 1,
+            }
+        )
     )
 
     result = await parse_building_from_text("small retail shop in Jeju")
@@ -113,14 +117,16 @@ async def test_parse_small_retail_jeju(mock_client):
 async def test_parse_hospital_busan(mock_client):
     """한국어 입력: '부산 5층 병원' → hospital."""
     mock_client.messages.create = AsyncMock(
-        return_value=_make_mock_response({
-            "building_type": "hospital",
-            "name": "부산 종합병원",
-            "confidence": 0.8,
-            "city": "Busan",
-            "num_floors": 5,
-            "total_area_m2": 22422,
-        })
+        return_value=_make_mock_response(
+            {
+                "building_type": "hospital",
+                "name": "부산 종합병원",
+                "confidence": 0.8,
+                "city": "Busan",
+                "num_floors": 5,
+                "total_area_m2": 22422,
+            }
+        )
     )
 
     result = await parse_building_from_text("부산 5층 병원")
@@ -136,11 +142,13 @@ async def test_parse_hospital_busan(mock_client):
 async def test_parse_medium_office_vrf(mock_client):
     """medium_office → VRF system."""
     mock_client.messages.create = AsyncMock(
-        return_value=_make_mock_response({
-            "building_type": "medium_office",
-            "name": "Medium Office",
-            "confidence": 0.6,
-        })
+        return_value=_make_mock_response(
+            {
+                "building_type": "medium_office",
+                "name": "Medium Office",
+                "confidence": 0.6,
+            }
+        )
     )
 
     result = await parse_building_from_text("3층짜리 중규모 사무실")
@@ -153,12 +161,14 @@ async def test_parse_medium_office_vrf(mock_client):
 async def test_parse_school(mock_client):
     """primary_school → vav_chiller_boiler_school."""
     mock_client.messages.create = AsyncMock(
-        return_value=_make_mock_response({
-            "building_type": "primary_school",
-            "name": "대전 초등학교",
-            "confidence": 0.75,
-            "city": "Daejeon",
-        })
+        return_value=_make_mock_response(
+            {
+                "building_type": "primary_school",
+                "name": "대전 초등학교",
+                "confidence": 0.75,
+                "city": "Daejeon",
+            }
+        )
     )
 
     result = await parse_building_from_text("대전 초등학교")
@@ -177,18 +187,18 @@ async def test_parse_school(mock_client):
 async def test_setpoint_override(mock_client):
     """Setpoint parameters should override template defaults."""
     mock_client.messages.create = AsyncMock(
-        return_value=_make_mock_response({
-            "building_type": "large_office",
-            "name": "Cool Office",
-            "confidence": 0.9,
-            "cooling_setpoint": 22.0,
-            "heating_setpoint": 22.0,
-        })
+        return_value=_make_mock_response(
+            {
+                "building_type": "large_office",
+                "name": "Cool Office",
+                "confidence": 0.9,
+                "cooling_setpoint": 22.0,
+                "heating_setpoint": 22.0,
+            }
+        )
     )
 
-    result = await parse_building_from_text(
-        "office with 22C cooling and heating"
-    )
+    result = await parse_building_from_text("office with 22C cooling and heating")
 
     assert result.bps["setpoints"]["cooling_occupied"] == 22.0
     assert result.bps["setpoints"]["heating_occupied"] == 22.0
@@ -200,19 +210,19 @@ async def test_setpoint_override(mock_client):
 async def test_window_and_orientation(mock_client):
     """Window type and orientation override."""
     mock_client.messages.create = AsyncMock(
-        return_value=_make_mock_response({
-            "building_type": "large_office",
-            "name": "South-facing Office",
-            "confidence": 0.8,
-            "window_type": "triple_low_e",
-            "orientation_deg": 180,
-            "footprint_shape": "L",
-        })
+        return_value=_make_mock_response(
+            {
+                "building_type": "large_office",
+                "name": "South-facing Office",
+                "confidence": 0.8,
+                "window_type": "triple_low_e",
+                "orientation_deg": 180,
+                "footprint_shape": "L",
+            }
+        )
     )
 
-    result = await parse_building_from_text(
-        "L-shaped south-facing office with triple glazing"
-    )
+    result = await parse_building_from_text("L-shaped south-facing office with triple glazing")
 
     assert result.bps["envelope"]["window_type"] == "triple_low_e"
     assert result.bps["geometry"]["orientation_deg"] == 180
@@ -228,11 +238,13 @@ async def test_window_and_orientation(mock_client):
 async def test_default_params_tracking(mock_client):
     """Params not extracted by AI should be listed in default_params."""
     mock_client.messages.create = AsyncMock(
-        return_value=_make_mock_response({
-            "building_type": "small_office",
-            "name": "Simple Office",
-            "confidence": 0.5,
-        })
+        return_value=_make_mock_response(
+            {
+                "building_type": "small_office",
+                "name": "Simple Office",
+                "confidence": 0.5,
+            }
+        )
     )
 
     result = await parse_building_from_text("simple office")
@@ -256,14 +268,16 @@ async def test_bps_passes_pydantic_validation(mock_client):
     from app.schemas.bps import BPS
 
     mock_client.messages.create = AsyncMock(
-        return_value=_make_mock_response({
-            "building_type": "large_office",
-            "name": "Valid Office",
-            "confidence": 0.9,
-            "city": "Seoul",
-            "num_floors": 10,
-            "total_area_m2": 38600,
-        })
+        return_value=_make_mock_response(
+            {
+                "building_type": "large_office",
+                "name": "Valid Office",
+                "confidence": 0.9,
+                "city": "Seoul",
+                "num_floors": 10,
+                "total_area_m2": 38600,
+            }
+        )
     )
 
     result = await parse_building_from_text("Seoul 10-story office")

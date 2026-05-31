@@ -17,7 +17,6 @@ import random
 
 import bmesh
 import bpy
-from mathutils import Vector, Matrix
 
 random.seed(2026)
 PI = math.pi

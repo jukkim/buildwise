@@ -121,8 +121,16 @@ class BuildingTemplateResponse(BaseModel):
 
 
 _CLIMATE_CITIES = Literal[
-    "Seoul", "Busan", "Daegu", "Daejeon", "Gwangju",
-    "Incheon", "Gangneung", "Jeju", "Cheongju", "Ulsan",
+    "Seoul",
+    "Busan",
+    "Daegu",
+    "Daejeon",
+    "Gwangju",
+    "Incheon",
+    "Gangneung",
+    "Jeju",
+    "Cheongju",
+    "Ulsan",
 ]
 
 

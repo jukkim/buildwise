@@ -1,12 +1,6 @@
-FROM nytimes/blender:4.2-cpu
+FROM nytimes/blender:latest
 
-# Install blender-mcp addon dependencies
-RUN pip install --no-cache-dir websockets
-
-# Copy MCP addon
-COPY addon.py /root/.config/blender/4.2/scripts/addons/blender_mcp_addon.py
-
-# Copy building generation scripts
+# Copy building generation scripts (MCP server runs via --python flag)
 COPY blender_scripts/ /opt/blender_scripts/
 
 EXPOSE 9876

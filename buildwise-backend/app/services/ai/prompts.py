@@ -73,8 +73,12 @@ EXTRACT_BUILDING_TOOL = {
             "building_type": {
                 "type": "string",
                 "enum": [
-                    "large_office", "medium_office", "small_office",
-                    "standalone_retail", "primary_school", "hospital",
+                    "large_office",
+                    "medium_office",
+                    "small_office",
+                    "standalone_retail",
+                    "primary_school",
+                    "hospital",
                 ],
                 "description": "Best matching building type from the 6 available types.",
             },
@@ -91,8 +95,16 @@ EXTRACT_BUILDING_TOOL = {
             "city": {
                 "type": ["string", "null"],
                 "enum": [
-                    "Seoul", "Busan", "Daegu", "Daejeon", "Gwangju",
-                    "Incheon", "Gangneung", "Jeju", "Cheongju", "Ulsan",
+                    "Seoul",
+                    "Busan",
+                    "Daegu",
+                    "Daejeon",
+                    "Gwangju",
+                    "Incheon",
+                    "Gangneung",
+                    "Jeju",
+                    "Cheongju",
+                    "Ulsan",
                     None,
                 ],
                 "description": "City if mentioned, null otherwise.",
@@ -106,8 +118,7 @@ EXTRACT_BUILDING_TOOL = {
             "total_area_m2": {
                 "type": ["number", "null"],
                 "description": (
-                    "Total floor area in m² if mentioned. "
-                    "If only floors are given, estimate based on building type."
+                    "Total floor area in m² if mentioned. If only floors are given, estimate based on building type."
                 ),
             },
             "wall_type": {

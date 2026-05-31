@@ -15,7 +15,7 @@ import random
 
 import bmesh
 import bpy
-from mathutils import Vector, Matrix
+from mathutils import Vector
 
 random.seed(2026)
 

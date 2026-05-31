@@ -95,9 +95,7 @@ async def start_simulation(
 
     # Atomic increment of monthly simulation counter (prevents race condition)
     await db.execute(
-        update(User)
-        .where(User.id == user.id)
-        .values(simulation_count_monthly=User.simulation_count_monthly + 1)
+        update(User).where(User.id == user.id).values(simulation_count_monthly=User.simulation_count_monthly + 1)
     )
 
     # Dispatch Celery task to run all strategies
@@ -175,9 +173,7 @@ async def start_simulation_batch(
 
     # Atomic increment counter for all N simulations
     await db.execute(
-        update(User)
-        .where(User.id == user.id)
-        .values(simulation_count_monthly=User.simulation_count_monthly + needed)
+        update(User).where(User.id == user.id).values(simulation_count_monthly=User.simulation_count_monthly + needed)
     )
 
     # Dispatch Celery tasks

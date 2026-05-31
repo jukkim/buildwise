@@ -112,11 +112,11 @@ services:
       context: ./blender-service
       dockerfile: Dockerfile
     ports:
-      - "9876"
+      - "9876:9876"
     volumes:
       - blender-export:/tmp/blender-export
     healthcheck:
-      test: ["CMD", "python3", "-c", "import socket; s=socket.socket(); s.connect(('localhost',9876)); s.close()"]
+      test: ["CMD", "/bin/3.3/python/bin/python3.10", "-c", "import socket; s=socket.socket(); s.connect(('localhost',9876)); s.close()"]
       interval: 10s
       timeout: 5s
       retries: 3
